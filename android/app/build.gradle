@@ -3,6 +3,47 @@ plugins {
     id 'com.google.firebase.crashlytics'
 }
 
+def devApiBaseUrl = System.getenv("TEXTBEE_DEV_API_BASE_URL") ?: ""
+def productionApiBaseUrl = "https://textbee.bobpappas.com/api/v1/"
+
+def validateApiBaseUrl = { String value, String source ->
+    if (!value) {
+        throw new GradleException("${source} is required and must end in /api/v1/")
+    }
+
+    java.net.URI uri
+    try {
+        uri = new java.net.URI(value)
+    } catch (Exception ignored) {
+        throw new GradleException("${source} must be a valid HTTP(S) URL ending in /api/v1/")
+    }
+
+    if (!(uri.scheme in ["http", "https"]) ||
+            !uri.host ||
+            uri.userInfo ||
+            uri.query ||
+            uri.fragment ||
+            !uri.path.endsWith("/api/v1/")) {
+        throw new GradleException("${source} must be an HTTP(S) URL ending in /api/v1/")
+    }
+}
+
+def quoteBuildConfigString = { String value ->
+    "\"${value.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+}
+
+def releaseStoreFile = System.getenv("TEXTBEE_RELEASE_STORE_FILE")
+def releaseStorePassword = System.getenv("TEXTBEE_RELEASE_STORE_PASSWORD")
+def releaseKeyAlias = System.getenv("TEXTBEE_RELEASE_KEY_ALIAS")
+def releaseKeyPassword = System.getenv("TEXTBEE_RELEASE_KEY_PASSWORD")
+def releaseSigningValues = [
+        releaseStoreFile,
+        releaseStorePassword,
+        releaseKeyAlias,
+        releaseKeyPassword
+]
+def releaseSigningConfigured = releaseSigningValues.every { it }
+
 android {
     compileSdk 32
 
@@ -21,11 +62,13 @@ android {
 //        }
     }
     signingConfigs {
-        debug {
-            storeFile file("${System.getenv("HOME")}/.android/debug.keystore")
-            storePassword "android"
-            keyAlias "androiddebugkey"
-            keyPassword "android"
+        if (releaseSigningConfigured) {
+            textbeeRelease {
+                storeFile file(releaseStoreFile)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
         }
     }
 
@@ -33,13 +76,11 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            // TODO: Change to release signing config
-            signingConfig signingConfigs.debug
+            signingConfig releaseSigningConfigured ? signingConfigs.textbeeRelease : null
         }
         debug {
             minifyEnabled false
             debuggable true
-            signingConfig signingConfigs.debug
         }
     }
 
@@ -48,25 +89,69 @@ android {
     productFlavors {
         dev {
             dimension "environment"
-            applicationId "com.vernu.sms.dev"
+            applicationId "com.bobpappas.textbee.dev"
             versionNameSuffix "-dev"
-            buildConfigField "String", "API_BASE_URL", '"https://api.dev.textbee.dev/api/v1/"'
+            buildConfigField "String", "API_BASE_URL", quoteBuildConfigString(devApiBaseUrl)
             buildConfigField "String", "ENVIRONMENT", '"development"'
-            resValue "string", "app_name", "textbee.dev (Dev)"
+            resValue "string", "app_name", "TextBee (Dev)"
         }
         
         prod {
             dimension "environment"
-            applicationId "com.vernu.sms"
-            buildConfigField "String", "API_BASE_URL", '"https://api.textbee.dev/api/v1/"'
+            applicationId "com.bobpappas.textbee"
+            buildConfigField "String", "API_BASE_URL", quoteBuildConfigString(productionApiBaseUrl)
             buildConfigField "String", "ENVIRONMENT", '"production"'
-            resValue "string", "app_name", "textbee.dev"
+            resValue "string", "app_name", "TextBee"
+        }
+    }
+
+    variantFilter { variant ->
+        if (variant.flavors*.name.contains("dev") && variant.buildType.name == "release") {
+            setIgnore(true)
         }
     }
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
+    }
+}
+
+def verifyDevApiBaseUrl = tasks.register("verifyDevApiBaseUrl") {
+    group = "verification"
+    description = "Validates the required self-hosted development API base URL."
+    doLast {
+        validateApiBaseUrl(devApiBaseUrl, "TEXTBEE_DEV_API_BASE_URL")
+    }
+}
+
+def verifyProductionReleaseSigning = tasks.register("verifyProductionReleaseSigning") {
+    group = "verification"
+    description = "Refuses production release builds without external release signing inputs."
+    doLast {
+        if (!releaseSigningConfigured) {
+            throw new GradleException(
+                    "Production release signing requires TEXTBEE_RELEASE_STORE_FILE, " +
+                            "TEXTBEE_RELEASE_STORE_PASSWORD, TEXTBEE_RELEASE_KEY_ALIAS, and " +
+                            "TEXTBEE_RELEASE_KEY_PASSWORD"
+            )
+        }
+        if (!file(releaseStoreFile).isFile()) {
+            throw new GradleException("TEXTBEE_RELEASE_STORE_FILE must name an existing keystore")
+        }
+    }
+}
+
+android.applicationVariants.all { variant ->
+    if (variant.flavorName == "dev") {
+        variant.preBuildProvider.configure {
+            dependsOn verifyDevApiBaseUrl
+        }
+    }
+    if (variant.name == "prodRelease") {
+        variant.preBuildProvider.configure {
+            dependsOn verifyProductionReleaseSigning
+        }
     }
 }
 

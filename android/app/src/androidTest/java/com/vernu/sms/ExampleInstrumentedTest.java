@@ -1,6 +1,7 @@
 package com.vernu.sms;
 
 import android.content.Context;
+import android.content.pm.ApplicationInfo;
 
 import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -19,8 +20,12 @@ import static org.junit.Assert.*;
 public class ExampleInstrumentedTest {
     @Test
     public void useAppContext() {
-        // Context of the app under test.
         Context appContext = InstrumentationRegistry.getInstrumentation().getTargetContext();
-        assertEquals("com.vernu.smsgateway", appContext.getPackageName());
+        assertEquals(BuildConfig.APPLICATION_ID, appContext.getPackageName());
+
+        boolean usesCleartextTraffic =
+                (appContext.getApplicationInfo().flags
+                        & ApplicationInfo.FLAG_USES_CLEARTEXT_TRAFFIC) != 0;
+        assertEquals("development".equals(BuildConfig.ENVIRONMENT), usesCleartextTraffic);
     }
 }

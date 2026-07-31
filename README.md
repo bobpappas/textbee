@@ -100,13 +100,13 @@ curl -X GET "https://api.textbee.dev/api/v1/gateway/devices/YOUR_DEVICE_ID/get-r
 
 ### Building the Android App
 
-1. Clone the repository and navigate to the Android project directory.
-2. Update the `google-services.json` file with your Firebase project configuration.
-3. Update every occurrence of `textbee.dev` with your own domain in the project.
-4. Build the app using Android Studio or the command line:
-   ```bash
-   ./gradlew assembleRelease
-   ```
+This fork has separate development and production flavors. Development builds
+require an explicit self-hosted API URL; production releases require external
+release-signing credentials and never fall back to debug signing.
+
+See [`android/README.md`](android/README.md) for the Firebase configuration
+paths, exact build commands, output APK path, signing contract, and installation
+instructions.
 
 ### Building the Web
 

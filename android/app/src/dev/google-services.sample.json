@@ -1,15 +1,15 @@
 {
   "project_info": {
     "project_number": "YOUR_DEV_PROJECT_NUMBER",
-    "project_id": "your-dev-project-id",
-    "storage_bucket": "your-dev-project-id.appspot.com"
+    "project_id": "textbee-dev-2852f",
+    "storage_bucket": "textbee-dev-2852f.appspot.com"
   },
   "client": [
     {
       "client_info": {
         "mobilesdk_app_id": "1:YOUR_DEV_PROJECT_NUMBER:android:YOUR_DEV_APP_ID",
         "android_client_info": {
-          "package_name": "com.vernu.sms.dev"
+          "package_name": "com.bobpappas.textbee.dev"
         }
       },
       "oauth_client": [
@@ -36,4 +36,4 @@
     }
   ],
   "configuration_version": "1"
-} 
+}
