@@ -5,6 +5,11 @@ plugins {
 
 def devApiBaseUrl = System.getenv("TEXTBEE_DEV_API_BASE_URL") ?: ""
 def productionApiBaseUrl = "https://textbee.bobpappas.com/api/v1/"
+def dashboardUrlForApiBaseUrl = { String value ->
+    value.endsWith("/api/v1/")
+            ? value.substring(0, value.length() - "/api/v1/".length()) + "/dashboard"
+            : ""
+}
 
 def validateApiBaseUrl = { String value, String source ->
     if (!value) {
@@ -92,6 +97,8 @@ android {
             applicationId "com.bobpappas.textbee.dev"
             versionNameSuffix "-dev"
             buildConfigField "String", "API_BASE_URL", quoteBuildConfigString(devApiBaseUrl)
+            buildConfigField "String", "DASHBOARD_URL",
+                    quoteBuildConfigString(dashboardUrlForApiBaseUrl(devApiBaseUrl))
             buildConfigField "String", "ENVIRONMENT", '"development"'
             resValue "string", "app_name", "TextBee (Dev)"
         }
@@ -100,6 +107,8 @@ android {
             dimension "environment"
             applicationId "com.bobpappas.textbee"
             buildConfigField "String", "API_BASE_URL", quoteBuildConfigString(productionApiBaseUrl)
+            buildConfigField "String", "DASHBOARD_URL",
+                    quoteBuildConfigString(dashboardUrlForApiBaseUrl(productionApiBaseUrl))
             buildConfigField "String", "ENVIRONMENT", '"production"'
             resValue "string", "app_name", "TextBee"
         }

@@ -56,7 +56,8 @@ public class MainActivity extends AppCompatActivity {
     private EditText apiKeyEditText, fcmTokenEditText, deviceIdEditText, deviceNameEditText, smsSendDelayEditText;
     private Button registerDeviceBtn, grantSMSPermissionBtn, scanQRBtn, checkUpdatesBtn, configureFilterBtn;
     private ImageButton copyDeviceIdImgBtn;
-    private TextView deviceBrandAndModelTxt, deviceIdTxt, appVersionNameTxt, appVersionCodeTxt;
+    private TextView deviceBrandAndModelTxt, deviceIdTxt, appVersionNameTxt, appVersionCodeTxt,
+            dashboardLinkText;
     private RadioGroup defaultSimSlotRadioGroup;
     private static final int SCAN_QR_REQUEST_CODE = 49374;
     private static final int PERMISSION_REQUEST_CODE = 0;
@@ -89,6 +90,7 @@ public class MainActivity extends AppCompatActivity {
         defaultSimSlotRadioGroup = findViewById(R.id.defaultSimSlotRadioGroup);
         appVersionNameTxt = findViewById(R.id.appVersionNameTxt);
         appVersionCodeTxt = findViewById(R.id.appVersionCodeTxt);
+        dashboardLinkText = findViewById(R.id.dashboardLinkText);
         checkUpdatesBtn = findViewById(R.id.checkUpdatesBtn);
         configureFilterBtn = findViewById(R.id.configureFilterBtn);
         smsSendDelayEditText = findViewById(R.id.smsSendDelayEditText);
@@ -101,6 +103,12 @@ public class MainActivity extends AppCompatActivity {
         String versionName = BuildConfig.VERSION_NAME;
         appVersionNameTxt.setText(versionName);
         appVersionCodeTxt.setText(String.valueOf(BuildConfig.VERSION_CODE));
+        dashboardLinkText.setText("Go to " + BuildConfig.DASHBOARD_URL);
+        dashboardLinkText.setOnClickListener(view -> {
+            Intent browserIntent =
+                    new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(BuildConfig.DASHBOARD_URL));
+            startActivity(browserIntent);
+        });
         
         // Check for app version changes and report if needed
         if (VersionTracker.hasVersionChanged(mContext)) {
@@ -246,17 +254,19 @@ public class MainActivity extends AppCompatActivity {
         });
         scanQRBtn.setOnClickListener(view -> {
             IntentIntegrator intentIntegrator = new IntentIntegrator(MainActivity.this);
-            intentIntegrator.setPrompt("Go to textbee.dev/dashboard and click Register Device to generate QR Code");
+            intentIntegrator.setPrompt(
+                    "Go to " + BuildConfig.DASHBOARD_URL +
+                            " and click Register Device to generate QR Code");
             intentIntegrator.setRequestCode(SCAN_QR_REQUEST_CODE);
             intentIntegrator.initiateScan();
         });
         
         checkUpdatesBtn.setOnClickListener(view -> {
-            String versionInfo = BuildConfig.VERSION_NAME + "(" + BuildConfig.VERSION_CODE + ")";
-            String encodedVersionInfo = android.net.Uri.encode(versionInfo);
-            String downloadUrl = "https://textbee.dev/download?currentVersion=" + encodedVersionInfo;
-            Intent browserIntent = new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(downloadUrl));
-            startActivity(browserIntent);
+            Snackbar.make(
+                    view,
+                    "Updates for this self-hosted build are provided by your administrator",
+                    Snackbar.LENGTH_LONG
+            ).show();
         });
 
         configureFilterBtn.setOnClickListener(view -> {

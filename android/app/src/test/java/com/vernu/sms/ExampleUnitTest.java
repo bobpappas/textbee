@@ -15,10 +15,15 @@ public class ExampleUnitTest {
     @Test
     public void buildConfigurationMatchesFlavorContract() throws Exception {
         URI apiBaseUrl = new URI(BuildConfig.API_BASE_URL);
+        URI dashboardUrl = new URI(BuildConfig.DASHBOARD_URL);
 
         assertTrue(apiBaseUrl.getScheme().equals("http") || apiBaseUrl.getScheme().equals("https"));
         assertNotNull(apiBaseUrl.getHost());
         assertTrue(apiBaseUrl.getPath().endsWith("/api/v1/"));
+        assertEquals(apiBaseUrl.getScheme(), dashboardUrl.getScheme());
+        assertEquals(apiBaseUrl.getHost(), dashboardUrl.getHost());
+        assertEquals(apiBaseUrl.getPort(), dashboardUrl.getPort());
+        assertEquals("/dashboard", dashboardUrl.getPath());
 
         if ("development".equals(BuildConfig.ENVIRONMENT)) {
             assertEquals("com.bobpappas.textbee.dev", BuildConfig.APPLICATION_ID);
@@ -28,6 +33,7 @@ public class ExampleUnitTest {
             assertEquals("production", BuildConfig.ENVIRONMENT);
             assertEquals("com.bobpappas.textbee", BuildConfig.APPLICATION_ID);
             assertEquals("https://textbee.bobpappas.com/api/v1/", BuildConfig.API_BASE_URL);
+            assertEquals("https://textbee.bobpappas.com/dashboard", BuildConfig.DASHBOARD_URL);
         }
     }
 }
