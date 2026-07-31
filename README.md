@@ -24,11 +24,13 @@ textbee.dev is an open-source SMS gateway that enables users to send and receive
 
 ## Getting Started
 
-1. Go to [textbee.dev](https://textbee.dev) and register or login with your account
-2. Install the app on your android phone from [textbee.dev/download](https://textbee.dev/download)
-3. Open the app and grant the permissions for SMS
-4. Go to [textbee.dev/dashboard](https://textbee.dev/dashboard) and click register device/ generate API Key
-5. Scan the QR code with the app or enter the API key manually
+1. Open your self-hosted TextBee deployment and sign in.
+2. Build and install this fork's compatible Android APK by following
+   [the Android build instructions](android/README.md). The upstream APK does
+   not connect to this self-hosted deployment.
+3. Open the app and grant the required SMS permissions.
+4. Return to the self-hosted dashboard and generate an API key.
+5. Scan the QR code with the app or enter the API key manually.
 6. You are ready to send SMS messages from the dashboard or from your application via the REST API
 
 **Code Snippet**: Few lines of code showing how to send an SMS message via the REST API
