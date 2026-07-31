@@ -160,7 +160,7 @@ const GenerateApiKey = forwardRef<GenerateApiKeyHandle, GenerateApiKeyProps>(
                     Don&apos;t have the app?
                   </h4>
                   <p className='text-muted-foreground'>
-                    Download the APK from{' '}
+                    Get the compatible APK instructions at{' '}
                     <a
                       href={Routes.downloadAndroidApp}
                       target='_blank'
@@ -169,7 +169,7 @@ const GenerateApiKey = forwardRef<GenerateApiKeyHandle, GenerateApiKeyProps>(
                     >
                       {Routes.downloadAndroidApp}
                     </a>{' '}
-                    and install it.
+                    before installing it.
                   </p>
                 </div>
 

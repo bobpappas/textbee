@@ -124,14 +124,14 @@ export default function UpdateAppModal() {
             <Download className='mt-0.5 h-4 w-4 text-brand-500' />
             <div className='space-y-1 text-sm text-muted-foreground'>
               <p className='font-medium text-foreground'>Recommended action</p>
-              <p>Download the latest Android app build and update your device.</p>
+              <p>Get the compatible Android app update from your administrator.</p>
             </div>
           </div>
         </div>
 
         <DialogFooter className='flex-col gap-2 sm:flex-col'>
           <Button asChild className='w-full'>
-            <Link href={Routes.downloadAndroidApp}>Update now</Link>
+            <Link href={Routes.downloadAndroidApp}>Get update instructions</Link>
           </Button>
           <div className='flex w-full items-center justify-between gap-2'>
             <Button

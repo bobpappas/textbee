@@ -244,7 +244,7 @@ export default function DeviceList() {
                             target='_blank'
                             rel='noreferrer'
                           >
-                            Update app
+                            Update instructions
                           </a>
                         </Button>
                       </div>
@@ -292,7 +292,7 @@ export default function DeviceList() {
           </DialogHeader>
           <ol className='list-decimal space-y-3 pl-5 text-left text-sm text-muted-foreground'>
             <li>
-              Download textbee app from{' '}
+              Get the compatible TextBee APK instructions at{' '}
               <a
                 href={Routes.downloadAndroidApp}
                 target='_blank'
@@ -301,7 +301,8 @@ export default function DeviceList() {
               >
                 {Routes.downloadAndroidApp}
               </a>
-              , install it, and grant SMS permissions.
+              , then install the administrator-provided APK and grant SMS
+              permissions.
             </li>
             <li>
               Tap Continue to create a new API key and get a QR

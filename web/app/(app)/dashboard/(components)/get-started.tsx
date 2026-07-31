@@ -70,8 +70,8 @@ const STEPS: StepDef[] = [
   },
   {
     id: 'download_app',
-    label: 'Download the Android app',
-    description: 'Install TextBee on your Android device.',
+    label: 'Get the Android app',
+    description: 'Get the compatible APK from your administrator.',
     optional: true,
     checkDone: (_u, stats, _s, skipped) =>
       (stats?.totalDeviceCount ?? 0) > 0 || skipped.includes('download_app'),
@@ -450,7 +450,7 @@ export default function GetStartedCard() {
                                 }
                               >
                                 <Download className='h-4 w-4' />
-                                Download APK
+                                Get compatible APK
                               </Button>
                               <Button
                                 variant='link'
@@ -613,7 +613,7 @@ export default function GetStartedCard() {
               Generate an API key in the step above (if you have not already).
             </li>
             <li>
-              Download the TextBee Android app from{' '}
+              Get the compatible TextBee Android APK instructions at{' '}
               <a
                 href={Routes.downloadAndroidApp}
                 target='_blank'

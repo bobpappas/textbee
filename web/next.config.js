@@ -16,7 +16,7 @@ const nextConfig = {
       },
       {
         source: '/android',
-        destination: 'https://dl.textbee.dev',
+        destination: '/download',
         permanent: false,
       },
     ]

@@ -54,7 +54,7 @@ export default function UpdateAppNotificationBar() {
         </div>
         <Button asChild size='sm' className='w-full md:w-auto shrink-0'>
           <Link href={Routes.downloadAndroidApp}>
-            Update app
+            Update instructions
             <ArrowUpRight className='ml-1 h-4 w-4' />
           </Link>
         </Button>

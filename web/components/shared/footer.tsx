@@ -37,7 +37,7 @@ export default function Footer() {
             className='text-sm font-medium hover:text-brand-500'
             href={Routes.downloadAndroidApp}
           >
-            Download App
+            Android App
           </Link>
           <Link
             className='text-sm font-medium hover:text-brand-500'
