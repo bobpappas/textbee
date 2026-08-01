@@ -32,11 +32,52 @@ export class CheckoutInputDTO {
   @ApiProperty({ type: String })
   discountId?: string
 
+  @ApiProperty({ enum: ['monthly', 'yearly'], required: false })
+  billingInterval?: 'monthly' | 'yearly'
+}
+
+export class PlanChangePreviewDTO {
+  @ApiProperty({ type: String })
+  currentPlan: string
+
+  @ApiProperty({ enum: ['monthly', 'yearly'] })
+  currentInterval: string
+
+  @ApiProperty({ type: String })
+  newPlan: string
+
+  @ApiProperty({ enum: ['monthly', 'yearly'] })
+  newInterval: string
+
   @ApiProperty({ type: Boolean })
-  isYearly?: boolean
+  isUpgrade: boolean
+
+  @ApiProperty({ type: Boolean })
+  cancelAtPeriodEnd: boolean
 }
 
 export class CheckoutResponseDTO {
+  @ApiProperty({ type: String, required: false })
+  redirectUrl?: string
+
+  // returned instead of redirectUrl when the user already has an active paid
+  // Polar subscription, so the frontend shows a confirmation screen
+  @ApiProperty({ type: PlanChangePreviewDTO, required: false })
+  planChange?: PlanChangePreviewDTO
+}
+
+export class ChangePlanInputDTO {
+  @ApiProperty({ type: String, required: true })
+  planName: string
+
+  @ApiProperty({ enum: ['monthly', 'yearly'], required: false })
+  billingInterval?: 'monthly' | 'yearly'
+}
+
+export class ChangePlanResponseDTO {
+  @ApiProperty({ type: Boolean })
+  success: boolean
+
   @ApiProperty({ type: String })
-  redirectUrl: string
+  plan: string
 }

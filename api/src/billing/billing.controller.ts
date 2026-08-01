@@ -3,16 +3,22 @@ import { BillingService } from './billing.service'
 import { AuthGuard } from 'src/auth/guards/auth.guard'
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger'
 import {
+  ChangePlanInputDTO,
+  ChangePlanResponseDTO,
   CheckoutInputDTO,
   CheckoutResponseDTO,
   PlansResponseDTO,
 } from './billing.dto'
+import { BillingNotificationsService } from './billing-notifications.service'
 
 @ApiTags('billing')
 @ApiBearerAuth()
 @Controller('billing')
 export class BillingController {
-  constructor(private billingService: BillingService) {}
+  constructor(
+    private billingService: BillingService,
+    private billingNotifications: BillingNotificationsService,
+  ) {}
 
   @Get('plans')
   async getPlans(): Promise<PlansResponseDTO> {
@@ -25,6 +31,12 @@ export class BillingController {
     return this.billingService.getCurrentSubscription(req.user)
   }
 
+  @Get('notifications')
+  @UseGuards(AuthGuard)
+  async listNotifications(@Request() req: any) {
+    return this.billingNotifications.listForUser(req.user._id)
+  }
+
   @Post('checkout')
   @UseGuards(AuthGuard)
   async getCheckoutUrl(
@@ -35,6 +47,18 @@ export class BillingController {
       user: req.user,
       payload,
       req,
+    })
+  }
+
+  @Post('change-plan')
+  @UseGuards(AuthGuard)
+  async changePlan(
+    @Body() payload: ChangePlanInputDTO,
+    @Request() req: any,
+  ): Promise<ChangePlanResponseDTO> {
+    return this.billingService.changePlan({
+      user: req.user,
+      payload,
     })
   }
 
@@ -56,9 +80,8 @@ export class BillingController {
         console.log('polar webhook event', payload.type)
         console.log(payload)
         await this.billingService.switchPlan({
-          userId: payload.data?.metadata?.userId as string,
-          // TODO: remove this after more plans are added
-          newPlanName: 'pro',
+          userId: (payload.data?.metadata?.userId ||
+            payload.data?.customer?.externalId) as string,
           newPlanPolarProductId: payload.data?.product?.id,
           currentPeriodStart: payload.data?.currentPeriodStart,
           currentPeriodEnd: payload.data?.currentPeriodEnd,
@@ -68,17 +91,40 @@ export class BillingController {
           amount: payload.data?.amount,
           currency: payload.data?.currency,
           recurringInterval: payload.data?.recurringInterval,
+          polarSubscriptionId: payload.data?.id,
+          polarCustomerId: payload.data?.customerId,
+          cancelAtPeriodEnd: payload.data?.cancelAtPeriodEnd,
         })
         break
 
       // @ts-ignore
       case 'subscription.cancelled':
-        console.log('polar subscription.cancelled')
+      // @ts-ignore
+      case 'subscription.canceled':
+        console.log('polar webhook event', payload.type)
         console.log(payload)
-        await this.billingService.switchPlan({
-          // @ts-ignore
-          userId: payload?.data?.userId,
-          newPlanName: 'free',
+        // Cancellation is SCHEDULED here — access continues until period end.
+        // Record the intent without downgrading; the actual downgrade happens
+        // on "subscription.revoked".
+        await this.billingService.cancelSubscription({
+          userId: (payload.data?.metadata?.userId ||
+            payload.data?.customer?.externalId) as string,
+          polarProductId: payload.data?.product?.id,
+          cancelAtPeriodEnd: payload.data?.cancelAtPeriodEnd,
+          currentPeriodEnd: payload.data?.currentPeriodEnd,
+          status: payload.data?.status,
+        })
+        break
+
+      // @ts-ignore
+      case 'subscription.revoked':
+        console.log('polar webhook event', payload.type)
+        console.log(payload)
+        // Access should actually end now — perform the real downgrade.
+        await this.billingService.revokeSubscription({
+          userId: (payload.data?.metadata?.userId ||
+            payload.data?.customer?.externalId) as string,
+          polarProductId: payload.data?.product?.id,
         })
         break
       default:

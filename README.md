@@ -1,25 +1,40 @@
+![GitHub stars](https://img.shields.io/github/stars/vernu/textbee)
+![License](https://img.shields.io/github/license/vernu/textbee)
+![Release](https://img.shields.io/github/v/release/vernu/textbee)
+[![Discord](https://img.shields.io/discord/1236287182940016723?label=Discord&logo=discord)](https://discord.gg/d7vyfBpWbQ)
+
 # textbee.dev - android sms gateway
 
-textbee.dev is an open-source SMS gateway that enables users to send and receive SMS messages via a web dashboard or a REST API. Perfect for businesses, developers, and hobbyists who need a reliable and cost-effective way to automate SMS messaging.
+Send and receive SMS messages using your own Android phone - no Twilio, no per-message fees. Free, open-source, and self-hostable.
 
-- **Technology stack**: React, Next.js, Node.js, NestJs, MongoDB, Android, Java
-- **Link**: [https://textbee.dev](https://textbee.dev/)
+Manage SMS messages through a web dashboard or a REST API. textbee is ideal for businesses, developers, and hobbyists looking for a reliable and cost-effective solution to automate SMS messaging.
+
+**Website:** [https://textbee.dev](https://textbee.dev?ref=gh-readme)
 
 ![](https://ik.imagekit.io/vernu/textbee/textbee.dev-landingpage-screenshot.png?updatedAt=1749102564772)
 
+
+
+## Why textbee?
+
+|  | textbee | Twilio & similar APIs |
+|---|---|---|
+| Cost per SMS | Your carrier plan (often free/unlimited) | ~$0.008+ per message |
+| Phone number | Your own SIM | Rented number |
+| Self-hostable | ✅ Full control over your data | ❌ |
+| Open source | ✅ | ❌ |
+| Setup time | ~2 minutes | Account approval, compliance forms |
 
 ## Features
 
 - Send & receive SMS messages via API & dashboard
 - Use your own Android phone as an SMS gateway
 - REST API for easy integration with apps & services
-- Send Bulk SMS with CSV file
+- Send bulk SMS with CSV file
 - Multi-device support for higher SMS throughput
 - Secure API authentication with API keys
-- Webhook support
+- Webhook support for incoming messages
 - Self-hosting support for full control over your data
-
-
 
 
 ## Getting Started
@@ -33,27 +48,45 @@ textbee.dev is an open-source SMS gateway that enables users to send and receive
 5. Scan the QR code with the app or enter the API key manually.
 6. You are ready to send SMS messages from the dashboard or from your application via the REST API
 
-**Code Snippet**: Few lines of code showing how to send an SMS message via the REST API
+
+
+### Sending an SMS
 
 ```javascript
 const API_KEY = 'YOUR_API_KEY';
 const DEVICE_ID = 'YOUR_DEVICE_ID';
 
-await axios.post(`https://api.textbee.dev/api/v1/gateway/devices/${DEVICE_ID}/send-sms`, {
+await axios.post(`https://textbee.bobpappas.com/api/v1/gateway/devices/${DEVICE_ID}/send-sms`, {
   recipients: [ '+251912345678' ],
   message: 'Hello World!',
 }, {
-  headers: {
-    'x-api-key': API_KEY,
-  },
+  headers: { 'x-api-key': API_KEY },
 });
-
 ```
 
-**Code Snippet**: Curl command to send an SMS message via the REST API
+<details>
+<summary><b>Python</b></summary>
+```python
+import requests
 
+API_KEY = 'YOUR_API_KEY'
+DEVICE_ID = 'YOUR_DEVICE_ID'
+
+requests.post(
+    f'https://textbee.bobpappas.com/api/v1/gateway/devices/{DEVICE_ID}/send-sms',
+    json={
+        'recipients': ['+251912345678'],
+        'message': 'Hello World!',
+    },
+    headers={'x-api-key': API_KEY},
+)
+```
+
+</details>
+<details>
+<summary><b>curl</b></summary>
 ```bash
-curl -X POST "https://api.textbee.dev/api/v1/gateway/devices/YOUR_DEVICE_ID/send-sms" \
+curl -X POST "https://textbee.bobpappas.com/api/v1/gateway/devices/YOUR_DEVICE_ID/send-sms" \
   -H 'x-api-key: YOUR_API_KEY' \
   -H 'Content-Type: application/json' \
   -d '{
@@ -62,37 +95,68 @@ curl -X POST "https://api.textbee.dev/api/v1/gateway/devices/YOUR_DEVICE_ID/send
   }'
 ```
 
-### Receiving SMS Messages
+</details>
+### Receiving SMS
 
-To receive SMS messages, you can enable the feature from the mobile app. You can then fetch the received SMS messages via the REST API or view them in the dashboard. (Webhook notifications are coming soon)
-
-**Code Snippet**: Few lines of code showing how to fetch received SMS messages via the REST API
+Enable SMS receiving in the mobile app, then access incoming messages via the REST API, the dashboard, or webhook notifications delivered to your preferred URL.
 
 ```javascript
 const API_KEY = 'YOUR_API_KEY';
 const DEVICE_ID = 'YOUR_DEVICE_ID';
 
-await axios.get(`https://api.textbee.dev/api/v1/gateway/devices/${DEVICE_ID}/get-received-sms`, {
-  headers: {
-    'x-api-key': API_KEY,
-  },
+await axios.get(`https://textbee.bobpappas.com/api/v1/gateway/devices/${DEVICE_ID}/get-received-sms`, {
+  headers: { 'x-api-key': API_KEY },
 });
-
 ```
 
-**Code Snippet**: Curl command to fetch received SMS messages
-
+<details>
+<summary><b>curl</b></summary>
 ```bash
-curl -X GET "https://api.textbee.dev/api/v1/gateway/devices/YOUR_DEVICE_ID/get-received-sms"\
+curl -X GET "https://textbee.bobpappas.com/api/v1/gateway/devices/YOUR_DEVICE_ID/get-received-sms" \
   -H "x-api-key: YOUR_API_KEY"
 ```
 
+</details>
+## Use Cases
+
+- OTP / 2FA delivery for your app
+- Order and appointment notifications
+- Alerts from servers, cron jobs, and home automation
+- Form-to-SMS and lead follow-ups
+- Bulk announcements to a contact list (CSV upload)
+## FAQ
+
+<details>
+<summary><b>Will my carrier block my number for sending too many messages?</b></summary>
+Carriers apply their own rate limits and anti-spam policies, which vary by country and plan. For personal and low-volume use this is rarely an issue. For higher throughput, use multiple devices/SIMs and keep sending rates reasonable. You are responsible for staying within your carrier's terms.
+
+</details>
+<details>
+<summary><b>Is it legal to send marketing SMS this way?</b></summary>
+SMS marketing is regulated in most countries (e.g., TCPA in the US, GDPR/ePrivacy in the EU). textbee is a tool — you are responsible for obtaining consent and complying with the laws that apply to you and your recipients.
+
+</details>
+<details>
+<summary><b>Does my phone need to stay on?</b></summary>
+Yes — messages are sent through your phone, so it needs to be powered on with the app running and connected to the internet. A spare Android phone plugged into a charger works great as a dedicated gateway.
+
+</details>
+<details>
+<summary><b>Is there a limit on the cloud-hosted version?</b></summary>
+See [textbee.dev](https://textbee.dev) for current plans and limits. You can always self-host for full control.
+
+</details>
+
+
 ## Self-Hosting
+
+**Technology stack**: React, Next.js, Node.js, NestJS, MongoDB, Android, Kotlin, Jetpack Compose, Java (legacy)
 
 ### Setting Up Database
 
 1. **Install MongoDB on Your Server**: Follow the official MongoDB installation guide for your operating system.
 2. **Using MongoDB Atlas**: Alternatively, you can create a free database on MongoDB Atlas. Sign up at [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) and follow the instructions to set up your database.
+
 
 ### Firebase Setup
 
@@ -161,14 +225,14 @@ instructions.
 4. Ensure your domain points to your VPS and Caddy is configured properly.
 
 ### Dockerized env
-#### Requirements:   
+#### Requirements:
 - Docker installed
 1. After setting up Firebase, update your `.env` in `web` && `api` folder.
    ```bash
    cd web && cp .env.example .env \
    && cd ../api && cp .env.example .env
    ```
-2. Navigate to root folder and execute docker-compose.yml file.    
+2. Navigate to root folder and execute docker-compose.yml file.
    This will spin up `web` container, `api` container alongside with `MongoDB` and `MongoExpress`. `TextBee` database will be automatically created.
    ```bash
    docker compose up -d
@@ -176,7 +240,7 @@ instructions.
    To stop the containers simply type
    ```bash
    docker compose down
-   ```   
+   ```
 
 ## Contributing
 

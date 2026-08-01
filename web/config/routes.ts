@@ -1,8 +1,8 @@
 export const Routes = {
   landingPage: 'https://textbee.dev',
-  contribute: '/contribute',
+  contribute: 'https://textbee.dev/contribute',
   useCases: 'https://textbee.dev/use-cases',
-  quickstart: 'https://textbee.dev/quickstart',
+  quickstart: '/download',
   login: '/login',
   register: '/register',
   logout: '/logout',

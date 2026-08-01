@@ -17,19 +17,24 @@ export class Plan {
   @Prop({ required: true })
   bulkSendLimit: number
 
+  // max number of enabled devices; -1 means unlimited
+  @Prop({ type: Number, default: -1 })
+  deviceLimit?: number
+
   @Prop({ required: true })
   monthlyPrice: number // in cents
 
   @Prop({})
   yearlyPrice: number // in cents
 
-  @Prop({ type: String, unique: true })
+  // sparse: without it, a second plan leaving these unset collides on null
+  @Prop({ type: String, index: { unique: true, sparse: true } })
   polarProductId?: string
 
-  @Prop({ type: String, unique: true })
+  @Prop({ type: String, index: { unique: true, sparse: true } })
   polarMonthlyProductId?: string
 
-  @Prop({ type: String, unique: true })
+  @Prop({ type: String, index: { unique: true, sparse: true } })
   polarYearlyProductId?: string
 
   @Prop({ type: Boolean, default: true })

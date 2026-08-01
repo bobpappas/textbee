@@ -13,7 +13,7 @@ application ID.
 Prerequisites:
 
 - JDK 11
-- Android SDK platform 32
+- Android SDK platform 34
 - ADB for installing and inspecting the APK
 - A Firebase Android app in project `textbee-dev-2852f`, registered with the
   package name `com.bobpappas.textbee.dev`

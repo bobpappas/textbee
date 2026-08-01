@@ -23,8 +23,14 @@ export class Subscription {
   @Prop({ type: Types.ObjectId, ref: Plan.name, required: true })
   plan: Plan | Types.ObjectId
 
-  // @Prop()
-  // polarSubscriptionId?: string
+  @Prop({ type: String, index: true })
+  polarSubscriptionId?: string
+
+  @Prop({ type: String })
+  polarCustomerId?: string
+
+  @Prop({ type: Boolean })
+  cancelAtPeriodEnd?: boolean
 
   @Prop({ type: String })
   recurringInterval?: string
@@ -62,6 +68,10 @@ export class Subscription {
 
   @Prop({ type: Number })
   customBulkSendLimit?: number
+
+  // no default on purpose: absent means "no override", fall back to plan.deviceLimit
+  @Prop({ type: Number })
+  customDeviceLimit?: number
 }
 
 export const SubscriptionSchema = SchemaFactory.createForClass(Subscription)
