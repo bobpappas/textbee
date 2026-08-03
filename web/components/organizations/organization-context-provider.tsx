@@ -57,3 +57,9 @@ export function useOrganizationContext() {
   }
   return context
 }
+
+export function freshOrganizationContext(
+  context: Pick<ContextQuery, 'data' | 'isFetching' | 'isSuccess'>,
+) {
+  return context.isSuccess && !context.isFetching ? context.data : undefined
+}

@@ -12,6 +12,11 @@ vi.mock('@/lib/api', () => ({
   useRenameOrganization: () => ({ mutate: renameMutate, isPending: false }),
 }))
 vi.mock('@/components/organizations/organization-context-provider', () => ({
+  freshOrganizationContext: (context: {
+    data?: unknown
+    isFetching: boolean
+    isSuccess: boolean
+  }) => (context.isSuccess && !context.isFetching ? context.data : undefined),
   useOrganizationContext: () => useContext(),
 }))
 
@@ -31,6 +36,7 @@ describe('OrganizationProfile', () => {
       isPending: false,
       isFetching: false,
       isError: false,
+      isSuccess: true,
       data: {
         state: 'ACTIVE',
         organization: { id: 'org-1', displayName: profile.displayName },
@@ -93,6 +99,7 @@ describe('OrganizationProfile', () => {
       isPending: false,
       isFetching: false,
       isError: false,
+      isSuccess: true,
       data: {
         state,
         organization: null,

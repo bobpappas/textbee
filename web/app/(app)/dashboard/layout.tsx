@@ -23,7 +23,10 @@ import {
 } from './(components)/nav-items'
 import { cn } from '@/lib/utils'
 import { Routes } from '@/config/routes'
-import { useOrganizationContext } from '@/components/organizations/organization-context-provider'
+import {
+  freshOrganizationContext,
+  useOrganizationContext,
+} from '@/components/organizations/organization-context-provider'
 
 export default function DashboardLayout({
   children,
@@ -34,9 +37,7 @@ export default function DashboardLayout({
   const { data: session } = useSession()
   const role = session?.user?.role
   const organizationContext = useOrganizationContext()
-  const freshContext = organizationContext.isFetching
-    ? undefined
-    : organizationContext.data
+  const freshContext = freshOrganizationContext(organizationContext)
   const navigationItems = visibleNavItems(role, freshContext)
   const mobileNavigationItems = visibleMobileNavItems(role, freshContext)
   // Owned here, not inside the palette, so both the sidebar trigger (desktop)

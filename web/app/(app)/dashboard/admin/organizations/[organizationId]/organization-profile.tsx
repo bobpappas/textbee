@@ -14,7 +14,10 @@ import PageHeader from '@/components/shared/page-header'
 import { useOrganizationProfile, useRenameOrganization } from '@/lib/api'
 import { apiErrorMessage } from '@/lib/utils/errorHandler'
 import { ORGANIZATION_PROFILE_MANAGE } from '@/lib/api'
-import { useOrganizationContext } from '@/components/organizations/organization-context-provider'
+import {
+  freshOrganizationContext,
+  useOrganizationContext,
+} from '@/components/organizations/organization-context-provider'
 import OrganizationContextState from '@/components/organizations/organization-context-state'
 
 const date = (value?: string | null) =>
@@ -30,11 +33,11 @@ export default function OrganizationProfile({
   organizationId: string
 }) {
   const context = useOrganizationContext()
+  const freshContext = freshOrganizationContext(context)
   const canLoadProfile =
-    !context.isFetching &&
-    context.data?.state === 'ACTIVE' &&
-    context.data.organization.id === organizationId &&
-    context.data.capabilities.includes(ORGANIZATION_PROFILE_MANAGE)
+    freshContext?.state === 'ACTIVE' &&
+    freshContext.organization.id === organizationId &&
+    freshContext.capabilities.includes(ORGANIZATION_PROFILE_MANAGE)
   const profile = useOrganizationProfile(organizationId, {
     enabled: canLoadProfile,
     retry: false,

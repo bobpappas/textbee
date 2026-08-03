@@ -24,7 +24,10 @@ import { signOut } from 'next-auth/react'
 import { Routes } from '@/config/routes'
 import { Session } from 'next-auth'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useOrganizationContext } from '@/components/organizations/organization-context-provider'
+import {
+  freshOrganizationContext,
+  useOrganizationContext,
+} from '@/components/organizations/organization-context-provider'
 import { ORGANIZATION_PROFILE_MANAGE } from '@/lib/api'
 import type { ActiveOrganizationContext } from '@/lib/api'
 
@@ -43,10 +46,10 @@ export default function AppHeader({ session }: { session: Session | null }) {
   }
 
   const isAuthenticated = useMemo(() => session?.user, [session?.user])
+  const freshContext = freshOrganizationContext(organizationContext)
   const activeContext: ActiveOrganizationContext | null =
-    !organizationContext.isFetching &&
-    organizationContext.data?.state === 'ACTIVE'
-      ? organizationContext.data
+    freshContext?.state === 'ACTIVE'
+      ? freshContext
       : null
   const canManageProfile = Boolean(
     activeContext?.capabilities.includes(ORGANIZATION_PROFILE_MANAGE),
