@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common'
 import { MongooseModule } from '@nestjs/mongoose'
 import { AuthModule } from '../auth/auth.module'
+import { UsersModule } from '../users/users.module'
 import { OrganizationPolicyService } from './organization-policy.service'
 import { OrganizationAdminGuard } from './organization-admin.guard'
 import { OrganizationsController } from './organizations.controller'
@@ -24,6 +25,7 @@ import { Organization, OrganizationSchema } from './schemas/organization.schema'
 @Module({
   imports: [
     AuthModule,
+    UsersModule,
     MongooseModule.forFeature([
       { name: Organization.name, schema: OrganizationSchema },
       { name: OperatorMembership.name, schema: OperatorMembershipSchema },
