@@ -14,6 +14,7 @@ import {
   UserCircle,
   Users,
   Webhook,
+  Building2,
   type LucideIcon,
 } from 'lucide-react'
 import { Routes } from '@/config/routes'
@@ -24,6 +25,7 @@ export type SearchGroup =
   | 'Webhooks'
   | 'Account'
   | 'Resources'
+  | 'Administration'
 
 export type SearchEntry = {
   href: string
@@ -38,9 +40,19 @@ export type SearchEntry = {
   // architecture.
   keywords: string[]
   external?: boolean
+  requiredRole?: 'ADMIN'
 }
 
 export const searchEntries: SearchEntry[] = [
+  {
+    href: '/dashboard/admin/organizations',
+    label: 'Organizations',
+    group: 'Administration',
+    icon: Building2,
+    description: 'Create and manage organization profiles',
+    keywords: ['organizations', 'administration', 'registry', 'church'],
+    requiredRole: 'ADMIN',
+  },
   {
     href: '/dashboard',
     label: 'Dashboard',
@@ -338,8 +350,15 @@ export const searchEntries: SearchEntry[] = [
   },
 ]
 
+export function visibleSearchEntries(role?: string) {
+  return searchEntries.filter(
+    (entry) => !entry.requiredRole || entry.requiredRole === role,
+  )
+}
+
 // Rendering order for the palette's group headings.
 export const searchGroupOrder: SearchGroup[] = [
+  'Administration',
   'Overview',
   'Messaging',
   'Webhooks',

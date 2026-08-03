@@ -1,0 +1,97 @@
+{
+  "schema_version" : 1,
+  "feature_name" : "B020 organization registry vertical slice",
+  "summary" : {
+    "step_occurrences" : 24,
+    "unique_steps" : 18,
+    "findings" : 3
+  },
+  "findings" : [ {
+    "kind" : "possible-synonym",
+    "confidence" : "medium",
+    "members" : [ {
+      "text" : "the administrator opens the organization registry",
+      "locations" : [ {
+        "section" : "scenario",
+        "scenario_index" : 0,
+        "scenario_name" : "Platform administrator creates a durable organization",
+        "step_index" : 2,
+        "keyword" : "When"
+      }, {
+        "section" : "scenario",
+        "scenario_index" : 2,
+        "scenario_name" : "Organization administrator renames after server confirmation",
+        "step_index" : 2,
+        "keyword" : "When"
+      } ]
+    }, {
+      "text" : "the administrator opens the organization registry at 375 pixels",
+      "locations" : [ {
+        "section" : "scenario",
+        "scenario_index" : 3,
+        "scenario_name" : "Registry is keyboard reachable at 375 pixels",
+        "step_index" : 2,
+        "keyword" : "When"
+      } ]
+    } ],
+    "reason" : "step texts share many non-placeholder tokens and may describe the same concept",
+    "suggested_action" : "Review manually before editing; normalize the Gherkin only when the different wording is accidental drift.",
+    "score" : 0.571
+  }, {
+    "kind" : "possible-synonym",
+    "confidence" : "medium",
+    "members" : [ {
+      "text" : "organization <organization_name> remains after a browser refresh",
+      "locations" : [ {
+        "section" : "scenario",
+        "scenario_index" : 0,
+        "scenario_name" : "Platform administrator creates a durable organization",
+        "step_index" : 5,
+        "keyword" : "And"
+      } ]
+    }, {
+      "text" : "server-confirmed name <renamed_name> remains after a browser refresh",
+      "locations" : [ {
+        "section" : "scenario",
+        "scenario_index" : 2,
+        "scenario_name" : "Organization administrator renames after server confirmation",
+        "step_index" : 7,
+        "keyword" : "And"
+      } ]
+    } ],
+    "reason" : "step texts share many non-placeholder tokens and may describe the same concept",
+    "suggested_action" : "Review manually before editing; normalize the Gherkin only when the different wording is accidental drift.",
+    "score" : 0.5
+  }, {
+    "kind" : "possible-synonym",
+    "confidence" : "medium",
+    "members" : [ {
+      "text" : "the administrator opens the organization registry",
+      "locations" : [ {
+        "section" : "scenario",
+        "scenario_index" : 0,
+        "scenario_name" : "Platform administrator creates a durable organization",
+        "step_index" : 2,
+        "keyword" : "When"
+      }, {
+        "section" : "scenario",
+        "scenario_index" : 2,
+        "scenario_name" : "Organization administrator renames after server confirmation",
+        "step_index" : 2,
+        "keyword" : "When"
+      } ]
+    }, {
+      "text" : "the user opens the organization registry directly",
+      "locations" : [ {
+        "section" : "scenario",
+        "scenario_index" : 1,
+        "scenario_name" : "Ordinary user is denied without disclosure",
+        "step_index" : 2,
+        "keyword" : "When"
+      } ]
+    } ],
+    "reason" : "step texts share many non-placeholder tokens and may describe the same concept",
+    "suggested_action" : "Review manually before editing; normalize the Gherkin only when the different wording is accidental drift.",
+    "score" : 0.5
+  } ]
+}

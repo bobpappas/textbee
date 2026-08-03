@@ -137,3 +137,32 @@ export interface WebhookSubscription {
   isActive?: boolean
   createdAt?: string
 }
+
+export type OrganizationStatus =
+  | 'PROVISIONING'
+  | 'ACTIVE'
+  | 'PROVISIONING_FAILED'
+
+export interface OrganizationRegistryItem {
+  id: string
+  displayName: string
+  status: OrganizationStatus
+  createdAt?: string
+  activatedAt?: string | null
+  canManageProfile: boolean
+}
+
+export interface OrganizationProfile extends OrganizationRegistryItem {
+  updatedAt?: string
+  role: 'ORGANIZATION_ADMIN'
+  membershipId: string
+}
+
+export interface OrganizationCreationResult {
+  organization: OrganizationRegistryItem
+  membership: {
+    id: string
+    role: 'ORGANIZATION_ADMIN'
+    status: 'ACTIVE'
+  }
+}

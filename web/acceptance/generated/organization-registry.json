@@ -1,0 +1,104 @@
+{
+  "name" : "B020 organization registry vertical slice",
+  "scenarios" : [ {
+    "name" : "Platform administrator creates a durable organization",
+    "steps" : [ {
+      "keyword" : "Given",
+      "text" : "an authenticated platform administrator"
+    }, {
+      "keyword" : "And",
+      "text" : "an empty organization registry"
+    }, {
+      "keyword" : "When",
+      "text" : "the administrator opens the organization registry"
+    }, {
+      "keyword" : "And",
+      "text" : "creates organization <organization_name>",
+      "parameters" : [ "organization_name" ]
+    }, {
+      "keyword" : "Then",
+      "text" : "organization <organization_name> appears after server confirmation",
+      "parameters" : [ "organization_name" ]
+    }, {
+      "keyword" : "And",
+      "text" : "organization <organization_name> remains after a browser refresh",
+      "parameters" : [ "organization_name" ]
+    } ],
+    "examples" : [ {
+      "organization_name" : "Boise Church of Christ"
+    } ]
+  }, {
+    "name" : "Ordinary user is denied without disclosure",
+    "steps" : [ {
+      "keyword" : "Given",
+      "text" : "an authenticated ordinary user"
+    }, {
+      "keyword" : "And",
+      "text" : "a forbidden organization registry API"
+    }, {
+      "keyword" : "When",
+      "text" : "the user opens the organization registry directly"
+    }, {
+      "keyword" : "Then",
+      "text" : "the organization registry shows access denied"
+    }, {
+      "keyword" : "And",
+      "text" : "no organization registry data is disclosed"
+    } ],
+    "examples" : [ ]
+  }, {
+    "name" : "Organization administrator renames after server confirmation",
+    "steps" : [ {
+      "keyword" : "Given",
+      "text" : "an authenticated platform administrator"
+    }, {
+      "keyword" : "And",
+      "text" : "an empty organization registry"
+    }, {
+      "keyword" : "When",
+      "text" : "the administrator opens the organization registry"
+    }, {
+      "keyword" : "And",
+      "text" : "creates organization <organization_name>",
+      "parameters" : [ "organization_name" ]
+    }, {
+      "keyword" : "And",
+      "text" : "opens the created organization profile"
+    }, {
+      "keyword" : "And",
+      "text" : "renames the organization to <renamed_name>",
+      "parameters" : [ "renamed_name" ]
+    }, {
+      "keyword" : "Then",
+      "text" : "the profile shows server-confirmed name <renamed_name>",
+      "parameters" : [ "renamed_name" ]
+    }, {
+      "keyword" : "And",
+      "text" : "server-confirmed name <renamed_name> remains after a browser refresh",
+      "parameters" : [ "renamed_name" ]
+    } ],
+    "examples" : [ {
+      "organization_name" : "Boise Church of Christ",
+      "renamed_name" : "Boise Church"
+    } ]
+  }, {
+    "name" : "Registry is keyboard reachable at 375 pixels",
+    "steps" : [ {
+      "keyword" : "Given",
+      "text" : "an authenticated platform administrator"
+    }, {
+      "keyword" : "And",
+      "text" : "an empty organization registry"
+    }, {
+      "keyword" : "When",
+      "text" : "the administrator opens the organization registry at 375 pixels"
+    }, {
+      "keyword" : "Then",
+      "text" : "the registry has no horizontal page overflow"
+    }, {
+      "keyword" : "And",
+      "text" : "the Organizations command is keyboard searchable"
+    } ],
+    "examples" : [ ]
+  } ]
+}

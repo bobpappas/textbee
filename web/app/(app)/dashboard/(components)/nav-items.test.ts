@@ -1,12 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import { isNavItemActive, navItems } from './nav-items'
+import {
+  isNavItemActive,
+  navItems,
+  visibleNavItems,
+  visibleMobileNavItems,
+} from './nav-items'
 
 describe('isNavItemActive', () => {
   it('matches the dashboard home exactly', () => {
     expect(isNavItemActive({ href: '/dashboard' }, '/dashboard')).toBe(true)
-    expect(isNavItemActive({ href: '/dashboard' }, '/dashboard/messaging')).toBe(
-      false
-    )
+    expect(
+      isNavItemActive({ href: '/dashboard' }, '/dashboard/messaging'),
+    ).toBe(false)
   })
 
   it('matches section subroutes by prefix', () => {
@@ -14,13 +19,13 @@ describe('isNavItemActive', () => {
     expect(isNavItemActive(messaging, '/dashboard/messaging')).toBe(true)
     expect(isNavItemActive(messaging, '/dashboard/messaging/bulk')).toBe(true)
     expect(isNavItemActive(messaging, '/dashboard/messaging/api-guide')).toBe(
-      true
+      true,
     )
   })
 
   it('does not match sibling routes that share a name prefix', () => {
     expect(
-      isNavItemActive({ href: '/dashboard/message' }, '/dashboard/messaging')
+      isNavItemActive({ href: '/dashboard/message' }, '/dashboard/messaging'),
     ).toBe(false)
   })
 
@@ -33,5 +38,18 @@ describe('isNavItemActive', () => {
     expect(isNavItemActive(account!, '/dashboard/account/security')).toBe(true)
     expect(isNavItemActive(account!, '/dashboard/account')).toBe(true)
     expect(isNavItemActive(account!, '/dashboard/community')).toBe(false)
+  })
+
+  it('shows Organizations only to a tentative ADMIN session and never as a fifth mobile tab', () => {
+    expect(visibleNavItems('REGULAR').map((item) => item.label)).not.toContain(
+      'Organizations',
+    )
+    expect(visibleNavItems('ADMIN').map((item) => item.label)).toContain(
+      'Organizations',
+    )
+    expect(
+      visibleMobileNavItems('ADMIN').map((item) => item.label),
+    ).not.toContain('Organizations')
+    expect(visibleMobileNavItems('ADMIN')).toHaveLength(4)
   })
 })

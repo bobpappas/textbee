@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
-import { searchEntries, searchGroupOrder } from './search-registry'
+import {
+  searchEntries,
+  searchGroupOrder,
+  visibleSearchEntries,
+} from './search-registry'
 
 const DASHBOARD_DIR = join(process.cwd(), 'app', '(app)', 'dashboard')
 
@@ -45,12 +49,14 @@ describe('search registry', () => {
   const hrefs = new Set(searchEntries.map((e) => e.href))
 
   it('covers every dashboard page that is not a pure redirect', () => {
-    const routes = collectRoutes(DASHBOARD_DIR).filter((r) => !isRedirectOnly(r))
+    const routes = collectRoutes(DASHBOARD_DIR).filter(
+      (r) => !isRedirectOnly(r) && !r.includes('['),
+    )
     const missing = routes.filter((r) => !hrefs.has(r))
 
     expect(
       missing,
-      `these routes exist but are not searchable, add them to search-registry.ts: ${missing.join(', ')}`
+      `these routes exist but are not searchable, add them to search-registry.ts: ${missing.join(', ')}`,
     ).toEqual([])
   })
 
@@ -67,7 +73,7 @@ describe('search registry', () => {
     for (const entry of searchEntries) {
       expect(
         entry.keywords.length,
-        `${entry.label} needs at least 3 keywords`
+        `${entry.label} needs at least 3 keywords`,
       ).toBeGreaterThanOrEqual(3)
     }
   })
@@ -83,14 +89,14 @@ describe('search registry', () => {
       const isAbsolute = entry.href.startsWith('http')
       expect(
         Boolean(entry.external),
-        `${entry.label} href is ${entry.href}`
+        `${entry.label} href is ${entry.href}`,
       ).toBe(isAbsolute)
     }
   })
 
   it('finds bulk send by the words a user would actually type', () => {
     const bulk = searchEntries.find(
-      (e) => e.href === '/dashboard/messaging/bulk'
+      (e) => e.href === '/dashboard/messaging/bulk',
     )
     expect(bulk).toBeDefined()
     for (const term of ['csv', 'import', 'campaign', 'spreadsheet']) {
@@ -100,21 +106,28 @@ describe('search registry', () => {
 
   it('finds billing by invoice and quota wording', () => {
     const billing = searchEntries.find(
-      (e) => e.href === '/dashboard/account/billing'
+      (e) => e.href === '/dashboard/account/billing',
     )
     expect(billing).toBeDefined()
     for (const term of ['invoice', 'quota', 'upgrade', 'cancel']) {
       expect(billing!.keywords).toContain(term)
     }
   })
+
+  it('filters the organization registry using the tentative session role', () => {
+    const href = '/dashboard/admin/organizations'
+    expect(
+      visibleSearchEntries('REGULAR').map((entry) => entry.href),
+    ).not.toContain(href)
+    expect(visibleSearchEntries('ADMIN').map((entry) => entry.href)).toContain(
+      href,
+    )
+  })
 })
 
 describe('search registry source', () => {
   it('is referenced by the command palette', () => {
-    const palette = readFileSync(
-      join(__dirname, 'command-menu.tsx'),
-      'utf8'
-    )
+    const palette = readFileSync(join(__dirname, 'command-menu.tsx'), 'utf8')
     expect(palette).toContain('search-registry')
   })
 })

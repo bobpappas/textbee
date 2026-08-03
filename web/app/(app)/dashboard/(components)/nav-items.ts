@@ -4,6 +4,7 @@ import {
   Webhook,
   Users,
   UserCircle,
+  Building2,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -18,6 +19,7 @@ export type NavItem = {
   // The mobile tab bar caps at 4 items (375px width); items marked
   // mobileHidden appear only in the desktop sidebar and the command palette.
   mobileHidden?: boolean
+  requiredRole?: 'ADMIN'
 }
 
 // Primary dashboard navigation, shared by the desktop sidebar, the mobile tab
@@ -25,7 +27,12 @@ export type NavItem = {
 export const navItems: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/dashboard/messaging', label: 'Messaging', icon: MessageSquareText },
-  { href: '/dashboard/webhooks', label: 'Webhooks', icon: Webhook, mobileHidden: true },
+  {
+    href: '/dashboard/webhooks',
+    label: 'Webhooks',
+    icon: Webhook,
+    mobileHidden: true,
+  },
   { href: '/dashboard/community', label: 'Community', icon: Users },
   {
     href: '/dashboard/account/billing',
@@ -33,15 +40,30 @@ export const navItems: NavItem[] = [
     icon: UserCircle,
     match: '/dashboard/account',
   },
+  {
+    href: '/dashboard/admin/organizations',
+    label: 'Organizations',
+    icon: Building2,
+    mobileHidden: true,
+    requiredRole: 'ADMIN',
+  },
 ]
 
-export const mobileNavItems = navItems.filter((item) => !item.mobileHidden)
+export function visibleNavItems(role?: string) {
+  return navItems.filter(
+    (item) => !item.requiredRole || item.requiredRole === role,
+  )
+}
+
+export function visibleMobileNavItems(role?: string) {
+  return visibleNavItems(role).filter((item) => !item.mobileHidden)
+}
 
 // /dashboard must match exactly; deeper routes match by prefix so nested pages
 // keep their parent highlighted.
 export function isNavItemActive(
   item: Pick<NavItem, 'href' | 'match'>,
-  pathname: string
+  pathname: string,
 ): boolean {
   const prefix = item.match ?? item.href
   return prefix === '/dashboard'

@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "feature_path": "acceptance/features/organization-registry.feature",
+  "ir_path": "acceptance/generated/organization-registry.json",
+  "implementation_hash": "sha256:a514442c18ee1f3905223c6e5a8a6695ddbb39e80514fcb9bb6afe8ea9356e8b",
+  "hash_scope": "generated_files",
+  "generated_files": [
+    "e2e/generated/organization-registry.acceptance.spec.ts"
+  ]
+}

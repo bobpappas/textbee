@@ -18,6 +18,9 @@ import type {
   User,
   WebhookNotification,
   WebhookSubscription,
+  OrganizationCreationResult,
+  OrganizationProfile,
+  OrganizationRegistryItem,
 } from './types'
 
 // Most endpoints wrap their payload as { data: ... }; a few (subscription)
@@ -119,7 +122,7 @@ export function useDeleteDevice() {
 
 export function useApiKeys(
   status: ApiKeyStatusFilter = 'active',
-  options?: ListQueryOpts<ApiKey>
+  options?: ListQueryOpts<ApiKey>,
 ) {
   return useQuery({
     queryKey: queryKeys.apiKeys(status),
@@ -187,7 +190,7 @@ export function useGenerateApiKey() {
 export type UpdateProfilePayload = { name?: string; phone?: string }
 
 export function useUpdateProfile(
-  options?: MutationOpts<unknown, UpdateProfilePayload>
+  options?: MutationOpts<unknown, UpdateProfilePayload>,
 ) {
   const queryClient = useQueryClient()
   return useMutation({
@@ -210,7 +213,7 @@ export type ChangePasswordPayload = {
 }
 
 export function useChangePassword(
-  options?: MutationOpts<unknown, ChangePasswordPayload>
+  options?: MutationOpts<unknown, ChangePasswordPayload>,
 ) {
   return useMutation({
     mutationFn: (data: ChangePasswordPayload) =>
@@ -312,6 +315,92 @@ export function useDeleteWebhook(id: string) {
   })
 }
 
+// ---------- organizations ----------
+
+export function useOrganizations(
+  options?: ListQueryOpts<OrganizationRegistryItem>,
+) {
+  return useQuery({
+    queryKey: queryKeys.organizations,
+    queryFn: () =>
+      httpBrowserClient
+        .get(ApiEndpoints.organizations.list())
+        .then((r) => r.data as ListEnvelope<OrganizationRegistryItem>),
+    select: selectList<OrganizationRegistryItem>,
+    ...options,
+  })
+}
+
+export function useCreateOrganization() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      displayName,
+      idempotencyKey,
+    }: {
+      displayName: string
+      idempotencyKey: string
+    }) =>
+      httpBrowserClient
+        .post(
+          ApiEndpoints.organizations.create(),
+          { displayName },
+          { headers: { 'Idempotency-Key': idempotencyKey } },
+        )
+        .then(unwrapData<OrganizationCreationResult>),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.organizations })
+    },
+  })
+}
+
+export function useRetryOrganizationProvisioning() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (organizationId: string) =>
+      httpBrowserClient
+        .post(ApiEndpoints.organizations.retryProvisioning(organizationId))
+        .then(unwrapData<OrganizationCreationResult>),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.organizations })
+    },
+  })
+}
+
+export function useOrganizationProfile(
+  organizationId: string,
+  options?: QueryOpts<OrganizationProfile>,
+) {
+  return useQuery({
+    queryKey: queryKeys.organizationProfile(organizationId),
+    queryFn: () =>
+      httpBrowserClient
+        .get(ApiEndpoints.organizations.profile(organizationId))
+        .then(unwrapData<OrganizationProfile>),
+    enabled: Boolean(organizationId),
+    ...options,
+  })
+}
+
+export function useRenameOrganization(organizationId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ displayName }: { displayName: string }) =>
+      httpBrowserClient
+        .patch(ApiEndpoints.organizations.profile(organizationId), {
+          displayName,
+        })
+        .then(unwrapData<OrganizationProfile>),
+    onSuccess: (profile) => {
+      queryClient.setQueryData(
+        queryKeys.organizationProfile(organizationId),
+        profile,
+      )
+      void queryClient.invalidateQueries({ queryKey: queryKeys.organizations })
+    },
+  })
+}
+
 export type WebhookNotificationFilters = {
   eventType?: string
   status?: string
@@ -355,7 +444,7 @@ export function useWebhookNotifications(filters: WebhookNotificationFilters) {
     queryFn: () =>
       httpBrowserClient
         .get(
-          `${ApiEndpoints.gateway.getWebhookNotifications()}?eventType=${eventType}&page=${page}&limit=${limit}&status=${status}&start=${start}&end=${end}&deviceId=${deviceId}&webhookSubscriptionId=${webhookSubscriptionId}`
+          `${ApiEndpoints.gateway.getWebhookNotifications()}?eventType=${eventType}&page=${page}&limit=${limit}&status=${status}&start=${start}&end=${end}&deviceId=${deviceId}&webhookSubscriptionId=${webhookSubscriptionId}`,
         )
         .then(unwrapBody<WebhookNotificationsEnvelope>),
     // Deliveries arrive from outside the tab, so stay fresher than the 60s
@@ -404,7 +493,7 @@ export type DeviceMessagesEnvelope = {
 export function useDeviceMessages(
   deviceId: string,
   params: DeviceMessagesParams = {},
-  options?: QueryOpts<DeviceMessagesEnvelope>
+  options?: QueryOpts<DeviceMessagesEnvelope>,
 ) {
   const { type = 'all', page = 1, limit = 20, search = '' } = params
   return useQuery({

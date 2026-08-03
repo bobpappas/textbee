@@ -49,4 +49,11 @@ export const ApiEndpoints = {
     customerSupport: () => '/support/customer-support',
     requestAccountDeletion: () => '/support/request-account-deletion',
   },
+  organizations: {
+    list: () => '/platform/organizations',
+    create: () => '/platform/organizations',
+    retryProvisioning: (id: string) =>
+      `/platform/organizations/${id}/retry-provisioning`,
+    profile: (id: string) => `/organizations/${id}/profile`,
+  },
 }

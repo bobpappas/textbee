@@ -20,7 +20,7 @@ async function suppressInterruptingModals(context: BrowserContext) {
     // Snooze far enough out that the prompt stays closed for the run.
     window.localStorage.setItem(
       'update_app_prompt_snooze_until',
-      String(Date.now() + 365 * 24 * 60 * 60 * 1000)
+      String(Date.now() + 365 * 24 * 60 * 60 * 1000),
     )
   })
 }
@@ -28,7 +28,10 @@ async function suppressInterruptingModals(context: BrowserContext) {
 // Mint a valid NextAuth JWT session cookie so middleware's getToken() accepts
 // the request and the app treats us as authenticated, without ever running the
 // real login flow or contacting a backend.
-export async function authenticate(context: BrowserContext) {
+export async function authenticate(
+  context: BrowserContext,
+  role: string = mockUser.role,
+) {
   await suppressInterruptingModals(context)
 
   const token = await encode({
@@ -38,7 +41,7 @@ export async function authenticate(context: BrowserContext) {
       name: mockUser.name,
       email: mockUser.email,
       phone: mockUser.phone,
-      role: mockUser.role,
+      role,
       accessToken: TEST_ACCESS_TOKEN,
     },
     secret: TEST_AUTH_SECRET,

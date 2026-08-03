@@ -13,6 +13,8 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
+    "acceptance:generate": "node acceptance/generate-entrypoints.mjs acceptance/generated/organization-registry.json e2e/generated",
+    "acceptance:test": "playwright test e2e/generated/organization-registry.acceptance.spec.ts",
     "coverage": "vitest run --coverage"
   },
   "dependencies": {

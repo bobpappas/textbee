@@ -26,11 +26,62 @@ export type MockApiOverrides = {
   subscription?: unknown
   /** Fail POST /billing/checkout with this message, to exercise the error state. */
   checkoutError?: string
+  organizationsForbidden?: boolean
 }
 
 export async function mockApi(page: Page, overrides: MockApiOverrides = {}) {
+  const organizations: any[] = []
   await page.route('**/api/v1/**', (route) => {
     const path = new URL(route.request().url()).pathname.replace('/api/v1', '')
+    const method = route.request().method()
+
+    if (path === '/platform/organizations') {
+      if (overrides.organizationsForbidden) {
+        return json(route, { error: 'Forbidden' }, 403)
+      }
+      if (method === 'POST') {
+        const input = route.request().postDataJSON()
+        const organization = {
+          id: `organization-${organizations.length + 1}`,
+          displayName: input.displayName,
+          status: 'ACTIVE',
+          createdAt: new Date('2026-08-02T12:00:00Z').toISOString(),
+          activatedAt: new Date('2026-08-02T12:00:01Z').toISOString(),
+          canManageProfile: true,
+        }
+        organizations.push(organization)
+        return json(route, {
+          data: {
+            organization,
+            membership: {
+              id: 'membership-1',
+              role: 'ORGANIZATION_ADMIN',
+              status: 'ACTIVE',
+            },
+          },
+        })
+      }
+      return json(route, { data: organizations })
+    }
+
+    const profileMatch = path.match(/^\/organizations\/([^/]+)\/profile$/)
+    if (profileMatch) {
+      const organization = organizations.find(
+        (item) => item.id === profileMatch[1],
+      )
+      if (!organization)
+        return json(route, { error: 'Organization not found' }, 404)
+      if (method === 'PATCH') {
+        organization.displayName = route.request().postDataJSON().displayName
+      }
+      return json(route, {
+        data: {
+          ...organization,
+          role: 'ORGANIZATION_ADMIN',
+          membershipId: 'membership-1',
+        },
+      })
+    }
 
     // Kept in-origin so following the redirect does not leave the test app.
     if (path === '/billing/checkout') {
@@ -43,7 +94,8 @@ export async function mockApi(page: Page, overrides: MockApiOverrides = {}) {
     if (path === '/auth/who-am-i') return json(route, { data: mockUser })
     if (path === '/billing/current-subscription')
       return json(route, overrides.subscription ?? mockSubscription)
-    if (path === '/billing/plans') return json(route, { data: mockBillingPlans })
+    if (path === '/billing/plans')
+      return json(route, { data: mockBillingPlans })
     if (path === '/gateway/devices') return json(route, { data: mockDevices })
     if (path === '/gateway/stats') return json(route, { data: mockStats })
     if (path === '/webhooks') return json(route, { data: mockWebhooks })
