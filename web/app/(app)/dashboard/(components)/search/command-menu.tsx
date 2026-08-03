@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/command'
 import { Routes } from '@/config/routes'
 import { searchGroupOrder, visibleSearchEntries } from './search-registry'
+import { useOrganizationContext } from '@/components/organizations/organization-context-provider'
 
 // Cmd/Ctrl+K palette. Open state is owned by the dashboard layout so the same
 // dialog can be opened from the sidebar trigger (desktop) or the header
@@ -30,7 +31,11 @@ export default function CommandMenu({
 }) {
   const router = useRouter()
   const { data: session } = useSession()
-  const entriesForUser = visibleSearchEntries(session?.user?.role)
+  const organizationContext = useOrganizationContext()
+  const entriesForUser = visibleSearchEntries(
+    session?.user?.role,
+    organizationContext.isFetching ? undefined : organizationContext.data,
+  )
   const { setTheme } = useTheme()
 
   useEffect(() => {

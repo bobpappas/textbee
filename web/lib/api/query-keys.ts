@@ -23,6 +23,7 @@ export const queryKeys = {
       ? (['messages', deviceId, filters] as const)
       : (['messages', deviceId] as const),
   organizations: ['organizations'] as const,
+  organizationContext: ['organizationContext'] as const,
   organizationProfile: (organizationId: string) =>
     ['organizations', organizationId, 'profile'] as const,
 }

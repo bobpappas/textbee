@@ -123,6 +123,24 @@ describe('search registry', () => {
       href,
     )
   })
+
+  it('adds organization profile search only for the server capability', () => {
+    const context = {
+      state: 'ACTIVE' as const,
+      organization: { id: 'org-1', displayName: 'Boise Church of Christ' },
+      membership: { id: 'membership-1', status: 'ACTIVE' as const },
+      capabilities: ['organization:profile:manage' as const],
+      roleLabel: 'Organization administrator',
+    }
+    expect(
+      visibleSearchEntries('REGULAR', context).map((entry) => entry.href),
+    ).toContain('/dashboard/admin/organizations/org-1')
+    expect(
+      visibleSearchEntries('ADMIN', { ...context, capabilities: [] }).map(
+        (entry) => entry.label,
+      ),
+    ).not.toContain('Organization profile')
+  })
 })
 
 describe('search registry source', () => {

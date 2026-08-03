@@ -1,6 +1,12 @@
 import { randomUUID } from 'crypto'
 import mongoose, { Types } from 'mongoose'
 import { OrganizationPolicyService } from '../src/organizations/organization-policy.service'
+import { OrganizationContextService } from '../src/organizations/organization-context.service'
+import {
+  MembershipStatus,
+  OrganizationCapability,
+  OrganizationContextState,
+} from '../src/organizations/organization.enums'
 import { OrganizationsService } from '../src/organizations/organizations.service'
 import {
   AuthorizationAuditEvent,
@@ -23,7 +29,7 @@ async function main() {
   const sourceUri =
     process.env.ORGANIZATION_SMOKE_MONGO_URI ||
     'mongodb://textbee-dev-user:textbee-dev-password@127.0.0.1:27018/textbee?authSource=admin'
-  const databaseName = `textbee_b020_smoke_${randomUUID().replace(/-/g, '')}`
+  const databaseName = `textbee_organization_smoke_${randomUUID().replace(/-/g, '')}`
   const uri = new URL(sourceUri)
   uri.pathname = `/${databaseName}`
 
@@ -124,6 +130,33 @@ async function main() {
         })}`,
       )
     }
+    const contextService = new OrganizationContextService(
+      organizations,
+      memberships,
+      grants,
+    )
+    const activeContext = await contextService.current(actor)
+    if (
+      activeContext.state !== OrganizationContextState.ACTIVE ||
+      activeContext.organization?.id !== created.organization.id ||
+      !activeContext.capabilities.includes(
+        OrganizationCapability.PROFILE_MANAGE,
+      )
+    ) {
+      throw new Error('Current organization context did not resolve')
+    }
+    await memberships.updateOne(
+      { _id: activeMembership._id },
+      { $set: { status: MembershipStatus.SUSPENDED } },
+    )
+    const revokedContext = await contextService.current(actor)
+    if (revokedContext.state !== OrganizationContextState.NO_ACCESS) {
+      throw new Error('Suspended membership still produced context')
+    }
+    await memberships.updateOne(
+      { _id: activeMembership._id },
+      { $set: { status: MembershipStatus.ACTIVE } },
+    )
     const profile = await refreshedService.profile(
       created.organization.id,
       actor,
@@ -173,7 +206,7 @@ async function main() {
     }
 
     process.stdout.write(
-      'B020 organization smoke passed: 1 organization, 1 membership, 1 grant, 2 audit events; gateway/message sentinels unchanged.\n',
+      'Organization smoke passed: B020 persistence and B022 context/revocation verified; gateway/message sentinels unchanged.\n',
     )
   } finally {
     await connection.dropDatabase()

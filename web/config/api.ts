@@ -50,6 +50,7 @@ export const ApiEndpoints = {
     requestAccountDeletion: () => '/support/request-account-deletion',
   },
   organizations: {
+    currentContext: () => '/organizations/current-context',
     list: () => '/platform/organizations',
     create: () => '/platform/organizations',
     retryProvisioning: (id: string) =>

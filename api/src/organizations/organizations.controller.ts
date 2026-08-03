@@ -15,12 +15,27 @@ import { OrganizationNameDto } from './organization.dto'
 import { OrganizationsService } from './organizations.service'
 import { PlatformAdminGuard } from './platform-admin.guard'
 import { OrganizationAdminGuard } from './organization-admin.guard'
+import { OrganizationContextService } from './organization-context.service'
 
 @ApiTags('organizations')
 @ApiBearerAuth()
 @Controller()
 export class OrganizationsController {
-  constructor(private readonly organizationsService: OrganizationsService) {}
+  constructor(
+    private readonly organizationsService: OrganizationsService,
+    private readonly organizationContext: OrganizationContextService,
+  ) {}
+
+  @Get('organizations/current-context')
+  @UseGuards(AuthGuard)
+  async currentContext(@Request() request) {
+    return {
+      data: await this.organizationContext.current(
+        request.user,
+        Boolean(request.apiKey),
+      ),
+    }
+  }
 
   @Get('platform/organizations')
   @UseGuards(AuthGuard, PlatformAdminGuard)

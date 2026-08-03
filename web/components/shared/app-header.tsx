@@ -14,10 +14,19 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
-import { Menu, LogOut, LayoutDashboard } from 'lucide-react'
+import {
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
+import { Menu, LogOut, LayoutDashboard, Building2 } from 'lucide-react'
 import { signOut } from 'next-auth/react'
 import { Routes } from '@/config/routes'
 import { Session } from 'next-auth'
+import { Skeleton } from '@/components/ui/skeleton'
+import { useOrganizationContext } from '@/components/organizations/organization-context-provider'
+import { ORGANIZATION_PROFILE_MANAGE } from '@/lib/api'
+import type { ActiveOrganizationContext } from '@/lib/api'
 
 // Deliberately minimal: identity and brand only. Navigation lives in the
 // sidebar (desktop) and the bottom tab bar (mobile), search in the command
@@ -26,6 +35,7 @@ import { Session } from 'next-auth'
 // body already guards with session?.user throughout.
 export default function AppHeader({ session }: { session: Session | null }) {
   const router = useRouter()
+  const organizationContext = useOrganizationContext()
 
   const handleLogout = () => {
     signOut()
@@ -33,6 +43,57 @@ export default function AppHeader({ session }: { session: Session | null }) {
   }
 
   const isAuthenticated = useMemo(() => session?.user, [session?.user])
+  const activeContext: ActiveOrganizationContext | null =
+    !organizationContext.isFetching &&
+    organizationContext.data?.state === 'ACTIVE'
+      ? organizationContext.data
+      : null
+  const canManageProfile = Boolean(
+    activeContext?.capabilities.includes(ORGANIZATION_PROFILE_MANAGE),
+  )
+
+  const OrganizationIdentity = ({ mobile = false }: { mobile?: boolean }) => {
+    if (organizationContext.isPending || organizationContext.isFetching) {
+      return (
+        <div
+          role='status'
+          aria-live='polite'
+          aria-label='Loading organization context'
+          className={mobile ? 'space-y-2' : 'w-52 space-y-1'}
+        >
+          <Skeleton className='h-4 w-40' />
+          <Skeleton className='h-3 w-32' />
+        </div>
+      )
+    }
+    if (organizationContext.isError) {
+      return (
+        <Button
+          type='button'
+          variant='ghost'
+          size='sm'
+          onClick={() => organizationContext.refetch()}
+        >
+          Retry organization context
+        </Button>
+      )
+    }
+    if (!activeContext) return null
+    return (
+      <div className={mobile ? 'min-w-0 space-y-1' : 'min-w-0 max-w-56'}>
+        <p
+          className='truncate text-sm font-medium'
+          title={activeContext.organization.displayName}
+          aria-label={`Organization: ${activeContext.organization.displayName}`}
+        >
+          {activeContext.organization.displayName}
+        </p>
+        <p className='truncate text-xs text-muted-foreground'>
+          {activeContext.roleLabel}
+        </p>
+      </div>
+    )
+  }
 
   const AuthenticatedMenu = () => (
     <DropdownMenu>
@@ -98,6 +159,52 @@ export default function AppHeader({ session }: { session: Session | null }) {
     </Sheet>
   )
 
+  const AuthenticatedMobileMenu = () => (
+    <Sheet>
+      <SheetTrigger asChild>
+        <Button variant='ghost' className='md:hidden' size='icon'>
+          <Menu className='h-5 w-5' />
+          <span className='sr-only'>Open account navigation</span>
+        </Button>
+      </SheetTrigger>
+      <SheetContent side='right' className='w-[min(300px,100vw)]'>
+        <SheetHeader className='text-left'>
+          <SheetTitle>Account navigation</SheetTitle>
+          <SheetDescription>{session?.user?.email}</SheetDescription>
+        </SheetHeader>
+        <div className='mt-6 space-y-5 overflow-x-hidden'>
+          <OrganizationIdentity mobile />
+          <nav aria-label='Account' className='flex flex-col gap-2'>
+            {activeContext && canManageProfile && (
+              <Button asChild variant='ghost' className='justify-start'>
+                <Link
+                  href={`/dashboard/admin/organizations/${activeContext.organization.id}`}
+                >
+                  <Building2 className='mr-2 h-4 w-4' />
+                  Organization profile
+                </Link>
+              </Button>
+            )}
+            <Button asChild variant='ghost' className='justify-start'>
+              <Link href={Routes.dashboard}>
+                <LayoutDashboard className='mr-2 h-4 w-4' />
+                Dashboard
+              </Link>
+            </Button>
+            <Button
+              variant='ghost'
+              className='justify-start text-red-600'
+              onClick={handleLogout}
+            >
+              <LogOut className='mr-2 h-4 w-4' />
+              Log out
+            </Button>
+          </nav>
+        </div>
+      </SheetContent>
+    </Sheet>
+  )
+
   return (
     <header className='sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60'>
       <div className='flex h-14 items-center gap-2 px-4'>
@@ -119,7 +226,15 @@ export default function AppHeader({ session }: { session: Session | null }) {
 
         <div className='flex flex-1 items-center justify-end gap-2'>
           {isAuthenticated ? (
-            <AuthenticatedMenu />
+            <>
+              <div className='hidden md:block'>
+                <OrganizationIdentity />
+              </div>
+              <div className='hidden md:block'>
+                <AuthenticatedMenu />
+              </div>
+              <AuthenticatedMobileMenu />
+            </>
           ) : (
             <>
               <div className='hidden md:flex md:items-center md:gap-2'>

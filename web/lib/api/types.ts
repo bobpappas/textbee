@@ -166,3 +166,26 @@ export interface OrganizationCreationResult {
     status: 'ACTIVE'
   }
 }
+
+export const ORGANIZATION_PROFILE_MANAGE =
+  'organization:profile:manage' as const
+
+export type OrganizationCapability = typeof ORGANIZATION_PROFILE_MANAGE
+
+export type ActiveOrganizationContext = {
+  state: 'ACTIVE'
+  organization: { id: string; displayName: string }
+  membership: { id: string; status: 'ACTIVE' }
+  capabilities: OrganizationCapability[]
+  roleLabel: string
+}
+
+export type OrganizationContext =
+  | ActiveOrganizationContext
+  | {
+      state: 'NO_ACCESS' | 'SELECTION_REQUIRED'
+      organization: null
+      membership: null
+      capabilities: []
+      roleLabel: null
+    }

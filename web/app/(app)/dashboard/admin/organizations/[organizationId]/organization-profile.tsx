@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { Building2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -12,6 +13,9 @@ import ErrorState from '@/components/shared/error-state'
 import PageHeader from '@/components/shared/page-header'
 import { useOrganizationProfile, useRenameOrganization } from '@/lib/api'
 import { apiErrorMessage } from '@/lib/utils/errorHandler'
+import { ORGANIZATION_PROFILE_MANAGE } from '@/lib/api'
+import { useOrganizationContext } from '@/components/organizations/organization-context-provider'
+import OrganizationContextState from '@/components/organizations/organization-context-state'
 
 const date = (value?: string | null) =>
   value
@@ -25,16 +29,85 @@ export default function OrganizationProfile({
 }: {
   organizationId: string
 }) {
-  const profile = useOrganizationProfile(organizationId)
+  const context = useOrganizationContext()
+  const canLoadProfile =
+    !context.isFetching &&
+    context.data?.state === 'ACTIVE' &&
+    context.data.organization.id === organizationId &&
+    context.data.capabilities.includes(ORGANIZATION_PROFILE_MANAGE)
+  const profile = useOrganizationProfile(organizationId, {
+    enabled: canLoadProfile,
+    retry: false,
+  })
   const rename = useRenameOrganization(organizationId)
   const [displayName, setDisplayName] = useState('')
   const [message, setMessage] = useState('')
   const [fieldError, setFieldError] = useState('')
+  const refreshedAfterDenial = useRef(false)
 
   useEffect(() => {
     if (profile.data) setDisplayName(profile.data.displayName)
     if (profile.isError) setDisplayName('')
   }, [profile.data, profile.isError])
+
+  useEffect(() => {
+    const status = (profile.error as any)?.response?.status
+    if (
+      profile.isError &&
+      [403, 404].includes(status) &&
+      !refreshedAfterDenial.current
+    ) {
+      refreshedAfterDenial.current = true
+      void context.refetch()
+    }
+  }, [context, profile.error, profile.isError])
+
+  if (context.isPending || context.isFetching) {
+    return (
+      <div
+        role="status"
+        aria-live="polite"
+        aria-label="Loading organization context"
+        className="container mx-auto space-y-4 px-4 py-6"
+      >
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-72 w-full" />
+      </div>
+    )
+  }
+  if (context.isError) {
+    return (
+      <div className="container mx-auto px-4 py-6">
+        <ErrorState
+          error={new Error('Organization context is temporarily unavailable.')}
+          title="Organization context could not be loaded"
+          onRetry={() => context.refetch()}
+        />
+      </div>
+    )
+  }
+  if (
+    context.data?.state === 'NO_ACCESS' ||
+    context.data?.state === 'SELECTION_REQUIRED'
+  ) {
+    return (
+      <OrganizationContextState
+        state={context.data.state}
+        onRefresh={() => context.refetch()}
+        isRefreshing={context.isFetching}
+      />
+    )
+  }
+  if (!canLoadProfile) {
+    return (
+      <div className="container mx-auto px-4 py-6">
+        <ErrorState
+          error={new Error('This organization is unavailable.')}
+          title="Organization not found or access denied"
+        />
+      </div>
+    )
+  }
 
   if (profile.isPending) {
     return (
@@ -149,9 +222,7 @@ export default function OrganizationProfile({
                 {rename.isPending ? 'Saving…' : 'Save changes'}
               </Button>
               <Button variant="outline" asChild>
-                <Link href="/dashboard/admin/organizations">
-                  Back to organizations
-                </Link>
+                <Link href="/dashboard">Back to dashboard</Link>
               </Button>
             </div>
           </form>

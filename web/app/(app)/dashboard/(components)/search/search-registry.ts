@@ -18,6 +18,8 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { Routes } from '@/config/routes'
+import type { OrganizationContext } from '@/lib/api'
+import { ORGANIZATION_PROFILE_MANAGE } from '@/lib/api'
 
 export type SearchGroup =
   | 'Overview'
@@ -350,8 +352,25 @@ export const searchEntries: SearchEntry[] = [
   },
 ]
 
-export function visibleSearchEntries(role?: string) {
-  return searchEntries.filter(
+export function visibleSearchEntries(
+  role?: string,
+  context?: OrganizationContext,
+) {
+  const organizationProfile: SearchEntry[] =
+    context?.state === 'ACTIVE' &&
+    context.capabilities.includes(ORGANIZATION_PROFILE_MANAGE)
+      ? [
+          {
+            href: `/dashboard/admin/organizations/${context.organization.id}`,
+            label: 'Organization profile',
+            group: 'Administration',
+            icon: Building2,
+            description: context.organization.displayName,
+            keywords: ['organization', 'profile', 'church', 'administration'],
+          },
+        ]
+      : []
+  return [...searchEntries, ...organizationProfile].filter(
     (entry) => !entry.requiredRole || entry.requiredRole === role,
   )
 }

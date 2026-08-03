@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "feature_path": "acceptance/features/organization-context.feature",
+  "ir_path": "acceptance/generated/organization-context.json",
+  "implementation_hash": "sha256:e4c1af33e89235a7bd2a12ac5dba24c1bb7fcda1a3251aa4a010cbe7b3777426",
+  "hash_scope": "generated_files",
+  "generated_files": [
+    "e2e/generated/organization-context.acceptance.spec.ts"
+  ]
+}

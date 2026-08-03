@@ -12,6 +12,7 @@ import {
   mockWebhookNotifications,
   mockWebhooks,
   TEST_ACCESS_TOKEN,
+  mockOrganizationContext,
 } from '../fixtures'
 
 // Build an absolute URL for an ApiEndpoints path so MSW can match the
@@ -23,6 +24,9 @@ const dataEnvelope = (data: JsonBodyType) => HttpResponse.json({ data })
 const raw = (body: JsonBodyType) => HttpResponse.json(body)
 
 export const handlers = [
+  http.get(url(ApiEndpoints.organizations.currentContext()), () =>
+    dataEnvelope(mockOrganizationContext)
+  ),
   // --- auth ---
   http.get(url(ApiEndpoints.auth.whoAmI()), () => dataEnvelope(mockUser)),
   http.post(url(ApiEndpoints.auth.login()), () =>

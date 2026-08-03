@@ -6,6 +6,14 @@ import {
   visibleMobileNavItems,
 } from './nav-items'
 
+const activeContext = {
+  state: 'ACTIVE' as const,
+  organization: { id: 'org-1', displayName: 'Boise Church of Christ' },
+  membership: { id: 'membership-1', status: 'ACTIVE' as const },
+  capabilities: ['organization:profile:manage' as const],
+  roleLabel: 'Organization administrator',
+}
+
 describe('isNavItemActive', () => {
   it('matches the dashboard home exactly', () => {
     expect(isNavItemActive({ href: '/dashboard' }, '/dashboard')).toBe(true)
@@ -51,5 +59,26 @@ describe('isNavItemActive', () => {
       visibleMobileNavItems('ADMIN').map((item) => item.label),
     ).not.toContain('Organizations')
     expect(visibleMobileNavItems('ADMIN')).toHaveLength(4)
+  })
+
+  it('shows the active profile only from a fresh server capability', () => {
+    expect(
+      visibleNavItems('REGULAR', activeContext).map((item) => item.href),
+    ).toContain('/dashboard/admin/organizations/org-1')
+    expect(
+      visibleNavItems('ADMIN', {
+        ...activeContext,
+        capabilities: [],
+      }).map((item) => item.label),
+    ).not.toContain('Organization profile')
+    expect(
+      visibleNavItems('ADMIN', {
+        state: 'NO_ACCESS',
+        organization: null,
+        membership: null,
+        capabilities: [],
+        roleLabel: null,
+      }).map((item) => item.label),
+    ).not.toContain('Organization profile')
   })
 })

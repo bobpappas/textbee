@@ -1,12 +1,18 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import OrganizationProfile from './organization-profile'
 
 const useProfile = vi.fn()
 const renameMutate = vi.fn()
+const contextRefetch = vi.fn()
+const useContext = vi.fn()
 vi.mock('@/lib/api', () => ({
+  ORGANIZATION_PROFILE_MANAGE: 'organization:profile:manage',
   useOrganizationProfile: () => useProfile(),
   useRenameOrganization: () => ({ mutate: renameMutate, isPending: false }),
+}))
+vi.mock('@/components/organizations/organization-context-provider', () => ({
+  useOrganizationContext: () => useContext(),
 }))
 
 const profile = {
@@ -19,6 +25,23 @@ const profile = {
 }
 
 describe('OrganizationProfile', () => {
+  beforeEach(() => {
+    contextRefetch.mockReset()
+    useContext.mockReturnValue({
+      isPending: false,
+      isFetching: false,
+      isError: false,
+      data: {
+        state: 'ACTIVE',
+        organization: { id: 'org-1', displayName: profile.displayName },
+        membership: { id: 'membership-1', status: 'ACTIVE' },
+        capabilities: ['organization:profile:manage'],
+        roleLabel: 'Organization administrator',
+      },
+      refetch: contextRefetch,
+    })
+  })
+
   it('clears profile data and renders a non-disclosing denied state', () => {
     useProfile.mockReturnValue({
       isPending: false,
@@ -60,5 +83,36 @@ describe('OrganizationProfile', () => {
       screen.getByDisplayValue('Server-confirmed name'),
     ).toBeInTheDocument()
     expect(screen.getByText('Organization name updated.')).toBeInTheDocument()
+  })
+
+  it.each([
+    ['NO_ACCESS', 'No organization access'],
+    ['SELECTION_REQUIRED', 'Organization selection required'],
+  ])('renders the safe %s direct-route state', (state, heading) => {
+    useContext.mockReturnValue({
+      isPending: false,
+      isFetching: false,
+      isError: false,
+      data: {
+        state,
+        organization: null,
+        membership: null,
+        capabilities: [],
+        roleLabel: null,
+      },
+      refetch: contextRefetch,
+    })
+    useProfile.mockReturnValue({ isPending: false })
+
+    render(<OrganizationProfile organizationId="forged-org" />)
+    expect(screen.getByRole('heading', { name: heading })).toBeInTheDocument()
+    expect(screen.queryByText(profile.displayName)).not.toBeInTheDocument()
+  })
+
+  it('rejects a route organization that differs from server context', () => {
+    useProfile.mockReturnValue({ isPending: false })
+    render(<OrganizationProfile organizationId="forged-org" />)
+    expect(screen.getByText(/not found or access denied/i)).toBeInTheDocument()
+    expect(screen.queryByText(profile.displayName)).not.toBeInTheDocument()
   })
 })

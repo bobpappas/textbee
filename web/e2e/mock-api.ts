@@ -9,6 +9,7 @@ import {
   mockUser,
   mockWebhookNotifications,
   mockWebhooks,
+  mockOrganizationContext,
 } from '../test/fixtures'
 
 const json = (route: Route, body: unknown, status = 200) =>
@@ -27,13 +28,50 @@ export type MockApiOverrides = {
   /** Fail POST /billing/checkout with this message, to exercise the error state. */
   checkoutError?: string
   organizationsForbidden?: boolean
+  organizationContext?: unknown
+  organizationContexts?: unknown[]
+  organizationContextDelayMs?: number
+  organizationProfileForbidden?: boolean
 }
 
 export async function mockApi(page: Page, overrides: MockApiOverrides = {}) {
   const organizations: any[] = []
-  await page.route('**/api/v1/**', (route) => {
+  let contextRequestCount = 0
+  await page.route('**/api/v1/**', async (route) => {
     const path = new URL(route.request().url()).pathname.replace('/api/v1', '')
     const method = route.request().method()
+
+    if (path === '/organizations/current-context') {
+      if (overrides.organizationContextDelayMs) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, overrides.organizationContextDelayMs),
+        )
+      }
+      const sequence = overrides.organizationContexts
+      const sequenced = sequence?.length
+        ? sequence[Math.min(contextRequestCount++, sequence.length - 1)]
+        : undefined
+      const created = organizations[0]
+      const context =
+        sequenced ??
+        overrides.organizationContext ??
+        (created
+          ? {
+              ...mockOrganizationContext,
+              organization: {
+                id: created.id,
+                displayName: created.displayName,
+              },
+            }
+          : {
+              state: 'NO_ACCESS',
+              organization: null,
+              membership: null,
+              capabilities: [],
+              roleLabel: null,
+            })
+      return json(route, { data: context })
+    }
 
     if (path === '/platform/organizations') {
       if (overrides.organizationsForbidden) {
@@ -66,9 +104,25 @@ export async function mockApi(page: Page, overrides: MockApiOverrides = {}) {
 
     const profileMatch = path.match(/^\/organizations\/([^/]+)\/profile$/)
     if (profileMatch) {
-      const organization = organizations.find(
-        (item) => item.id === profileMatch[1],
-      )
+      if (overrides.organizationProfileForbidden) {
+        return json(route, { error: 'Organization not found' }, 404)
+      }
+      const context = overrides.organizationContext as any
+      const contextOrganization =
+        context?.state === 'ACTIVE' &&
+        context.organization?.id === profileMatch[1]
+          ? {
+              id: context.organization.id,
+              displayName: context.organization.displayName,
+              status: 'ACTIVE',
+              canManageProfile: context.capabilities?.includes(
+                'organization:profile:manage',
+              ),
+            }
+          : null
+      const organization =
+        organizations.find((item) => item.id === profileMatch[1]) ??
+        contextOrganization
       if (!organization)
         return json(route, { error: 'Organization not found' }, 404)
       if (method === 'PATCH') {

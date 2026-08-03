@@ -21,6 +21,7 @@ import type {
   OrganizationCreationResult,
   OrganizationProfile,
   OrganizationRegistryItem,
+  OrganizationContext,
 } from './types'
 
 // Most endpoints wrap their payload as { data: ... }; a few (subscription)
@@ -317,6 +318,21 @@ export function useDeleteWebhook(id: string) {
 
 // ---------- organizations ----------
 
+export function useOrganizationContextQuery(
+  options?: QueryOpts<OrganizationContext>,
+) {
+  return useQuery({
+    queryKey: queryKeys.organizationContext,
+    queryFn: () =>
+      httpBrowserClient
+        .get(ApiEndpoints.organizations.currentContext())
+        .then(unwrapData<OrganizationContext>),
+    staleTime: 0,
+    refetchOnMount: 'always',
+    ...options,
+  })
+}
+
 export function useOrganizations(
   options?: ListQueryOpts<OrganizationRegistryItem>,
 ) {
@@ -350,6 +366,9 @@ export function useCreateOrganization() {
         .then(unwrapData<OrganizationCreationResult>),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.organizations })
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.organizationContext,
+      })
     },
   })
 }

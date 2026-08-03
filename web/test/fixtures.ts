@@ -133,6 +133,17 @@ export const mockWebhooks = [
 
 export const mockWebhookNotifications = { data: [], total: 0 }
 
+export const mockOrganizationContext = {
+  state: 'ACTIVE' as const,
+  organization: {
+    id: 'organization_context_1',
+    displayName: 'Boise Church of Christ',
+  },
+  membership: { id: 'membership_context_1', status: 'ACTIVE' as const },
+  capabilities: ['organization:profile:manage'] as const,
+  roleLabel: 'Organization administrator',
+}
+
 // The real endpoint populates `device` (select: _id brand model buildId
 // enabled), so the fixtures carry it too: replying reads message.device._id,
 // and without it the mocked path would not exercise what production does.

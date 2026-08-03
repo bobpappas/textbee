@@ -21,6 +21,7 @@ import {
   OperatorMembershipSchema,
 } from './schemas/operator-membership.schema'
 import { Organization, OrganizationSchema } from './schemas/organization.schema'
+import { OrganizationContextService } from './organization-context.service'
 
 @Module({
   imports: [
@@ -43,7 +44,12 @@ import { Organization, OrganizationSchema } from './schemas/organization.schema'
     PlatformAdminGuard,
     OrganizationPolicyService,
     OrganizationAdminGuard,
+    OrganizationContextService,
   ],
-  exports: [OrganizationsService, OrganizationPolicyService],
+  exports: [
+    OrganizationsService,
+    OrganizationPolicyService,
+    OrganizationContextService,
+  ],
 })
 export class OrganizationsModule {}

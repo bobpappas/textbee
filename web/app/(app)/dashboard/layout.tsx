@@ -23,6 +23,7 @@ import {
 } from './(components)/nav-items'
 import { cn } from '@/lib/utils'
 import { Routes } from '@/config/routes'
+import { useOrganizationContext } from '@/components/organizations/organization-context-provider'
 
 export default function DashboardLayout({
   children,
@@ -32,14 +33,18 @@ export default function DashboardLayout({
   const pathname = usePathname()
   const { data: session } = useSession()
   const role = session?.user?.role
-  const navigationItems = visibleNavItems(role)
-  const mobileNavigationItems = visibleMobileNavItems(role)
+  const organizationContext = useOrganizationContext()
+  const freshContext = organizationContext.isFetching
+    ? undefined
+    : organizationContext.data
+  const navigationItems = visibleNavItems(role, freshContext)
+  const mobileNavigationItems = visibleMobileNavItems(role, freshContext)
   // Owned here, not inside the palette, so both the sidebar trigger (desktop)
   // and the floating trigger (mobile) open the same dialog.
   const [searchOpen, setSearchOpen] = useState(false)
 
   return (
-    <div className="min-h-[calc(100vh-3.5rem)]">
+    <div className="min-h-[calc(100vh-3.5rem)] overflow-x-clip">
       {/* Visible only on focus. Without it, keyboard users tab through the
           whole sidebar on every page before reaching the content. */}
       <a

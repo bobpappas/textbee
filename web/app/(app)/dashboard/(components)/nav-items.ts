@@ -7,6 +7,8 @@ import {
   Building2,
   type LucideIcon,
 } from 'lucide-react'
+import type { OrganizationContext } from '@/lib/api'
+import { ORGANIZATION_PROFILE_MANAGE } from '@/lib/api'
 
 export type NavItem = {
   href: string
@@ -20,6 +22,7 @@ export type NavItem = {
   // mobileHidden appear only in the desktop sidebar and the command palette.
   mobileHidden?: boolean
   requiredRole?: 'ADMIN'
+  requiredCapability?: typeof ORGANIZATION_PROFILE_MANAGE
 }
 
 // Primary dashboard navigation, shared by the desktop sidebar, the mobile tab
@@ -49,14 +52,34 @@ export const navItems: NavItem[] = [
   },
 ]
 
-export function visibleNavItems(role?: string) {
-  return navItems.filter(
-    (item) => !item.requiredRole || item.requiredRole === role,
+export function visibleNavItems(role?: string, context?: OrganizationContext) {
+  const organizationProfile: NavItem[] =
+    context?.state === 'ACTIVE' &&
+    context.capabilities.includes(ORGANIZATION_PROFILE_MANAGE)
+      ? [
+          {
+            href: `/dashboard/admin/organizations/${context.organization.id}`,
+            label: 'Organization profile',
+            icon: Building2,
+            mobileHidden: true,
+            requiredCapability: ORGANIZATION_PROFILE_MANAGE,
+          },
+        ]
+      : []
+  return [...navItems, ...organizationProfile].filter(
+    (item) =>
+      (!item.requiredRole || item.requiredRole === role) &&
+      (!item.requiredCapability ||
+        (context?.state === 'ACTIVE' &&
+          context.capabilities.includes(item.requiredCapability))),
   )
 }
 
-export function visibleMobileNavItems(role?: string) {
-  return visibleNavItems(role).filter((item) => !item.mobileHidden)
+export function visibleMobileNavItems(
+  role?: string,
+  context?: OrganizationContext,
+) {
+  return visibleNavItems(role, context).filter((item) => !item.mobileHidden)
 }
 
 // /dashboard must match exactly; deeper routes match by prefix so nested pages
