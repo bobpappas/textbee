@@ -169,8 +169,46 @@ export interface OrganizationCreationResult {
 
 export const ORGANIZATION_PROFILE_MANAGE =
   'organization:profile:manage' as const
+export const GROUPS_READ = 'groups:read' as const
+export const GROUPS_MANAGE = 'groups:manage' as const
+export const GROUP_OWNERS_MANAGE = 'group-owners:manage' as const
+export const GROUP_ROSTER_MANAGE = 'group-roster:manage' as const
+export const GROUP_JOIN_SETTINGS_MANAGE = 'group-join-settings:manage' as const
 
-export type OrganizationCapability = typeof ORGANIZATION_PROFILE_MANAGE
+export type OrganizationCapability =
+  | typeof ORGANIZATION_PROFILE_MANAGE
+  | typeof GROUPS_READ
+  | typeof GROUPS_MANAGE
+  | typeof GROUP_OWNERS_MANAGE
+  | typeof GROUP_ROSTER_MANAGE
+  | typeof GROUP_JOIN_SETTINGS_MANAGE
+
+export type GroupOwner = { membershipId: string; displayName: string }
+export type OrganizationGroup = {
+  id: string
+  organizationId: string
+  displayName: string
+  status: 'ACTIVE' | 'ARCHIVED'
+  receivingNumberId: string
+  receivingNumber: string
+  displayNumber: string
+  joinCode: string
+  joinCommand: string
+  rosterCount: number
+  owners: GroupOwner[]
+  createdAt?: string
+  updatedAt?: string
+}
+export type ReceivingNumber = { id: string; number: string; displayNumber: string }
+export type OrganizationOperator = GroupOwner
+export type RosterMember = {
+  id: string
+  contactId: string
+  displayName: string
+  mobileNumber: string
+  displayNumber: string
+  reusedContact?: boolean
+}
 
 export type ActiveOrganizationContext = {
   state: 'ACTIVE'

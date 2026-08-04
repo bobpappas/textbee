@@ -17,13 +17,23 @@ describe('OrganizationContextService', () => {
   let organizations: any
   let memberships: any
   let grants: any
+  let groupOwners: any
+  let groups: any
   let service: OrganizationContextService
 
   beforeEach(() => {
     organizations = { find: jest.fn() }
     memberships = { find: jest.fn() }
     grants = { find: jest.fn() }
-    service = new OrganizationContextService(organizations, memberships, grants)
+    groupOwners = { find: jest.fn().mockResolvedValue([]) }
+    groups = { exists: jest.fn() }
+    service = new OrganizationContextService(
+      organizations,
+      memberships,
+      grants,
+      groupOwners,
+      groups,
+    )
   })
 
   const activeMembership = (overrides: Record<string, unknown> = {}) => ({
@@ -56,7 +66,14 @@ describe('OrganizationContextService', () => {
         displayName: 'Boise Church of Christ',
       },
       membership: { id: String(membershipId), status: MembershipStatus.ACTIVE },
-      capabilities: [OrganizationCapability.PROFILE_MANAGE],
+      capabilities: [
+        OrganizationCapability.GROUP_JOIN_SETTINGS_MANAGE,
+        OrganizationCapability.GROUP_OWNERS_MANAGE,
+        OrganizationCapability.GROUP_ROSTER_MANAGE,
+        OrganizationCapability.GROUPS_MANAGE,
+        OrganizationCapability.GROUPS_READ,
+        OrganizationCapability.PROFILE_MANAGE,
+      ],
       roleLabel: 'Organization administrator',
     })
   })
@@ -123,6 +140,26 @@ describe('OrganizationContextService', () => {
       state: OrganizationContextState.ACTIVE,
       capabilities: [],
       roleLabel: 'Organization member',
+    })
+  })
+
+  it('grants bounded group capabilities only for an active owned group', async () => {
+    const groupId = new Types.ObjectId()
+    memberships.find.mockResolvedValue([activeMembership()])
+    organizations.find.mockResolvedValue([activeOrganization()])
+    grants.find.mockResolvedValue([])
+    groupOwners.find.mockResolvedValue([
+      { groupId, status: GrantStatus.ACTIVE },
+    ])
+    groups.exists.mockResolvedValue({ _id: groupId })
+
+    await expect(service.current({ _id: userId })).resolves.toMatchObject({
+      capabilities: [
+        OrganizationCapability.GROUP_JOIN_SETTINGS_MANAGE,
+        OrganizationCapability.GROUP_ROSTER_MANAGE,
+        OrganizationCapability.GROUPS_READ,
+      ],
+      roleLabel: 'Group owner',
     })
   })
 

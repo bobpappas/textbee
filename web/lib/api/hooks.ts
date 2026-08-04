@@ -22,6 +22,10 @@ import type {
   OrganizationProfile,
   OrganizationRegistryItem,
   OrganizationContext,
+  OrganizationGroup,
+  OrganizationOperator,
+  ReceivingNumber,
+  RosterMember,
 } from './types'
 
 // Most endpoints wrap their payload as { data: ... }; a few (subscription)
@@ -417,6 +421,231 @@ export function useRenameOrganization(organizationId: string) {
       )
       void queryClient.invalidateQueries({ queryKey: queryKeys.organizations })
     },
+  })
+}
+
+// ---------- organization groups ----------
+
+const invalidateGroupData = (
+  queryClient: ReturnType<typeof useQueryClient>,
+  organizationId: string,
+  groupId?: string,
+) => {
+  void queryClient.invalidateQueries({ queryKey: queryKeys.groupsAll })
+  if (groupId) {
+    void queryClient.invalidateQueries({
+      queryKey: queryKeys.group(organizationId, groupId),
+    })
+  }
+}
+
+export function useGroups(
+  organizationId: string,
+  includeArchived = false,
+  options?: QueryOpts<OrganizationGroup[]>,
+) {
+  return useQuery({
+    queryKey: queryKeys.groups(organizationId, includeArchived),
+    queryFn: () =>
+      httpBrowserClient
+        .get(ApiEndpoints.organizations.groups(organizationId, includeArchived))
+        .then(unwrapData<OrganizationGroup[]>),
+    enabled: Boolean(organizationId),
+    ...options,
+  })
+}
+
+export function useGroup(
+  organizationId: string,
+  groupId: string,
+  options?: QueryOpts<OrganizationGroup>,
+) {
+  return useQuery({
+    queryKey: queryKeys.group(organizationId, groupId),
+    queryFn: () =>
+      httpBrowserClient
+        .get(ApiEndpoints.organizations.group(organizationId, groupId))
+        .then(unwrapData<OrganizationGroup>),
+    enabled: Boolean(organizationId && groupId),
+    ...options,
+  })
+}
+
+export function useReceivingNumbers(organizationId: string) {
+  return useQuery({
+    queryKey: queryKeys.receivingNumbers(organizationId),
+    queryFn: () =>
+      httpBrowserClient
+        .get(ApiEndpoints.organizations.receivingNumbers(organizationId))
+        .then(unwrapData<ReceivingNumber[]>),
+    enabled: Boolean(organizationId),
+  })
+}
+
+export function useOrganizationOperators(
+  organizationId: string,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: queryKeys.organizationOperators(organizationId),
+    queryFn: () =>
+      httpBrowserClient
+        .get(ApiEndpoints.organizations.operators(organizationId))
+        .then(unwrapData<OrganizationOperator[]>),
+    enabled: Boolean(organizationId) && enabled,
+  })
+}
+
+export type GroupInput = {
+  displayName: string
+  joinCode: string
+  receivingNumberId: string
+  ownerMembershipIds?: string[]
+}
+
+export function useCreateGroup(organizationId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: GroupInput) =>
+      httpBrowserClient
+        .post(ApiEndpoints.organizations.groups(organizationId), input)
+        .then(unwrapData<OrganizationGroup>),
+    onSuccess: () => invalidateGroupData(queryClient, organizationId),
+  })
+}
+
+export function useRenameGroup(organizationId: string, groupId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (displayName: string) =>
+      httpBrowserClient
+        .patch(ApiEndpoints.organizations.groupName(organizationId, groupId), {
+          displayName,
+        })
+        .then(unwrapData<OrganizationGroup>),
+    onSuccess: () => invalidateGroupData(queryClient, organizationId, groupId),
+  })
+}
+
+export function useChangeGroupJoinSettings(
+  organizationId: string,
+  groupId: string,
+) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { joinCode: string; receivingNumberId: string }) =>
+      httpBrowserClient
+        .patch(
+          ApiEndpoints.organizations.groupJoinSettings(organizationId, groupId),
+          input,
+        )
+        .then(unwrapData<OrganizationGroup>),
+    onSuccess: () => invalidateGroupData(queryClient, organizationId, groupId),
+  })
+}
+
+export function useArchiveGroup(organizationId: string, groupId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (reason: string) =>
+      httpBrowserClient
+        .post(ApiEndpoints.organizations.archiveGroup(organizationId, groupId), {
+          reason,
+        })
+        .then(unwrapData<OrganizationGroup>),
+    onSuccess: () => invalidateGroupData(queryClient, organizationId, groupId),
+  })
+}
+
+export function useReactivateGroup(organizationId: string, groupId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () =>
+      httpBrowserClient
+        .post(ApiEndpoints.organizations.reactivateGroup(organizationId, groupId))
+        .then(unwrapData<OrganizationGroup>),
+    onSuccess: () => invalidateGroupData(queryClient, organizationId, groupId),
+  })
+}
+
+export function useAssignGroupOwner(organizationId: string, groupId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (membershipId: string) =>
+      httpBrowserClient
+        .post(
+          ApiEndpoints.organizations.groupOwner(
+            organizationId,
+            groupId,
+            membershipId,
+          ),
+        )
+        .then(unwrapData<OrganizationGroup>),
+    onSuccess: () => invalidateGroupData(queryClient, organizationId, groupId),
+  })
+}
+
+export function useRevokeGroupOwner(organizationId: string, groupId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ membershipId, reason }: { membershipId: string; reason: string }) =>
+      httpBrowserClient
+        .delete(
+          ApiEndpoints.organizations.groupOwner(
+            organizationId,
+            groupId,
+            membershipId,
+          ),
+          { data: { reason } },
+        )
+        .then(unwrapData<OrganizationGroup>),
+    onSuccess: () => invalidateGroupData(queryClient, organizationId, groupId),
+  })
+}
+
+export function useRoster(
+  organizationId: string,
+  groupId: string,
+  search = '',
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: queryKeys.roster(organizationId, groupId, search),
+    queryFn: () =>
+      httpBrowserClient
+        .get(ApiEndpoints.organizations.roster(organizationId, groupId, search))
+        .then(unwrapData<RosterMember[]>),
+    enabled: Boolean(organizationId && groupId) && enabled,
+  })
+}
+
+export function useAddRosterMember(organizationId: string, groupId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { displayName: string; mobileNumber: string }) =>
+      httpBrowserClient
+        .post(ApiEndpoints.organizations.roster(organizationId, groupId), input)
+        .then(unwrapData<RosterMember>),
+    onSuccess: () => invalidateGroupData(queryClient, organizationId, groupId),
+  })
+}
+
+export function useRemoveRosterMember(
+  organizationId: string,
+  groupId: string,
+) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ membershipId, reason }: { membershipId: string; reason: string }) =>
+      httpBrowserClient.delete(
+        ApiEndpoints.organizations.rosterMember(
+          organizationId,
+          groupId,
+          membershipId,
+        ),
+        { data: { reason } },
+      ),
+    onSuccess: () => invalidateGroupData(queryClient, organizationId, groupId),
   })
 }
 

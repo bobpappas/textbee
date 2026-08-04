@@ -11,6 +11,7 @@ export const Routes = {
 
   dashboard: '/dashboard',
   organizations: '/dashboard/admin/organizations',
+  groups: '/dashboard/groups',
 
   downloadAndroidApp: '/download',
   privacyPolicy: 'https://textbee.dev/privacy-policy',

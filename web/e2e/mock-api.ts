@@ -10,6 +10,8 @@ import {
   mockWebhookNotifications,
   mockWebhooks,
   mockOrganizationContext,
+  mockOrganizationGroups,
+  mockRosterMembers,
 } from '../test/fixtures'
 
 const json = (route: Route, body: unknown, status = 200) =>
@@ -32,10 +34,15 @@ export type MockApiOverrides = {
   organizationContexts?: unknown[]
   organizationContextDelayMs?: number
   organizationProfileForbidden?: boolean
+  groups?: any[]
+  rosterMembers?: any[]
+  groupAccessDenied?: boolean
 }
 
 export async function mockApi(page: Page, overrides: MockApiOverrides = {}) {
   const organizations: any[] = []
+  const groups: any[] = structuredClone(overrides.groups ?? mockOrganizationGroups)
+  const rosterMembers: any[] = structuredClone(overrides.rosterMembers ?? mockRosterMembers)
   let contextRequestCount = 0
   await page.route('**/api/v1/**', async (route) => {
     const path = new URL(route.request().url()).pathname.replace('/api/v1', '')
@@ -71,6 +78,105 @@ export async function mockApi(page: Page, overrides: MockApiOverrides = {}) {
               roleLabel: null,
             })
       return json(route, { data: context })
+    }
+
+    const receivingNumbersMatch = path.match(/^\/organizations\/([^/]+)\/receiving-numbers$/)
+    if (receivingNumbersMatch) {
+      return json(route, {
+        data: [{ id: 'deployment-default', number: '+12085550100', displayNumber: '(208) 555-0100' }],
+      })
+    }
+
+    const operatorsMatch = path.match(/^\/organizations\/([^/]+)\/operators$/)
+    if (operatorsMatch) {
+      return json(route, {
+        data: [
+          { membershipId: '64b7c42f18f0c31f8c9fd301', displayName: 'Alex Rivera' },
+          { membershipId: '64b7c42f18f0c31f8c9fd302', displayName: 'Morgan Chen' },
+        ],
+      })
+    }
+
+    const groupListMatch = path.match(/^\/organizations\/([^/]+)\/groups$/)
+    if (groupListMatch) {
+      if (overrides.groupAccessDenied) return json(route, { error: 'Group not found' }, 404)
+      if (method === 'POST') {
+        const input = route.request().postDataJSON()
+        const group = {
+          id: `64b7c42f18f0c31f8c9fd20${groups.length + 2}`,
+          organizationId: groupListMatch[1],
+          displayName: input.displayName.trim(),
+          status: 'ACTIVE',
+          receivingNumberId: input.receivingNumberId,
+          receivingNumber: '+12085550100',
+          displayNumber: '(208) 555-0100',
+          joinCode: input.joinCode.trim().toUpperCase(),
+          joinCommand: `JOIN ${input.joinCode.trim().toUpperCase()}`,
+          rosterCount: 0,
+          owners: [],
+        }
+        groups.push(group)
+        return json(route, { data: group })
+      }
+      const includeArchived = new URL(route.request().url()).searchParams.get('includeArchived') === 'true'
+      return json(route, { data: includeArchived ? groups : groups.filter((group) => group.status === 'ACTIVE') })
+    }
+
+    const availabilityMatch = path.match(/^\/organizations\/([^/]+)\/groups\/join-code-availability$/)
+    if (availabilityMatch) return json(route, { data: { available: true } })
+
+    const rosterMatch = path.match(/^\/organizations\/([^/]+)\/groups\/([^/]+)\/roster$/)
+    if (rosterMatch) {
+      if (method === 'POST') {
+        const input = route.request().postDataJSON()
+        const member = {
+          id: `64b7c42f18f0c31f8c9fd40${rosterMembers.length + 2}`,
+          contactId: `64b7c42f18f0c31f8c9fd50${rosterMembers.length + 2}`,
+          displayName: input.displayName.trim(),
+          mobileNumber: '+12085550124',
+          displayNumber: '(208) 555-0124',
+        }
+        rosterMembers.push(member)
+        const group = groups.find((item) => item.id === rosterMatch[2])
+        if (group) group.rosterCount = rosterMembers.length
+        return json(route, { data: member })
+      }
+      return json(route, { data: rosterMembers })
+    }
+
+    const rosterMemberMatch = path.match(/^\/organizations\/([^/]+)\/groups\/([^/]+)\/roster\/([^/]+)$/)
+    if (rosterMemberMatch && method === 'DELETE') {
+      const index = rosterMembers.findIndex((item) => item.id === rosterMemberMatch[3])
+      if (index >= 0) rosterMembers.splice(index, 1)
+      return json(route, { data: { removed: true } })
+    }
+
+    const ownerMatch = path.match(/^\/organizations\/([^/]+)\/groups\/([^/]+)\/owners\/([^/]+)$/)
+    if (ownerMatch) {
+      const group = groups.find((item) => item.id === ownerMatch[2])
+      if (!group) return json(route, { error: 'Group not found' }, 404)
+      if (method === 'POST' && !group.owners.some((owner: any) => owner.membershipId === ownerMatch[3])) {
+        group.owners.push({ membershipId: ownerMatch[3], displayName: ownerMatch[3].endsWith('2') ? 'Morgan Chen' : 'Alex Rivera' })
+      }
+      if (method === 'DELETE') group.owners = group.owners.filter((owner: any) => owner.membershipId !== ownerMatch[3])
+      return json(route, { data: group })
+    }
+
+    const groupActionMatch = path.match(/^\/organizations\/([^/]+)\/groups\/([^/]+)(?:\/(name|join-settings|archive|reactivate))?$/)
+    if (groupActionMatch) {
+      if (overrides.groupAccessDenied) return json(route, { error: 'Group not found' }, 404)
+      const group = groups.find((item) => item.id === groupActionMatch[2])
+      if (!group) return json(route, { error: 'Group not found' }, 404)
+      const action = groupActionMatch[3]
+      const input = route.request().postDataJSON?.() ?? {}
+      if (action === 'name' && method === 'PATCH') group.displayName = input.displayName.trim()
+      if (action === 'join-settings' && method === 'PATCH') {
+        group.joinCode = input.joinCode.trim().toUpperCase()
+        group.joinCommand = `JOIN ${group.joinCode}`
+      }
+      if (action === 'archive' && method === 'POST') group.status = 'ARCHIVED'
+      if (action === 'reactivate' && method === 'POST') group.status = 'ACTIVE'
+      return json(route, { data: group })
     }
 
     if (path === '/platform/organizations') {

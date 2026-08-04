@@ -15,11 +15,12 @@ import {
   Users,
   Webhook,
   Building2,
+  UsersRound,
   type LucideIcon,
 } from 'lucide-react'
 import { Routes } from '@/config/routes'
 import type { OrganizationContext } from '@/lib/api'
-import { ORGANIZATION_PROFILE_MANAGE } from '@/lib/api'
+import { GROUPS_MANAGE, GROUPS_READ, ORGANIZATION_PROFILE_MANAGE, type OrganizationCapability } from '@/lib/api'
 
 export type SearchGroup =
   | 'Overview'
@@ -43,9 +44,28 @@ export type SearchEntry = {
   keywords: string[]
   external?: boolean
   requiredRole?: 'ADMIN'
+  requiredCapability?: OrganizationCapability
 }
 
 export const searchEntries: SearchEntry[] = [
+  {
+    href: '/dashboard/groups',
+    label: 'My Groups',
+    group: 'Administration',
+    icon: UsersRound,
+    description: 'Open assigned groups and maintain rosters',
+    keywords: ['groups', 'roster', 'contacts', 'members', 'join code'],
+    requiredCapability: GROUPS_READ,
+  },
+  {
+    href: '/dashboard/groups/new',
+    label: 'Create group',
+    group: 'Administration',
+    icon: UsersRound,
+    description: 'Create a group and select owners',
+    keywords: ['create group', 'new group', 'owners', 'join command'],
+    requiredCapability: GROUPS_MANAGE,
+  },
   {
     href: '/dashboard/admin/organizations',
     label: 'Organizations',
@@ -371,7 +391,11 @@ export function visibleSearchEntries(
         ]
       : []
   return [...searchEntries, ...organizationProfile].filter(
-    (entry) => !entry.requiredRole || entry.requiredRole === role,
+    (entry) =>
+      (!entry.requiredRole || entry.requiredRole === role) &&
+      (!entry.requiredCapability ||
+        (context?.state === 'ACTIVE' &&
+          context.capabilities.includes(entry.requiredCapability))),
   )
 }
 

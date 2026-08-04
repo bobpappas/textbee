@@ -140,9 +140,44 @@ export const mockOrganizationContext = {
     displayName: 'Boise Church of Christ',
   },
   membership: { id: 'membership_context_1', status: 'ACTIVE' as const },
-  capabilities: ['organization:profile:manage'] as const,
+  capabilities: [
+    'organization:profile:manage',
+    'groups:read',
+    'groups:manage',
+    'group-owners:manage',
+    'group-roster:manage',
+    'group-join-settings:manage',
+  ] as const,
   roleLabel: 'Organization administrator',
 }
+
+export const mockOrganizationGroups = [
+  {
+    id: '64b7c42f18f0c31f8c9fd201',
+    organizationId: 'organization_context_1',
+    displayName: 'Unified Young Adults',
+    status: 'ACTIVE',
+    receivingNumberId: 'deployment-default',
+    receivingNumber: '+12085550100',
+    displayNumber: '(208) 555-0100',
+    joinCode: 'UNIFIEDYA',
+    joinCommand: 'JOIN UNIFIEDYA',
+    rosterCount: 1,
+    owners: [
+      { membershipId: '64b7c42f18f0c31f8c9fd301', displayName: 'Alex Rivera' },
+    ],
+  },
+]
+
+export const mockRosterMembers = [
+  {
+    id: '64b7c42f18f0c31f8c9fd401',
+    contactId: '64b7c42f18f0c31f8c9fd501',
+    displayName: 'Jordan Lee',
+    mobileNumber: '+12085550123',
+    displayNumber: '(208) 555-0123',
+  },
+]
 
 // The real endpoint populates `device` (select: _id brand model buildId
 // enabled), so the fixtures carry it too: replying reads message.device._id,

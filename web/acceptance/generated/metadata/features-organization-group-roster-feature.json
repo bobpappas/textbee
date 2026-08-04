@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "feature_path": "acceptance/features/organization-group-roster.feature",
+  "ir_path": "acceptance/generated/organization-group-roster.json",
+  "implementation_hash": "sha256:37abd3a49aadd6205c6afa8f179ec8d008c2907247b4aa985fd37a15d5b316cc",
+  "hash_scope": "generated_files",
+  "generated_files": [
+    "e2e/generated/organization-group-roster.acceptance.spec.ts"
+  ]
+}

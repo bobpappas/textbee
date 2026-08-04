@@ -5,10 +5,11 @@ import {
   Users,
   UserCircle,
   Building2,
+  UsersRound,
   type LucideIcon,
 } from 'lucide-react'
 import type { OrganizationContext } from '@/lib/api'
-import { ORGANIZATION_PROFILE_MANAGE } from '@/lib/api'
+import { GROUPS_READ, ORGANIZATION_PROFILE_MANAGE } from '@/lib/api'
 
 export type NavItem = {
   href: string
@@ -22,7 +23,7 @@ export type NavItem = {
   // mobileHidden appear only in the desktop sidebar and the command palette.
   mobileHidden?: boolean
   requiredRole?: 'ADMIN'
-  requiredCapability?: typeof ORGANIZATION_PROFILE_MANAGE
+  requiredCapability?: typeof ORGANIZATION_PROFILE_MANAGE | typeof GROUPS_READ
 }
 
 // Primary dashboard navigation, shared by the desktop sidebar, the mobile tab
@@ -53,6 +54,17 @@ export const navItems: NavItem[] = [
 ]
 
 export function visibleNavItems(role?: string, context?: OrganizationContext) {
+  const groupNavigation: NavItem[] =
+    context?.state === 'ACTIVE' && context.capabilities.includes(GROUPS_READ)
+      ? [
+          {
+            href: '/dashboard/groups',
+            label: 'My Groups',
+            icon: UsersRound,
+            requiredCapability: GROUPS_READ,
+          },
+        ]
+      : []
   const organizationProfile: NavItem[] =
     context?.state === 'ACTIVE' &&
     context.capabilities.includes(ORGANIZATION_PROFILE_MANAGE)
@@ -66,7 +78,7 @@ export function visibleNavItems(role?: string, context?: OrganizationContext) {
           },
         ]
       : []
-  return [...navItems, ...organizationProfile].filter(
+  return [...navItems, ...groupNavigation, ...organizationProfile].filter(
     (item) =>
       (!item.requiredRole || item.requiredRole === role) &&
       (!item.requiredCapability ||
@@ -79,7 +91,12 @@ export function visibleMobileNavItems(
   role?: string,
   context?: OrganizationContext,
 ) {
-  return visibleNavItems(role, context).filter((item) => !item.mobileHidden)
+  const items = visibleNavItems(role, context).filter(
+    (item) => !item.mobileHidden,
+  )
+  return items.some((item) => item.label === 'My Groups')
+    ? items.filter((item) => item.label !== 'Community').slice(0, 4)
+    : items.slice(0, 4)
 }
 
 // /dashboard must match exactly; deeper routes match by prefix so nested pages

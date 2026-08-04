@@ -1,0 +1,110 @@
+{
+  "schema_version" : 1,
+  "feature_name" : "B024 organization group roster management",
+  "summary" : {
+    "step_occurrences" : 48,
+    "unique_steps" : 48,
+    "findings" : 4
+  },
+  "findings" : [ {
+    "kind" : "possible-synonym",
+    "confidence" : "medium",
+    "members" : [ {
+      "text" : "an active organization administrator edits an active group",
+      "locations" : [ {
+        "section" : "scenario",
+        "scenario_index" : 11,
+        "scenario_name" : "Join settings change atomically",
+        "step_index" : 0,
+        "keyword" : "Given"
+      } ]
+    }, {
+      "text" : "an organization administrator manages an active group",
+      "locations" : [ {
+        "section" : "scenario",
+        "scenario_index" : 3,
+        "scenario_name" : "Owner assignment is scoped and idempotent",
+        "step_index" : 0,
+        "keyword" : "Given"
+      } ]
+    } ],
+    "reason" : "step texts share many non-placeholder tokens and may describe the same concept",
+    "suggested_action" : "Review manually before editing; normalize the Gherkin only when the different wording is accidental drift.",
+    "score" : 0.667
+  }, {
+    "kind" : "possible-synonym",
+    "confidence" : "medium",
+    "members" : [ {
+      "text" : "an active group is archived by an organization administrator",
+      "locations" : [ {
+        "section" : "scenario",
+        "scenario_index" : 9,
+        "scenario_name" : "Archived codes remain reserved",
+        "step_index" : 0,
+        "keyword" : "Given"
+      } ]
+    }, {
+      "text" : "an active organization administrator edits an active group",
+      "locations" : [ {
+        "section" : "scenario",
+        "scenario_index" : 11,
+        "scenario_name" : "Join settings change atomically",
+        "step_index" : 0,
+        "keyword" : "Given"
+      } ]
+    } ],
+    "reason" : "step texts share many non-placeholder tokens and may describe the same concept",
+    "suggested_action" : "Review manually before editing; normalize the Gherkin only when the different wording is accidental drift.",
+    "score" : 0.571
+  }, {
+    "kind" : "possible-synonym",
+    "confidence" : "medium",
+    "members" : [ {
+      "text" : "an active group is archived by an organization administrator",
+      "locations" : [ {
+        "section" : "scenario",
+        "scenario_index" : 9,
+        "scenario_name" : "Archived codes remain reserved",
+        "step_index" : 0,
+        "keyword" : "Given"
+      } ]
+    }, {
+      "text" : "an organization administrator manages an active group",
+      "locations" : [ {
+        "section" : "scenario",
+        "scenario_index" : 3,
+        "scenario_name" : "Owner assignment is scoped and idempotent",
+        "step_index" : 0,
+        "keyword" : "Given"
+      } ]
+    } ],
+    "reason" : "step texts share many non-placeholder tokens and may describe the same concept",
+    "suggested_action" : "Review manually before editing; normalize the Gherkin only when the different wording is accidental drift.",
+    "score" : 0.571
+  }, {
+    "kind" : "possible-synonym",
+    "confidence" : "medium",
+    "members" : [ {
+      "text" : "a group displays an active receiving number and join command",
+      "locations" : [ {
+        "section" : "scenario",
+        "scenario_index" : 14,
+        "scenario_name" : "B024 does not process text to join",
+        "step_index" : 0,
+        "keyword" : "Given"
+      } ]
+    }, {
+      "text" : "one active organization-scoped group is displayed with its receiving number and canonical join command",
+      "locations" : [ {
+        "section" : "scenario",
+        "scenario_index" : 0,
+        "scenario_name" : "Organization administrator creates a group",
+        "step_index" : 2,
+        "keyword" : "Then"
+      } ]
+    } ],
+    "reason" : "step texts share many non-placeholder tokens and may describe the same concept",
+    "suggested_action" : "Review manually before editing; normalize the Gherkin only when the different wording is accidental drift.",
+    "score" : 0.462
+  } ]
+}

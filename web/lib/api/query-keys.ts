@@ -26,4 +26,15 @@ export const queryKeys = {
   organizationContext: ['organizationContext'] as const,
   organizationProfile: (organizationId: string) =>
     ['organizations', organizationId, 'profile'] as const,
+  groupsAll: ['groups'] as const,
+  groups: (organizationId: string, includeArchived = false) =>
+    ['groups', organizationId, 'list', includeArchived] as const,
+  group: (organizationId: string, groupId: string) =>
+    ['groups', organizationId, groupId] as const,
+  roster: (organizationId: string, groupId: string, search = '') =>
+    ['groups', organizationId, groupId, 'roster', search] as const,
+  receivingNumbers: (organizationId: string) =>
+    ['groups', organizationId, 'receiving-numbers'] as const,
+  organizationOperators: (organizationId: string) =>
+    ['groups', organizationId, 'operators'] as const,
 }

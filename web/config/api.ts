@@ -56,5 +56,27 @@ export const ApiEndpoints = {
     retryProvisioning: (id: string) =>
       `/platform/organizations/${id}/retry-provisioning`,
     profile: (id: string) => `/organizations/${id}/profile`,
+    groups: (id: string, includeArchived = false) =>
+      `/organizations/${id}/groups${includeArchived ? '?includeArchived=true' : ''}`,
+    group: (id: string, groupId: string) =>
+      `/organizations/${id}/groups/${groupId}`,
+    groupName: (id: string, groupId: string) =>
+      `/organizations/${id}/groups/${groupId}/name`,
+    groupJoinSettings: (id: string, groupId: string) =>
+      `/organizations/${id}/groups/${groupId}/join-settings`,
+    archiveGroup: (id: string, groupId: string) =>
+      `/organizations/${id}/groups/${groupId}/archive`,
+    reactivateGroup: (id: string, groupId: string) =>
+      `/organizations/${id}/groups/${groupId}/reactivate`,
+    groupOwner: (id: string, groupId: string, membershipId: string) =>
+      `/organizations/${id}/groups/${groupId}/owners/${membershipId}`,
+    roster: (id: string, groupId: string, search = '') =>
+      `/organizations/${id}/groups/${groupId}/roster${search ? `?search=${encodeURIComponent(search)}` : ''}`,
+    rosterMember: (id: string, groupId: string, membershipId: string) =>
+      `/organizations/${id}/groups/${groupId}/roster/${membershipId}`,
+    receivingNumbers: (id: string) => `/organizations/${id}/receiving-numbers`,
+    operators: (id: string) => `/organizations/${id}/operators`,
+    codeAvailability: (id: string, receivingNumberId: string, code: string, excludeGroupId?: string) =>
+      `/organizations/${id}/groups/join-code-availability?receivingNumberId=${encodeURIComponent(receivingNumberId)}&code=${encodeURIComponent(code)}${excludeGroupId ? `&excludeGroupId=${encodeURIComponent(excludeGroupId)}` : ''}`,
   },
 }

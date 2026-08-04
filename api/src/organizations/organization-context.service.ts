@@ -16,6 +16,9 @@ import {
 import { OperatorGrant } from './schemas/operator-grant.schema'
 import { OperatorMembership } from './schemas/operator-membership.schema'
 import { Organization } from './schemas/organization.schema'
+import { GroupOwnerStatus, GroupStatus } from '../groups/group.enums'
+import { GroupOwnerAssignment } from '../groups/schemas/group-owner-assignment.schema'
+import { Group } from '../groups/schemas/group.schema'
 
 type Actor = { _id?: Types.ObjectId | string; id?: string }
 
@@ -28,6 +31,10 @@ export class OrganizationContextService {
     private readonly memberships: Model<OperatorMembership>,
     @InjectModel(OperatorGrant.name)
     private readonly grants: Model<OperatorGrant>,
+    @InjectModel(GroupOwnerAssignment.name)
+    private readonly groupOwners: Model<GroupOwnerAssignment>,
+    @InjectModel(Group.name)
+    private readonly groups: Model<Group>,
   ) {}
 
   async current(actor: Actor, authenticatedWithApiKey = false) {
@@ -87,6 +94,31 @@ export class OrganizationContextService {
     const capabilities = new Set<OrganizationCapability>()
     if (roles.has(OrganizationRole.ORGANIZATION_ADMIN)) {
       capabilities.add(OrganizationCapability.PROFILE_MANAGE)
+      capabilities.add(OrganizationCapability.GROUPS_READ)
+      capabilities.add(OrganizationCapability.GROUPS_MANAGE)
+      capabilities.add(OrganizationCapability.GROUP_OWNERS_MANAGE)
+      capabilities.add(OrganizationCapability.GROUP_ROSTER_MANAGE)
+      capabilities.add(OrganizationCapability.GROUP_JOIN_SETTINGS_MANAGE)
+    } else {
+      const ownerAssignments = await this.groupOwners.find({
+        organizationId: organization._id,
+        membershipId: membership._id,
+        status: GroupOwnerStatus.ACTIVE,
+      })
+      const activeGroup = ownerAssignments.length
+        ? await this.groups.exists({
+            _id: {
+              $in: ownerAssignments.map((assignment) => assignment.groupId),
+            },
+            organizationId: organization._id,
+            status: GroupStatus.ACTIVE,
+          })
+        : null
+      if (activeGroup) {
+        capabilities.add(OrganizationCapability.GROUPS_READ)
+        capabilities.add(OrganizationCapability.GROUP_ROSTER_MANAGE)
+        capabilities.add(OrganizationCapability.GROUP_JOIN_SETTINGS_MANAGE)
+      }
     }
 
     return {
@@ -102,7 +134,9 @@ export class OrganizationContextService {
       capabilities: [...capabilities].sort(),
       roleLabel: roles.has(OrganizationRole.ORGANIZATION_ADMIN)
         ? 'Organization administrator'
-        : 'Organization member',
+        : capabilities.has(OrganizationCapability.GROUPS_READ)
+          ? 'Group owner'
+          : 'Organization member',
     }
   }
 

@@ -28,6 +28,11 @@ export enum OrganizationContextState {
 
 export enum OrganizationCapability {
   PROFILE_MANAGE = 'organization:profile:manage',
+  GROUPS_READ = 'groups:read',
+  GROUPS_MANAGE = 'groups:manage',
+  GROUP_OWNERS_MANAGE = 'group-owners:manage',
+  GROUP_ROSTER_MANAGE = 'group-roster:manage',
+  GROUP_JOIN_SETTINGS_MANAGE = 'group-join-settings:manage',
 }
 
 export enum OrganizationAuditAction {

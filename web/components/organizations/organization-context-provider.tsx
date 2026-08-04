@@ -37,6 +37,7 @@ export default function OrganizationContextProvider({
           query.queryKey[0] === 'organizations' &&
           query.queryKey[2] === 'profile',
       })
+      queryClient.removeQueries({ queryKey: queryKeys.groupsAll })
     }
     previousOrganizationId.current = organizationId
   }, [context.data, context.isSuccess, queryClient])
