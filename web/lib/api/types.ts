@@ -208,6 +208,9 @@ export type RosterMember = {
   mobileNumber: string
   displayNumber: string
   reusedContact?: boolean
+  consentStatus?: 'ACTIVE' | 'MISSING'
+  consentSource?: 'OPERATOR_AFFIRMATION' | 'TEXT_TO_JOIN'
+  consentedAt?: string
 }
 
 export type ActiveOrganizationContext = {

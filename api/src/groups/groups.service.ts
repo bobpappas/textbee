@@ -8,6 +8,7 @@ import {
 import { InjectModel } from '@nestjs/mongoose'
 import { randomUUID } from 'crypto'
 import { Model, Types } from 'mongoose'
+import { ConsentService } from '../consent/consent.service'
 import { MembershipStatus } from '../organizations/organization.enums'
 import { OrganizationPolicyService } from '../organizations/organization-policy.service'
 import { OperatorMembership } from '../organizations/schemas/operator-membership.schema'
@@ -41,6 +42,7 @@ export class GroupsService {
     private readonly operatorsModel: Model<OperatorMembership>,
     @InjectModel(User.name) private readonly users: Model<User>,
     private readonly policy: OrganizationPolicyService,
+    private readonly consent: ConsentService,
   ) {}
 
   async receivingNumbers(organizationId: string, actor: Actor) {
@@ -491,6 +493,11 @@ export class GroupsService {
       organizationId: group.organizationId,
       _id: { $in: memberships.map((item) => item.contactId) },
     })
+    const consentByContact = await this.consent.activeConsentViews(
+      group.organizationId,
+      group._id,
+      contacts.map((contact) => contact._id),
+    )
     const membershipByContact = new Map(
       memberships.map((item) => [String(item.contactId), item]),
     )
@@ -505,6 +512,10 @@ export class GroupsService {
         displayName: contact.displayName,
         mobileNumber: contact.mobileNumber,
         displayNumber: this.formatPhone(contact.mobileNumber),
+        consentStatus:
+          consentByContact.get(String(contact._id))?.status || 'MISSING',
+        consentSource: consentByContact.get(String(contact._id))?.source,
+        consentedAt: consentByContact.get(String(contact._id))?.consentedAt,
       }))
       .filter(
         (item) =>
@@ -533,6 +544,11 @@ export class GroupsService {
     const input = this.input(inputValue)
     const displayName = this.normalizeName(input.displayName)
     const mobileNumber = this.normalizePhone(input.mobileNumber)
+    if (input.consentAffirmed !== true)
+      throw new BadRequestException({
+        error:
+          'Affirm that this person asked to receive messages or provided this number for church communications',
+      })
     let contact = await this.contacts.findOne({
       organizationId: group.organizationId,
       mobileNumber,
@@ -564,6 +580,15 @@ export class GroupsService {
       contactId: contact._id,
     })
     if (existingMembership?.status === RosterMembershipStatus.ACTIVE) {
+      await this.consent.recordOperatorConsent({
+        organizationId: group.organizationId,
+        groupId: group._id,
+        contactId: contact._id,
+        mobileNumber,
+        actorUserId: actorId,
+        affirmed: input.consentAffirmed,
+        methodNote: input.consentMethodNote,
+      })
       return {
         id: String(existingMembership._id),
         contactId: String(contact._id),
@@ -598,6 +623,15 @@ export class GroupsService {
         status: RosterMembershipStatus.ACTIVE,
       })
       if (!membership) throw new Error('membership-postcondition')
+      await this.consent.recordOperatorConsent({
+        organizationId: group.organizationId,
+        groupId: group._id,
+        contactId: contact._id,
+        mobileNumber,
+        actorUserId: actorId,
+        affirmed: input.consentAffirmed,
+        methodNote: input.consentMethodNote,
+      })
       await this.record(
         group.organizationId,
         actorId,
@@ -686,6 +720,13 @@ export class GroupsService {
     membership.changedAt = new Date()
     membership.reason = reason
     await membership.save()
+    await this.consent.endGroupConsent({
+      organizationId: group.organizationId,
+      groupId: group._id,
+      contactId: membership.contactId,
+      actorUserId: actorId,
+      reason,
+    })
     await this.record(
       group.organizationId,
       actorId,

@@ -7,7 +7,6 @@ import { DeviceTombstone, DeviceTombstoneDocument } from './schemas/device-tombs
 import {
   ReceivedSMSDTO,
   RegisterDeviceInputDTO,
-  RetrieveSMSDTO,
   SendBulkSMSInputDTO,
   SendSMSInputDTO,
   UpdateSMSStatusDTO,
@@ -25,6 +24,8 @@ import { WebhookService } from '../webhook/webhook.service'
 import { BillingService } from '../billing/billing.service'
 import { SmsQueueService } from './queue/sms-queue.service'
 import { escapeRegExp } from '../common/escape-regexp'
+import { ConsentService } from '../consent/consent.service'
+import { DispatchPolicyContext } from '../consent/consent.enums'
 
 @Injectable()
 export class GatewayService {
@@ -38,6 +39,7 @@ export class GatewayService {
     private webhookService: WebhookService,
     private billingService: BillingService,
     private smsQueueService: SmsQueueService,
+    private consentService: ConsentService,
   ) {}
 
   // Blocks creating or re-enabling a device when the user's plan device limit
@@ -280,7 +282,11 @@ export class GatewayService {
     }
   }
 
-  async sendSMS(deviceId: string, smsData: SendSMSInputDTO): Promise<any> {
+  async sendSMS(
+    deviceId: string,
+    smsData: SendSMSInputDTO,
+    policyContext: DispatchPolicyContext = { kind: 'ORDINARY' },
+  ): Promise<any> {
     const device = await this.deviceModel.findById(deviceId)
 
     if (!device?.enabled) {
@@ -294,7 +300,7 @@ export class GatewayService {
     }
 
     const message = smsData.message || smsData.smsBody
-    const recipients = smsData.recipients || smsData.receivers
+    const requestedRecipients = smsData.recipients || smsData.receivers
 
     if (!message) {
       throw new HttpException(
@@ -306,13 +312,34 @@ export class GatewayService {
       )
     }
 
-    if (!Array.isArray(recipients) || recipients.length === 0) {
+    if (!Array.isArray(requestedRecipients) || requestedRecipients.length === 0) {
       throw new HttpException(
         {
           success: false,
           error: 'Invalid recipients',
         },
         HttpStatus.BAD_REQUEST,
+      )
+    }
+
+    const recipientPolicy = await this.consentService.authorizeRecipients(
+      device.user.toString(),
+      requestedRecipients,
+      policyContext,
+    )
+    const eligibleRecipients = recipientPolicy.filter((item) => item.eligible)
+    const recipients = eligibleRecipients.map((item) => item.recipient)
+    const excludedRecipients = recipientPolicy
+      .filter((item) => !item.eligible)
+      .map((item) => ({ recipient: item.recipient, reason: item.reason }))
+    if (recipients.length === 0) {
+      throw new HttpException(
+        {
+          success: false,
+          error: 'No recipients are eligible for messaging',
+          excludedRecipients,
+        },
+        HttpStatus.CONFLICT,
       )
     }
 
@@ -330,11 +357,12 @@ export class GatewayService {
       )
     }
 
-    await this.billingService.canPerformAction(
-      device.user.toString(),
-      'send_sms',
-      recipients.length,
-    )
+    if (policyContext.kind === 'ORDINARY')
+      await this.billingService.canPerformAction(
+        device.user.toString(),
+        'send_sms',
+        recipients.length,
+      )
 
     // TODO: Implement a queue to send the SMS if recipients are too many
 
@@ -364,6 +392,9 @@ export class GatewayService {
 
     for (let recipient of recipients) {
       recipient = recipient.replace(/\s+/g, "")
+      const decision = eligibleRecipients.find(
+        (item) => item.recipient === recipient,
+      )
       const sms = await this.smsModel.create({
         user: device.user,
         device: device._id,
@@ -373,6 +404,11 @@ export class GatewayService {
         recipient,
         requestedAt: new Date(),
         status: 'pending',
+        metadata: {
+          organizationId: decision?.organizationId,
+          groupId: decision?.groupId,
+          policyContext,
+        },
         ...(smsData.simSubscriptionId !== undefined && {
           simSubscriptionId: smsData.simSubscriptionId,
         }),
@@ -389,6 +425,7 @@ export class GatewayService {
         // Legacy fields to be removed in the future
         smsBody: message,
         receivers: [recipient],
+        policyContext,
       }
       const stringifiedSMSData = JSON.stringify(updatedSMSData)
 
@@ -425,6 +462,7 @@ export class GatewayService {
           message: 'SMS added to queue for processing',
           smsBatchId: smsBatch._id,
           recipientCount: recipients.length,
+          excludedRecipients,
         }
       } catch (e) {
         // Update batch status to failed
@@ -450,7 +488,17 @@ export class GatewayService {
     }
 
     try {
-      const response = await firebaseAdmin.messaging().sendEach(fcmMessages)
+      const dispatchableMessages = await this.filterDispatchableMessages(
+        device.user.toString(),
+        fcmMessages,
+        policyContext,
+      )
+      if (dispatchableMessages.length === 0)
+        throw new HttpException(
+          { success: false, error: 'Recipients became ineligible before dispatch' },
+          HttpStatus.CONFLICT,
+        )
+      const response = await firebaseAdmin.messaging().sendEach(dispatchableMessages)
 
       console.log(response)
 
@@ -480,7 +528,7 @@ export class GatewayService {
           $set: { status: 'completed' },
         })
         .exec()
-        .catch((e) => {
+        .catch(() => {
           console.error('failed to update sms batch status to completed')
         })
 
@@ -491,7 +539,7 @@ export class GatewayService {
           $set: { status: 'failed', error: e.message },
         })
         .exec()
-        .catch((e) => {
+        .catch(() => {
           console.error('failed to update sms batch status to failed')
         })
       throw new HttpException(
@@ -532,14 +580,42 @@ export class GatewayService {
       )
     }
 
+    const eligibleMessages: SendBulkSMSInputDTO['messages'] = []
+    const excludedRecipients: Array<{ recipient: string; reason?: string }> = []
+    for (const message of body.messages) {
+      const decisions = await this.consentService.authorizeRecipients(
+        device.user.toString(),
+        message.recipients,
+        { kind: 'ORDINARY' },
+      )
+      const recipients = decisions
+        .filter((item) => item.eligible)
+        .map((item) => item.recipient)
+      excludedRecipients.push(
+        ...decisions
+          .filter((item) => !item.eligible)
+          .map((item) => ({ recipient: item.recipient, reason: item.reason })),
+      )
+      if (recipients.length > 0) eligibleMessages.push({ ...message, recipients })
+    }
+    if (eligibleMessages.length === 0)
+      throw new HttpException(
+        {
+          success: false,
+          error: 'No recipients are eligible for messaging',
+          excludedRecipients,
+        },
+        HttpStatus.CONFLICT,
+      )
+
     await this.billingService.canPerformAction(
       device.user.toString(),
       'bulk_send_sms',
-      body.messages.map((m) => m.recipients).flat().length,
+      eligibleMessages.map((m) => m.recipients).flat().length,
     )
 
     // Check if any message has scheduledAt and validate queue is enabled
-    const hasScheduledMessages = body.messages.some((m) => m.scheduledAt)
+    const hasScheduledMessages = eligibleMessages.some((m) => m.scheduledAt)
     if (hasScheduledMessages && !this.smsQueueService.isQueueEnabled()) {
       throw new HttpException(
         {
@@ -550,7 +626,8 @@ export class GatewayService {
       )
     }
 
-    const { messageTemplate, messages } = body
+    const { messageTemplate } = body
+    const messages = eligibleMessages
 
     const smsBatch = await this.smsBatchModel.create({
       user: device.user,
@@ -659,6 +736,7 @@ export class GatewayService {
         // Legacy fields to be removed in the future
         smsBody: metadata.message,
         receivers: [metadata.recipient],
+        policyContext: { kind: 'ORDINARY' },
       }
       const stringifiedSMSData = JSON.stringify(updatedSMSData)
 
@@ -702,6 +780,7 @@ export class GatewayService {
           message: 'Bulk SMS added to queue for processing',
           smsBatchId: smsBatch._id,
           recipientCount: messages.map((m) => m.recipients).flat().length,
+          excludedRecipients,
         }
       } catch (e) {
         // Update batch status to failed
@@ -738,7 +817,13 @@ export class GatewayService {
 
     for (const batch of fcmMessagesBatches) {
       try {
-        const response = await firebaseAdmin.messaging().sendEach(batch)
+        const dispatchableBatch = await this.filterDispatchableMessages(
+          device.user.toString(),
+          batch,
+          { kind: 'ORDINARY' },
+        )
+        if (dispatchableBatch.length === 0) continue
+        const response = await firebaseAdmin.messaging().sendEach(dispatchableBatch)
 
         console.log(response)
         fcmResponses.push(response)
@@ -758,7 +843,7 @@ export class GatewayService {
             $set: { status: 'completed' },
           })
           .exec()
-          .catch((e) => {
+          .catch(() => {
             console.error('failed to update sms batch status to completed')
           })
       } catch (e) {
@@ -770,7 +855,7 @@ export class GatewayService {
             $set: { status: 'failed', error: e.message },
           })
           .exec()
-          .catch((e) => {
+          .catch(() => {
             console.error('failed to update sms batch status to failed')
           })
       }
@@ -811,7 +896,7 @@ export class GatewayService {
       !dto.sender ||
       !dto.message
     ) {
-      console.error(`receiveSMS: Invalid received SMS data (sender: ${dto.sender}, message: ${dto.message}) (receivedAt: ${dto.receivedAt}, receivedAtInMillis: ${dto.receivedAtInMillis})`)
+      console.error('receiveSMS: Invalid received SMS envelope')
       throw new HttpException(
         {
           success: false,
@@ -849,7 +934,7 @@ export class GatewayService {
 
     if (existingSMS) {
       console.log(
-        `Duplicate SMS detected for device ${deviceId}, sender ${dto.sender}, returning existing record: ${existingSMS._id}`,
+        `Duplicate inbound SMS detected for device ${deviceId}; returning existing record ${existingSMS._id}`,
       )
       return existingSMS
     }
@@ -862,7 +947,41 @@ export class GatewayService {
       status: 'received',
       sender: dto.sender,
       receivedAt,
+      metadata: { receivingNumber: process.env.TEXTBEE_DEFAULT_RECEIVING_NUMBER },
     })
+
+    const command = await this.consentService.processInbound({
+      sender: dto.sender,
+      body: dto.message,
+      inboundSmsId: sms._id,
+      receivedAt,
+    })
+
+    if (command.handled) {
+      if (command.acknowledgment) {
+        await this.sendSMS(
+          deviceId,
+          {
+            message: command.acknowledgment.body,
+            recipients: [dto.sender],
+            smsBody: command.acknowledgment.body,
+            receivers: [dto.sender],
+          },
+          {
+            kind: 'ACKNOWLEDGMENT',
+            organizationId: command.acknowledgment.organizationId,
+            groupId: command.acknowledgment.groupId,
+            acknowledgmentKind: command.acknowledgment.kind,
+          },
+        ).catch((error) => {
+          console.error(
+            `Failed to queue command acknowledgment for inbound SMS ${sms._id}`,
+            error?.message,
+          )
+        })
+      }
+      return sms
+    }
 
     this.deviceModel
       .findByIdAndUpdate(deviceId, {
@@ -885,6 +1004,37 @@ export class GatewayService {
       })
 
     return sms
+  }
+
+  private async filterDispatchableMessages(
+    userId: string,
+    fcmMessages: Message[],
+    fallbackContext: DispatchPolicyContext,
+  ) {
+    const dispatchable: Message[] = []
+    for (const fcmMessage of fcmMessages) {
+      const payload = JSON.parse(fcmMessage.data.smsData)
+      const context = payload.policyContext || fallbackContext
+      const [decision] = await this.consentService.authorizeRecipients(
+        userId,
+        payload.recipients,
+        context,
+      )
+      if (decision?.eligible) dispatchable.push(fcmMessage)
+      else
+        await this.smsModel.updateOne(
+          { _id: payload.smsId },
+          {
+            $set: {
+              status: 'failed',
+              failedAt: new Date(),
+              errorCode: decision?.reason || 'RECIPIENT_INELIGIBLE',
+              errorMessage: 'Recipient is not eligible at dispatch time',
+            },
+          },
+        )
+    }
+    return dispatchable
   }
 
   async getReceivedSMS(
@@ -913,7 +1063,6 @@ export class GatewayService {
       type: SMSType.RECEIVED,
     })
 
-    // @ts-ignore
     const data = await this.smsModel
       .find(
         {
@@ -994,7 +1143,6 @@ export class GatewayService {
     // Get total count for pagination metadata
     const total = await this.smsModel.countDocuments(query)
 
-    // @ts-ignore
     const data = await this.smsModel
       .find(query, null, {
         // Sort by the most recent timestamp (receivedAt for received, sentAt for sent)

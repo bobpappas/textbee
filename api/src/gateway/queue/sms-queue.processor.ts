@@ -9,6 +9,7 @@ import { SMSBatch } from '../schemas/sms-batch.schema'
 import { WebhookService } from 'src/webhook/webhook.service'
 import { WebhookEvent } from 'src/webhook/webhook-event.enum'
 import { Logger } from '@nestjs/common'
+import { ConsentService } from '../../consent/consent.service'
 
 function getFcmErrorCode(error: { code?: string; message?: string } | null): string {
   if (!error?.code) return 'FCM_DELIVERY_FAILED'
@@ -48,6 +49,7 @@ export class SmsQueueProcessor {
     @InjectModel(SMS.name) private smsModel: Model<SMS>,
     @InjectModel(SMSBatch.name) private smsBatchModel: Model<SMSBatch>,
     private webhookService: WebhookService,
+    private consentService: ConsentService,
   ) {}
 
   @Process({
@@ -56,7 +58,7 @@ export class SmsQueueProcessor {
   })
   async handleSendSms(job: Job<any>) {
     // this.logger.debug(`Processing send-sms job ${job.id}`)
-    const { deviceId, fcmMessages, smsBatchId } = job.data
+    const { deviceId, fcmMessages: queuedFcmMessages, smsBatchId } = job.data
 
     const device = await this.deviceModel
       .findById(deviceId)
@@ -66,6 +68,39 @@ export class SmsQueueProcessor {
       this.logger.warn(
         `Device or user not found for deviceId ${deviceId}, webhooks will be skipped`,
       )
+    }
+
+    const fcmMessages = []
+    for (const fcmMessage of queuedFcmMessages) {
+      const smsData = JSON.parse(fcmMessage.data.smsData)
+      const [decision] = device?.user
+        ? await this.consentService.authorizeRecipients(
+            String((device.user as any)._id || device.user),
+            smsData.recipients,
+            smsData.policyContext || { kind: 'ORDINARY' },
+          )
+        : []
+      if (decision?.eligible) {
+        fcmMessages.push(fcmMessage)
+      } else {
+        await this.smsModel.updateOne(
+          { _id: smsData.smsId as any },
+          {
+            $set: {
+              status: 'failed',
+              failedAt: new Date(),
+              errorCode: decision?.reason || 'RECIPIENT_INELIGIBLE',
+              errorMessage: 'Recipient is not eligible at dispatch time',
+            },
+          },
+        )
+      }
+    }
+    if (fcmMessages.length === 0) {
+      await this.smsBatchModel.findByIdAndUpdate(smsBatchId, {
+        $set: { status: 'failed' },
+      })
+      return { successCount: 0, failureCount: queuedFcmMessages.length }
     }
 
     try {

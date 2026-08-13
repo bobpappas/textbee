@@ -42,9 +42,11 @@ export class RosterMembership {
   @Prop({
     type: mongoose.Schema.Types.ObjectId,
     ref: User.name,
-    required: true,
   })
-  changedBy: Types.ObjectId
+  changedBy?: Types.ObjectId
+
+  @Prop({ type: mongoose.Schema.Types.ObjectId })
+  changedByInboundSmsId?: Types.ObjectId
 
   @Prop({ type: String })
   reason?: string

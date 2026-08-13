@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "feature_path": "acceptance/features/sms-consent-text-to-join.feature",
+  "ir_path": "acceptance/generated/sms-consent-text-to-join.json",
+  "implementation_hash": "sha256:dca1351a415fd341ae88f0b69a637382a4fa675ec2bbe0dec69fb3a0d332ddab",
+  "hash_scope": "generated_files",
+  "generated_files": [
+    "e2e/generated/sms-consent-text-to-join.acceptance.spec.ts"
+  ]
+}

@@ -1,0 +1,117 @@
+{
+  "name": "B018 and B023 SMS consent and Text-to-Join operator safeguards",
+  "scenarios": [
+    {
+      "name": "Manual consent requires an affirmative operator action",
+      "steps": [
+        {
+          "keyword": "Given",
+          "text": "an authorized roster manager opens an active group roster"
+        },
+        {
+          "keyword": "When",
+          "text": "the manager enters a contact without affirming consent"
+        },
+        {
+          "keyword": "Then",
+          "text": "the Add person action remains unavailable"
+        }
+      ],
+      "examples": []
+    },
+    {
+      "name": "Manual consent evidence is submitted with the roster mutation",
+      "steps": [
+        {
+          "keyword": "Given",
+          "text": "an authorized roster manager opens an active group roster"
+        },
+        {
+          "keyword": "When",
+          "text": "the manager affirms the approved statement and adds a contact"
+        },
+        {
+          "keyword": "Then",
+          "text": "the request records the affirmation and optional consent method note"
+        }
+      ],
+      "examples": []
+    },
+    {
+      "name": "Text-to-Join consent is visible without exposing message content",
+      "steps": [
+        {
+          "keyword": "Given",
+          "text": "an authorized operator opens a roster containing a Text-to-Join contact"
+        },
+        {
+          "keyword": "When",
+          "text": "the roster is displayed"
+        },
+        {
+          "keyword": "Then",
+          "text": "Text-to-Join is identified as the consent source"
+        },
+        {
+          "keyword": "And",
+          "text": "no original inbound message body is displayed"
+        }
+      ],
+      "examples": []
+    },
+    {
+      "name": "Missing consent remains visible to authorized operators",
+      "steps": [
+        {
+          "keyword": "Given",
+          "text": "an authorized operator opens a roster containing a contact without active group consent"
+        },
+        {
+          "keyword": "When",
+          "text": "the roster is displayed"
+        },
+        {
+          "keyword": "Then",
+          "text": "the contact is labeled as having no active group consent"
+        }
+      ],
+      "examples": []
+    },
+    {
+      "name": "Join advertising includes the required consumer disclosure",
+      "steps": [
+        {
+          "keyword": "Given",
+          "text": "an authorized operator opens an active group"
+        },
+        {
+          "keyword": "When",
+          "text": "the join command is displayed"
+        },
+        {
+          "keyword": "Then",
+          "text": "the operator sees variable frequency charges STOP HELP and support disclosure guidance"
+        }
+      ],
+      "examples": []
+    },
+    {
+      "name": "Archived join instructions are not advertised as active",
+      "steps": [
+        {
+          "keyword": "Given",
+          "text": "an administrator opens an archived group"
+        },
+        {
+          "keyword": "When",
+          "text": "the join instruction is displayed"
+        },
+        {
+          "keyword": "Then",
+          "text": "the instruction is labeled inactive and roster changes are unavailable"
+        }
+      ],
+      "examples": []
+    }
+  ]
+}

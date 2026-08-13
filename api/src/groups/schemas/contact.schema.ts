@@ -32,10 +32,12 @@ export class Contact {
   @Prop({
     type: mongoose.Schema.Types.ObjectId,
     ref: User.name,
-    required: true,
     immutable: true,
   })
-  createdBy: Types.ObjectId
+  createdBy?: Types.ObjectId
+
+  @Prop({ type: mongoose.Schema.Types.ObjectId, immutable: true })
+  createdByInboundSmsId?: Types.ObjectId
 
   createdAt?: Date
   updatedAt?: Date

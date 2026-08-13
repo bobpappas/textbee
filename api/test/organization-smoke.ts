@@ -134,6 +134,8 @@ async function main() {
       organizations,
       memberships,
       grants,
+      connection.model('GroupOwnerAssignment') as any,
+      connection.model('Group') as any,
     )
     const activeContext = await contextService.current(actor)
     if (

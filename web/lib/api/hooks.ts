@@ -622,7 +622,7 @@ export function useRoster(
 export function useAddRosterMember(organizationId: string, groupId: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (input: { displayName: string; mobileNumber: string }) =>
+    mutationFn: (input: { displayName: string; mobileNumber: string; consentAffirmed: boolean; consentMethodNote?: string }) =>
       httpBrowserClient
         .post(ApiEndpoints.organizations.roster(organizationId, groupId), input)
         .then(unwrapData<RosterMember>),

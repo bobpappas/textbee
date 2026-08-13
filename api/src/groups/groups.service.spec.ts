@@ -9,6 +9,7 @@ import { GroupsService } from './groups.service'
 describe('GroupsService validation', () => {
   const model = {} as any
   const policy = {} as any
+  const consent = {} as any
   const service = new GroupsService(
     model,
     model,
@@ -18,6 +19,7 @@ describe('GroupsService validation', () => {
     model,
     model,
     policy,
+    consent,
   )
 
   it.each([
@@ -65,6 +67,7 @@ describe('GroupsService validation', () => {
       membershipModel as any,
       model,
       policy,
+      consent,
     )
     await expect(
       configuredService.receivingNumbers('64b7c42f18f0c31f8c9fd111', {
@@ -105,6 +108,7 @@ describe('GroupsService validation', () => {
       operators as any,
       model,
       scopedPolicy as any,
+      consent,
     )
 
     await scopedService.list(String(organizationId), { _id: userId })
@@ -131,6 +135,7 @@ describe('GroupsService validation', () => {
       operators as any,
       model,
       policy,
+      consent,
     )
     await expect(
       scopedService.list('64b7c42f18f0c31f8c9fd111', {

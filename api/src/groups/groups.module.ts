@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common'
 import { MongooseModule } from '@nestjs/mongoose'
 import { AuthModule } from '../auth/auth.module'
+import { ConsentModule } from '../consent/consent.module'
 import { OrganizationsModule } from '../organizations/organizations.module'
 import {
   OperatorMembership,
@@ -28,6 +29,7 @@ import {
 @Module({
   imports: [
     AuthModule,
+    ConsentModule,
     UsersModule,
     OrganizationsModule,
     MongooseModule.forFeature([

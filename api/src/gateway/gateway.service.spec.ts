@@ -1,8 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing'
 import { GatewayService } from './gateway.service'
-import { AuthModule } from '../auth/auth.module'
 import { getModelToken } from '@nestjs/mongoose'
-import { Device, DeviceDocument } from './schemas/device.schema'
+import { Device } from './schemas/device.schema'
 import { DeviceTombstone } from './schemas/device-tombstone.schema'
 import { SMS } from './schemas/sms.schema'
 import { SMSBatch } from './schemas/sms-batch.schema'
@@ -10,7 +9,6 @@ import { AuthService } from '../auth/auth.service'
 import { WebhookService } from '../webhook/webhook.service'
 import { BillingService } from '../billing/billing.service'
 import { SmsQueueService } from './queue/sms-queue.service'
-import { Model } from 'mongoose'
 import { ConfigModule } from '@nestjs/config'
 import { HttpException, HttpStatus } from '@nestjs/common'
 import * as firebaseAdmin from 'firebase-admin'
@@ -19,6 +17,7 @@ import { WebhookEvent } from '../webhook/webhook-event.enum'
 import { RegisterDeviceInputDTO, SendBulkSMSInputDTO, SendSMSInputDTO } from './gateway.dto'
 import { User } from '../users/schemas/user.schema'
 import { BatchResponse } from 'firebase-admin/messaging'
+import { ConsentService } from '../consent/consent.service'
 
 // Mock firebase-admin
 jest.mock('firebase-admin', () => ({
@@ -29,15 +28,6 @@ jest.mock('firebase-admin', () => ({
 
 describe('GatewayService', () => {
   let service: GatewayService
-  let deviceModel: Model<DeviceDocument>
-  let deviceTombstoneModel: Model<any>
-  let smsModel: Model<SMS>
-  let smsBatchModel: Model<SMSBatch>
-  let authService: AuthService
-  let webhookService: WebhookService
-  let billingService: BillingService
-  let smsQueueService: SmsQueueService
-
   const mockDeviceModel = {
     findOne: jest.fn(),
     find: jest.fn(),
@@ -54,6 +44,7 @@ describe('GatewayService', () => {
     find: jest.fn(),
     findOne: jest.fn(),
     updateMany: jest.fn(),
+    updateOne: jest.fn(),
     countDocuments: jest.fn(),
   }
 
@@ -83,6 +74,11 @@ describe('GatewayService', () => {
   const mockSmsQueueService = {
     isQueueEnabled: jest.fn(),
     addSendSmsJob: jest.fn(),
+  }
+
+  const mockConsentService = {
+    authorizeRecipients: jest.fn(),
+    processInbound: jest.fn(),
   }
 
   beforeEach(async () => {
@@ -121,24 +117,22 @@ describe('GatewayService', () => {
           provide: SmsQueueService,
           useValue: mockSmsQueueService,
         },
+        {
+          provide: ConsentService,
+          useValue: mockConsentService,
+        },
       ],
       imports: [ConfigModule],
     }).compile()
 
     service = module.get<GatewayService>(GatewayService)
-    deviceModel = module.get<Model<DeviceDocument>>(getModelToken(Device.name))
-    deviceTombstoneModel = module.get<Model<any>>(
-      getModelToken(DeviceTombstone.name),
-    )
-    smsModel = module.get<Model<SMS>>(getModelToken(SMS.name))
-    smsBatchModel = module.get<Model<SMSBatch>>(getModelToken(SMSBatch.name))
-    authService = module.get<AuthService>(AuthService)
-    webhookService = module.get<WebhookService>(WebhookService)
-    billingService = module.get<BillingService>(BillingService)
-    smsQueueService = module.get<SmsQueueService>(SmsQueueService)
-
     // Reset all mocks
     jest.clearAllMocks()
+    mockConsentService.authorizeRecipients.mockImplementation(
+      async (_userId, recipients) =>
+        recipients.map((recipient) => ({ recipient, eligible: true })),
+    )
+    mockConsentService.processInbound.mockResolvedValue({ handled: false })
   })
 
   it('should be defined', () => {
@@ -767,7 +761,7 @@ describe('GatewayService', () => {
     })
 
     it('should get sent messages with pagination', async () => {
-      const result = await service.getMessages(mockDeviceId, 'sent', 1, 10)
+      await service.getMessages(mockDeviceId, 'sent', 1, 10)
 
       expect(mockSmsModel.countDocuments).toHaveBeenCalledWith({
         device: mockDevice._id,
@@ -784,7 +778,7 @@ describe('GatewayService', () => {
     })
 
     it('should get received messages with pagination', async () => {
-      const result = await service.getMessages(mockDeviceId, 'received', 1, 10)
+      await service.getMessages(mockDeviceId, 'received', 1, 10)
 
       expect(mockSmsModel.countDocuments).toHaveBeenCalledWith({
         device: mockDevice._id,
