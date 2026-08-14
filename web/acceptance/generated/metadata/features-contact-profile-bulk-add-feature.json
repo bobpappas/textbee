@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "feature_path": "acceptance/features/contact-profile-bulk-add.feature",
+  "ir_path": "acceptance/generated/contact-profile-bulk-add.json",
+  "implementation_hash": "sha256:aed66679caa5135a47048dd56bb0439163b2214694d860f3a9e95ee29adb56bf",
+  "hash_scope": "generated_files",
+  "generated_files": [
+    "e2e/generated/contact-profile-bulk-add.acceptance.spec.ts"
+  ]
+}

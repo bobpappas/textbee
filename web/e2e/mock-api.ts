@@ -44,6 +44,7 @@ export async function mockApi(page: Page, overrides: MockApiOverrides = {}) {
   const groups: any[] = structuredClone(overrides.groups ?? mockOrganizationGroups)
   const rosterMembers: any[] = structuredClone(overrides.rosterMembers ?? mockRosterMembers)
   let contextRequestCount = 0
+  let bulkPreview: any = null
   await page.route('**/api/v1/**', async (route) => {
     const path = new URL(route.request().url()).pathname.replace('/api/v1', '')
     const method = route.request().method()
@@ -150,6 +151,50 @@ export async function mockApi(page: Page, overrides: MockApiOverrides = {}) {
       if (index >= 0) rosterMembers.splice(index, 1)
       return json(route, { data: { removed: true } })
     }
+
+    const contactNameMatch = path.match(/^\/organizations\/([^/]+)\/groups\/([^/]+)\/contacts\/([^/]+)\/name$/)
+    if (contactNameMatch && method === 'PATCH') {
+      const contact = rosterMembers.find((item) => item.contactId === contactNameMatch[3])
+      if (!contact) return json(route, { error: 'Group not found' }, 404)
+      contact.displayName = route.request().postDataJSON().displayName.trim()
+      return json(route, { data: contact })
+    }
+
+    const bulkPreviewMatch = path.match(/^\/organizations\/([^/]+)\/groups\/([^/]+)\/roster-bulk\/preview$/)
+    if (bulkPreviewMatch && method === 'POST') {
+      bulkPreview = {
+        id: '64b7c42f18f0c31f8c9fd601',
+        status: 'PREVIEW',
+        expiresAt: new Date(Date.now() + 1_800_000).toISOString(),
+        totalRows: 3,
+        counts: { READY_NEW_CONTACT: 1, INVALID: 1, DUPLICATE_IN_FILE: 1 },
+        rows: [
+          { rowNumber: 2, displayName: 'Synthetic Person', displayNumber: '(208) 555-0124', classification: 'READY_NEW_CONTACT', reason: 'A new organization contact will be created' },
+          { rowNumber: 3, displayName: 'Invalid Person', classification: 'INVALID', reason: 'Required data, phone number, or consent note is invalid' },
+          { rowNumber: 4, displayName: 'Duplicate Person', displayNumber: '(208) 555-0124', classification: 'DUPLICATE_IN_FILE', reason: 'An earlier valid row uses this number' },
+        ],
+      }
+      return json(route, { data: bulkPreview })
+    }
+
+    const bulkApplyMatch = path.match(/^\/organizations\/([^/]+)\/groups\/([^/]+)\/roster-bulk\/([^/]+)\/apply$/)
+    if (bulkApplyMatch && method === 'POST' && bulkPreview) {
+      bulkPreview = {
+        ...bulkPreview,
+        status: 'APPLIED',
+        appliedAt: new Date().toISOString(),
+        counts: { ADDED: 1, INVALID: 1, DUPLICATE_IN_FILE: 1 },
+        rows: [
+          { rowNumber: 2, redactedNumber: '***0124', outcome: 'ADDED', reason: 'A new organization contact will be created' },
+          { rowNumber: 3, outcome: 'INVALID', reason: 'Required data, phone number, or consent note is invalid' },
+          { rowNumber: 4, redactedNumber: '***0124', outcome: 'DUPLICATE_IN_FILE', reason: 'An earlier valid row uses this number' },
+        ],
+      }
+      return json(route, { data: bulkPreview })
+    }
+
+    const bulkResultMatch = path.match(/^\/organizations\/([^/]+)\/groups\/([^/]+)\/roster-bulk\/([^/]+)$/)
+    if (bulkResultMatch && bulkPreview) return json(route, { data: bulkPreview })
 
     const ownerMatch = path.match(/^\/organizations\/([^/]+)\/groups\/([^/]+)\/owners\/([^/]+)$/)
     if (ownerMatch) {

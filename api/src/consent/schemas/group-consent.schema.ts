@@ -51,6 +51,9 @@ export class GroupConsent {
   @Prop({ type: String })
   methodNote?: string
 
+  @Prop({ type: Number })
+  sourceRow?: number
+
   @Prop({ type: String })
   receivingNumber?: string
 

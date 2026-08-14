@@ -74,6 +74,14 @@ export const ApiEndpoints = {
       `/organizations/${id}/groups/${groupId}/roster${search ? `?search=${encodeURIComponent(search)}` : ''}`,
     rosterMember: (id: string, groupId: string, membershipId: string) =>
       `/organizations/${id}/groups/${groupId}/roster/${membershipId}`,
+    contactName: (id: string, groupId: string, contactId: string) =>
+      `/organizations/${id}/groups/${groupId}/contacts/${contactId}/name`,
+    rosterBulkPreview: (id: string, groupId: string) =>
+      `/organizations/${id}/groups/${groupId}/roster-bulk/preview`,
+    rosterBulkImport: (id: string, groupId: string, previewId: string) =>
+      `/organizations/${id}/groups/${groupId}/roster-bulk/${previewId}`,
+    rosterBulkApply: (id: string, groupId: string, previewId: string) =>
+      `/organizations/${id}/groups/${groupId}/roster-bulk/${previewId}/apply`,
     receivingNumbers: (id: string) => `/organizations/${id}/receiving-numbers`,
     operators: (id: string) => `/organizations/${id}/operators`,
     codeAvailability: (id: string, receivingNumberId: string, code: string, excludeGroupId?: string) =>

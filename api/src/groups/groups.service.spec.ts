@@ -18,6 +18,7 @@ describe('GroupsService validation', () => {
     model,
     model,
     model,
+    model,
     policy,
     consent,
   )
@@ -52,6 +53,32 @@ describe('GroupsService validation', () => {
     )
   })
 
+  it('parses the exact bulk-add CSV contract including quoted fields', () => {
+    expect(
+      service.parseBulkCsv(
+        'display_name,mobile_number,consent_note\n"Synthetic, Person",208-555-0123,"Asked in person"\n\n',
+      ),
+    ).toEqual([
+      {
+        rowNumber: 2,
+        displayName: 'Synthetic, Person',
+        mobileNumber: '208-555-0123',
+        consentNote: 'Asked in person',
+        malformed: false,
+      },
+    ])
+  })
+
+  it.each([
+    'display_name,mobile_number,unknown\nPerson,208-555-0123,value',
+    'display_name,display_name,mobile_number\nPerson,Other,208-555-0123',
+    'display_name,consent_note\nPerson,Asked',
+    ' display_name,mobile_number\nPerson,208-555-0123',
+    'display_name,mobile_number\n"Unclosed,208-555-0123',
+  ])('rejects malformed or unsupported CSV input', (csv) => {
+    expect(() => service.parseBulkCsv(csv)).toThrow(BadRequestException)
+  })
+
   it('does not expose a receiving number when deployment configuration is absent', async () => {
     const previous = process.env.TEXTBEE_DEFAULT_RECEIVING_NUMBER
     delete process.env.TEXTBEE_DEFAULT_RECEIVING_NUMBER
@@ -59,6 +86,7 @@ describe('GroupsService validation', () => {
       findOne: jest.fn().mockResolvedValue({ _id: 'membership' }),
     }
     const configuredService = new GroupsService(
+      model,
       model,
       model,
       model,
@@ -105,6 +133,7 @@ describe('GroupsService validation', () => {
       owners as any,
       model,
       model,
+      model,
       operators as any,
       model,
       scopedPolicy as any,
@@ -127,6 +156,7 @@ describe('GroupsService validation', () => {
   it('uses the same non-disclosing result for missing organization membership', async () => {
     const operators = { findOne: jest.fn().mockResolvedValue(null) }
     const scopedService = new GroupsService(
+      model,
       model,
       model,
       model,

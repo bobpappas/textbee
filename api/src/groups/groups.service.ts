@@ -6,7 +6,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common'
 import { InjectModel } from '@nestjs/mongoose'
-import { randomUUID } from 'crypto'
+import { createHash, randomUUID } from 'crypto'
 import { Model, Types } from 'mongoose'
 import { ConsentService } from '../consent/consent.service'
 import { MembershipStatus } from '../organizations/organization.enums'
@@ -23,9 +23,29 @@ import { GroupAuditEvent } from './schemas/group-audit-event.schema'
 import { GroupOwnerAssignment } from './schemas/group-owner-assignment.schema'
 import { Group, GroupDocument } from './schemas/group.schema'
 import { RosterMembership } from './schemas/roster-membership.schema'
+import {
+  RosterBulkImport,
+  RosterBulkImportDocument,
+} from './schemas/roster-bulk-import.schema'
 
 type Actor = { _id?: Types.ObjectId | string; id?: string }
 type Input = Record<string, unknown>
+type BulkClassification =
+  | 'READY_NEW_CONTACT'
+  | 'READY_EXISTING_CONTACT'
+  | 'ALREADY_MEMBER'
+  | 'DUPLICATE_IN_FILE'
+  | 'SUPPRESSED'
+  | 'INVALID'
+type BulkRow = {
+  rowNumber: number
+  displayName: string
+  mobileNumber?: string
+  displayNumber?: string
+  consentNote?: string
+  classification: BulkClassification
+  reason: string
+}
 
 @Injectable()
 export class GroupsService {
@@ -38,6 +58,8 @@ export class GroupsService {
     private readonly memberships: Model<RosterMembership>,
     @InjectModel(GroupAuditEvent.name)
     private readonly audit: Model<GroupAuditEvent>,
+    @InjectModel(RosterBulkImport.name)
+    private readonly bulkImports: Model<RosterBulkImport>,
     @InjectModel(OperatorMembership.name)
     private readonly operatorsModel: Model<OperatorMembership>,
     @InjectModel(User.name) private readonly users: Model<User>,
@@ -537,6 +559,7 @@ export class GroupsService {
     actor: Actor,
     inputValue: unknown,
     correlationId: string = randomUUID(),
+    sourceRow?: number,
   ) {
     const actorId = this.actorId(actor)
     const { group } = await this.requireGroup(organizationId, groupId, actor)
@@ -588,6 +611,7 @@ export class GroupsService {
         actorUserId: actorId,
         affirmed: input.consentAffirmed,
         methodNote: input.consentMethodNote,
+        sourceRow,
       })
       return {
         id: String(existingMembership._id),
@@ -631,6 +655,7 @@ export class GroupsService {
         actorUserId: actorId,
         affirmed: input.consentAffirmed,
         methodNote: input.consentMethodNote,
+        sourceRow,
       })
       await this.record(
         group.organizationId,
@@ -693,6 +718,212 @@ export class GroupsService {
       })
       throw error
     }
+  }
+
+  async renameContact(
+    organizationId: string,
+    groupId: string,
+    contactId: string,
+    actor: Actor,
+    inputValue: unknown,
+    correlationId: string = randomUUID(),
+  ) {
+    const actorId = this.actorId(actor)
+    const { group, admin } = await this.requireGroup(
+      organizationId,
+      groupId,
+      actor,
+    )
+    this.requireActive(group)
+    const contactObjectId = this.objectId(contactId)
+    const membership = await this.memberships.exists({
+      organizationId: group.organizationId,
+      groupId: group._id,
+      contactId: contactObjectId,
+      status: RosterMembershipStatus.ACTIVE,
+    })
+    if (!admin && !membership) throw this.notFound()
+    const contact = await this.contacts.findOne({
+      _id: contactObjectId,
+      organizationId: group.organizationId,
+    })
+    if (!contact) throw this.notFound()
+    const displayName = this.normalizeName(this.input(inputValue).displayName)
+    if (contact.displayName === displayName) return this.contactView(contact)
+    const prior = contact.displayName
+    contact.displayName = displayName
+    await contact.save()
+    await this.record(
+      group.organizationId,
+      actorId,
+      'CONTACT_DISPLAY_NAME_CHANGED',
+      'Contact',
+      String(contact._id),
+      correlationId,
+      prior,
+      displayName,
+    )
+    return this.contactView(contact)
+  }
+
+  async previewBulkAdd(
+    organizationId: string,
+    groupId: string,
+    actor: Actor,
+    inputValue: unknown,
+    correlationId: string = randomUUID(),
+  ) {
+    const actorId = this.actorId(actor)
+    const { group } = await this.requireGroup(organizationId, groupId, actor)
+    this.requireActive(group)
+    const csvContent = this.input(inputValue).csvContent
+    if (
+      typeof csvContent !== 'string' ||
+      csvContent.includes('\uFFFD') ||
+      csvContent.length > 1_000_000
+    )
+      throw new BadRequestException({
+        error: 'Upload a readable UTF-8 CSV file',
+      })
+    const records = this.parseBulkCsv(csvContent)
+    if (records.length > 1000)
+      throw new BadRequestException({
+        error: 'CSV files may contain at most 1,000 non-blank rows',
+      })
+    const seen = new Set<string>()
+    const rows: BulkRow[] = []
+    for (const record of records) {
+      rows.push(await this.classifyBulkRow(group, record, seen))
+    }
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000)
+    const preview = await this.bulkImports.create({
+      organizationId: group.organizationId,
+      groupId: group._id,
+      actorUserId: actorId,
+      contentHash: createHash('sha256').update(csvContent).digest('hex'),
+      status: 'PREVIEW',
+      rows,
+      expiresAt,
+    })
+    await this.record(
+      group.organizationId,
+      actorId,
+      'ROSTER_BULK_PREVIEW_CREATED',
+      'RosterBulkImport',
+      String(preview._id),
+      correlationId,
+    )
+    return this.bulkImportView(preview)
+  }
+
+  async applyBulkAdd(
+    organizationId: string,
+    groupId: string,
+    previewId: string,
+    actor: Actor,
+    inputValue: unknown,
+    correlationId: string = randomUUID(),
+  ) {
+    const actorId = this.actorId(actor)
+    const { group } = await this.requireGroup(organizationId, groupId, actor)
+    this.requireActive(group)
+    if (this.input(inputValue).consentAffirmed !== true)
+      throw new BadRequestException({
+        error:
+          'Affirm that every ready person asked to receive messages or provided their number for church communications',
+      })
+    const preview = await this.findBulkImport(group, previewId, actorId, false)
+    if (preview.status === 'APPLIED') return this.bulkImportView(preview)
+    const seen = new Set<string>()
+    const results: Record<string, unknown>[] = []
+    for (const storedRow of preview.rows as BulkRow[]) {
+      const current = await this.classifyBulkRow(
+        group,
+        {
+          rowNumber: storedRow.rowNumber,
+          displayName: storedRow.displayName,
+          mobileNumber: storedRow.mobileNumber || '',
+          consentNote: storedRow.consentNote || '',
+        },
+        seen,
+      )
+      let outcome: string = current.classification
+      let contactId: string | undefined
+      let membershipId: string | undefined
+      if (
+        current.classification === 'READY_NEW_CONTACT' ||
+        current.classification === 'READY_EXISTING_CONTACT'
+      ) {
+        try {
+          const member = await this.addPerson(
+            organizationId,
+            groupId,
+            actor,
+            {
+              displayName: current.displayName,
+              mobileNumber: current.mobileNumber,
+              consentAffirmed: true,
+              consentMethodNote: current.consentNote,
+            },
+            `${String(preview._id)}:row:${current.rowNumber}`,
+            current.rowNumber,
+          )
+          outcome = member.reusedContact ? 'REUSED_AND_ADDED' : 'ADDED'
+          contactId = member.contactId
+          membershipId = member.id
+        } catch {
+          outcome = 'FAILED'
+        }
+      }
+      const result = {
+        rowNumber: current.rowNumber,
+        redactedNumber: current.mobileNumber
+          ? this.redactPhone(current.mobileNumber)
+          : undefined,
+        outcome,
+        contactId,
+        membershipId,
+        reason:
+          outcome === 'FAILED'
+            ? 'The row could not be completed and may be retried'
+            : current.reason,
+      }
+      results.push(result)
+      await this.record(
+        group.organizationId,
+        actorId,
+        `ROSTER_BULK_ROW_${outcome}`,
+        'RosterBulkImportRow',
+        `${String(preview._id)}:${current.rowNumber}`,
+        correlationId,
+      )
+    }
+    preview.rows = results
+    preview.status = 'APPLIED'
+    preview.appliedAt = new Date()
+    preview.expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+    await preview.save()
+    await this.record(
+      group.organizationId,
+      actorId,
+      'ROSTER_BULK_APPLIED',
+      'RosterBulkImport',
+      String(preview._id),
+      correlationId,
+    )
+    return this.bulkImportView(preview)
+  }
+
+  async bulkAddResult(
+    organizationId: string,
+    groupId: string,
+    previewId: string,
+    actor: Actor,
+  ) {
+    const actorId = this.actorId(actor)
+    const { group } = await this.requireGroup(organizationId, groupId, actor)
+    const preview = await this.findBulkImport(group, previewId, actorId, true)
+    return this.bulkImportView(preview)
   }
 
   async removePerson(
@@ -770,6 +1001,210 @@ export class GroupsService {
         error: 'Join code must contain 2 to 20 letters or digits',
       })
     return normalized
+  }
+
+  parseBulkCsv(value: string) {
+    const source = value.replace(/^\uFEFF/, '')
+    const records: string[][] = []
+    let record: string[] = []
+    let field = ''
+    let quoted = false
+    for (let index = 0; index < source.length; index += 1) {
+      const character = source[index]
+      if (quoted) {
+        if (character === '"' && source[index + 1] === '"') {
+          field += '"'
+          index += 1
+        } else if (character === '"') {
+          quoted = false
+        } else {
+          field += character
+        }
+      } else if (character === '"') {
+        if (field.length > 0)
+          throw new BadRequestException({ error: 'CSV file is malformed' })
+        quoted = true
+      } else if (character === ',') {
+        record.push(field)
+        field = ''
+      } else if (character === '\n' || character === '\r') {
+        if (character === '\r' && source[index + 1] === '\n') index += 1
+        record.push(field)
+        records.push(record)
+        record = []
+        field = ''
+      } else {
+        field += character
+      }
+    }
+    if (quoted)
+      throw new BadRequestException({ error: 'CSV file is malformed' })
+    if (field.length > 0 || record.length > 0) {
+      record.push(field)
+      records.push(record)
+    }
+    if (records.length === 0)
+      throw new BadRequestException({ error: 'CSV header row is required' })
+    const headers = records[0]
+    const allowed = new Set(['display_name', 'mobile_number', 'consent_note'])
+    if (
+      headers.length !== new Set(headers).size ||
+      !headers.includes('display_name') ||
+      !headers.includes('mobile_number') ||
+      headers.some((header) => !allowed.has(header)) ||
+      headers.length < 2 ||
+      headers.length > 3
+    )
+      throw new BadRequestException({
+        error:
+          'CSV headers must be display_name,mobile_number with optional consent_note',
+      })
+    return records
+      .slice(1)
+      .map((values, index) => ({ values, rowNumber: index + 2 }))
+      .filter(({ values }) => values.some((value) => value.trim().length > 0))
+      .map(({ values, rowNumber }) => {
+        if (values.length !== headers.length)
+          return {
+            rowNumber,
+            displayName: '',
+            mobileNumber: '',
+            consentNote: '',
+            malformed: true,
+          }
+        const byHeader = new Map(
+          headers.map((header, index) => [header, values[index]]),
+        )
+        return {
+          rowNumber,
+          displayName: byHeader.get('display_name') || '',
+          mobileNumber: byHeader.get('mobile_number') || '',
+          consentNote: byHeader.get('consent_note') || '',
+          malformed: false,
+        }
+      })
+  }
+
+  private async classifyBulkRow(
+    group: GroupDocument,
+    record: {
+      rowNumber: number
+      displayName: string
+      mobileNumber: string
+      consentNote: string
+      malformed?: boolean
+    },
+    seen: Set<string>,
+  ): Promise<BulkRow> {
+    let displayName: string
+    let mobileNumber: string
+    const consentNote = record.consentNote.trim()
+    try {
+      if (record.malformed) throw new Error('malformed')
+      displayName = this.normalizeName(record.displayName)
+      mobileNumber = this.normalizePhone(record.mobileNumber)
+      if (consentNote.length > 500) throw new Error('consent-note')
+    } catch {
+      return {
+        rowNumber: record.rowNumber,
+        displayName: record.displayName.trim(),
+        classification: 'INVALID',
+        reason: 'Required data, phone number, or consent note is invalid',
+      }
+    }
+    const base = {
+      rowNumber: record.rowNumber,
+      displayName,
+      mobileNumber,
+      displayNumber: this.formatPhone(mobileNumber),
+      consentNote: consentNote || undefined,
+    }
+    if (seen.has(mobileNumber))
+      return {
+        ...base,
+        classification: 'DUPLICATE_IN_FILE',
+        reason: 'An earlier valid row uses this number',
+      }
+    seen.add(mobileNumber)
+    if (await this.consent.isSuppressed(group.organizationId, mobileNumber))
+      return {
+        ...base,
+        classification: 'SUPPRESSED',
+        reason: 'Organization-wide suppression is active',
+      }
+    const contact = await this.contacts.findOne({
+      organizationId: group.organizationId,
+      mobileNumber,
+    })
+    if (!contact)
+      return {
+        ...base,
+        classification: 'READY_NEW_CONTACT',
+        reason: 'A new organization contact will be created',
+      }
+    const member = await this.memberships.exists({
+      organizationId: group.organizationId,
+      groupId: group._id,
+      contactId: contact._id,
+      status: RosterMembershipStatus.ACTIVE,
+    })
+    return member
+      ? {
+          ...base,
+          classification: 'ALREADY_MEMBER',
+          reason: 'This contact is already an active group member',
+        }
+      : {
+          ...base,
+          classification: 'READY_EXISTING_CONTACT',
+          reason: 'The existing organization contact will be reused',
+        }
+  }
+
+  private async findBulkImport(
+    group: GroupDocument,
+    previewId: string,
+    actorId: string,
+    allowExpired: boolean,
+  ) {
+    if (!Types.ObjectId.isValid(previewId)) throw this.notFound()
+    const filter: Record<string, unknown> = {
+      _id: new Types.ObjectId(previewId),
+      organizationId: group.organizationId,
+      groupId: group._id,
+      actorUserId: new Types.ObjectId(actorId),
+    }
+    if (!allowExpired) filter.expiresAt = { $gt: new Date() }
+    const preview = await this.bulkImports.findOne(filter)
+    if (!preview) throw this.notFound()
+    return preview as RosterBulkImportDocument
+  }
+
+  private bulkImportView(preview: RosterBulkImportDocument) {
+    const rows = preview.rows as Record<string, unknown>[]
+    const counts = rows.reduce<Record<string, number>>((result, row) => {
+      const key = String(row.outcome || row.classification)
+      result[key] = (result[key] || 0) + 1
+      return result
+    }, {})
+    return {
+      id: String(preview._id),
+      status: preview.status,
+      expiresAt: preview.expiresAt,
+      appliedAt: preview.appliedAt,
+      totalRows: rows.length,
+      counts,
+      rows,
+    }
+  }
+
+  private contactView(contact: Contact) {
+    return {
+      contactId: String(contact._id),
+      displayName: contact.displayName,
+      mobileNumber: contact.mobileNumber,
+      displayNumber: this.formatPhone(contact.mobileNumber),
+    }
   }
 
   private async groupView(group: GroupDocument | Group) {
@@ -991,6 +1426,9 @@ export class GroupsService {
 
   private formatPhone(value: string) {
     return `(${value.slice(2, 5)}) ${value.slice(5, 8)}-${value.slice(8)}`
+  }
+  private redactPhone(value: string) {
+    return `***${value.slice(-4)}`
   }
   private input(value: unknown): Input {
     return value && typeof value === 'object' && !Array.isArray(value)

@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { ArchiveRestore, Search, UserPlus, UsersRound } from 'lucide-react'
+import { ArchiveRestore, FileUp, Pencil, Search, UserPlus, UsersRound } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { GroupCommand } from '@/components/groups/group-command'
 import { freshOrganizationContext, useOrganizationContext } from '@/components/organizations/organization-context-provider'
@@ -20,6 +20,7 @@ import {
   GROUPS_MANAGE,
   GROUP_ROSTER_MANAGE,
   useAddRosterMember,
+  useApplyRosterBulkAdd,
   useArchiveGroup,
   useAssignGroupOwner,
   useChangeGroupJoinSettings,
@@ -29,9 +30,12 @@ import {
   useReceivingNumbers,
   useRemoveRosterMember,
   useRenameGroup,
+  useRenameContact,
+  usePreviewRosterBulkAdd,
   useRevokeGroupOwner,
   useRoster,
   type RosterMember,
+  type RosterBulkImport,
   type ActiveOrganizationContext,
 } from '@/lib/api'
 import { apiErrorMessage } from '@/lib/utils/errorHandler'
@@ -71,10 +75,10 @@ export default function GroupWorkspace({ groupId }: { groupId: string }) {
         <div className="min-w-0 space-y-5">
           <Card className="min-w-0"><CardHeader><div className="flex flex-wrap items-center justify-between gap-2"><CardTitle>Join this group</CardTitle><Badge variant={archived ? 'secondary' : 'outline'}>{archived ? 'Archived' : 'Active'}</Badge></div></CardHeader><CardContent><GroupCommand group={group.data} />{!archived && <p className="mt-3 text-xs text-muted-foreground">Advertising must say: Message frequency varies. Message and data rates may apply. Reply STOP to stop all Boise Church of Christ texts; HELP for help. Include an administrator-controlled privacy or support contact.</p>}</CardContent></Card>
           <Card className="min-w-0">
-            <CardHeader><div className="flex flex-wrap items-center justify-between gap-3"><div><CardTitle>Roster</CardTitle><p className="mt-1 text-sm text-muted-foreground">{group.data.rosterCount} active people. Contacts do not receive application accounts.</p></div>{!archived && canRoster && <AddPersonDialog organizationId={organizationId} groupId={groupId} />}</div></CardHeader>
+            <CardHeader><div className="flex flex-wrap items-center justify-between gap-3"><div><CardTitle>Roster</CardTitle><p className="mt-1 text-sm text-muted-foreground">{group.data.rosterCount} active people. Contacts do not receive application accounts.</p></div>{!archived && canRoster && <div className="flex flex-wrap gap-2"><BulkAddDialog organizationId={organizationId} groupId={groupId} /><AddPersonDialog organizationId={organizationId} groupId={groupId} /></div>}</div></CardHeader>
             <CardContent className="min-w-0 space-y-4">
               <Label className="relative block"><span className="sr-only">Search roster</span><Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" /><Input className="pl-9" placeholder="Search this roster" value={search} onChange={(event) => setSearch(event.target.value)} /></Label>
-              {roster.isPending ? <Skeleton className="h-32 w-full" /> : roster.isError ? <ErrorState title="Roster could not be loaded" error={roster.error} onRetry={() => roster.refetch()} /> : roster.data.length === 0 ? <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">{search ? 'No people match this search.' : 'No one has been added to this roster.'}</p> : <div className="grid min-w-0 gap-3">{roster.data.map((member) => <div key={member.id} className="flex min-w-0 flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><p className="break-words font-medium">{member.displayName}</p><p className="break-words text-sm text-muted-foreground">{member.displayNumber}</p><p className="mt-1 text-xs text-muted-foreground">{member.consentSource === 'TEXT_TO_JOIN' ? 'Consent: Text-to-Join' : member.consentSource === 'OPERATOR_AFFIRMATION' ? 'Consent: operator affirmation' : 'No active group consent'}</p></div>{!archived && canRoster && <RemoveMemberDialog organizationId={organizationId} groupId={groupId} member={member} />}</div>)}</div>}
+              {roster.isPending ? <Skeleton className="h-32 w-full" /> : roster.isError ? <ErrorState title="Roster could not be loaded" error={roster.error} onRetry={() => roster.refetch()} /> : roster.data.length === 0 ? <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">{search ? 'No people match this search.' : 'No one has been added to this roster.'}</p> : <div className="grid min-w-0 gap-3">{roster.data.map((member) => <div key={member.id} className="flex min-w-0 flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><p className="break-words font-medium">{member.displayName}</p><p className="break-words text-sm text-muted-foreground">{member.displayNumber}</p><p className="mt-1 text-xs text-muted-foreground">{member.consentSource === 'TEXT_TO_JOIN' ? 'Consent: Text-to-Join' : member.consentSource === 'OPERATOR_AFFIRMATION' ? 'Consent: operator affirmation' : 'No active group consent'}</p></div>{!archived && canRoster && <div className="flex flex-wrap gap-2"><RenameContactDialog organizationId={organizationId} groupId={groupId} member={member} /><RemoveMemberDialog organizationId={organizationId} groupId={groupId} member={member} /></div>}</div>)}</div>}
             </CardContent>
           </Card>
         </div>
@@ -85,6 +89,37 @@ export default function GroupWorkspace({ groupId }: { groupId: string }) {
       </div>
     </section>
   )
+}
+
+function RenameContactDialog({ organizationId, groupId, member }: { organizationId: string; groupId: string; member: RosterMember }) {
+  const mutation = useRenameContact(organizationId, groupId)
+  const [open, setOpen] = useState(false)
+  const [displayName, setDisplayName] = useState(member.displayName)
+  const [message, setMessage] = useState('')
+  return <Dialog open={open} onOpenChange={setOpen}><DialogTrigger asChild><Button size="sm" variant="outline"><Pencil />Edit name</Button></DialogTrigger><DialogContent><DialogHeader><DialogTitle>Edit contact name</DialogTitle><DialogDescription>Change only the presentation name. The phone number, memberships, consent, suppression, and message history remain unchanged.</DialogDescription></DialogHeader><form className="space-y-4" onSubmit={(event) => { event.preventDefault(); setMessage(''); mutation.mutate({ contactId: member.contactId, displayName }, { onSuccess: () => setOpen(false), onError: (error) => setMessage(apiErrorMessage(error) || 'Contact name could not be updated.') }) }}><div className="space-y-2"><Label htmlFor={`rename-contact-${member.contactId}`}>Display name</Label><Input id={`rename-contact-${member.contactId}`} value={displayName} required maxLength={100} onChange={(event) => setDisplayName(event.target.value)} /></div><div className="space-y-2"><Label htmlFor={`rename-number-${member.contactId}`}>Mobile number</Label><Input id={`rename-number-${member.contactId}`} value={member.displayNumber} readOnly aria-readonly="true" /></div><p role="alert" className="text-sm text-destructive">{message}</p><DialogFooter><Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button type="submit" disabled={!displayName.trim() || mutation.isPending}>{mutation.isPending ? 'Saving…' : 'Save name'}</Button></DialogFooter></form></DialogContent></Dialog>
+}
+
+function BulkAddDialog({ organizationId, groupId }: { organizationId: string; groupId: string }) {
+  const previewMutation = usePreviewRosterBulkAdd(organizationId, groupId)
+  const applyMutation = useApplyRosterBulkAdd(organizationId, groupId)
+  const [open, setOpen] = useState(false)
+  const [file, setFile] = useState<File | null>(null)
+  const [preview, setPreview] = useState<RosterBulkImport | null>(null)
+  const [affirmed, setAffirmed] = useState(false)
+  const [message, setMessage] = useState('')
+  const readyCount = (preview?.counts.READY_NEW_CONTACT || 0) + (preview?.counts.READY_EXISTING_CONTACT || 0)
+  const createPreview = async () => {
+    if (!file) return
+    setMessage('')
+    try {
+      const content = await file.text()
+      previewMutation.mutate(content, { onSuccess: (value) => { setPreview(value); setAffirmed(false) }, onError: (error) => setMessage(apiErrorMessage(error) || 'CSV preview could not be created.') })
+    } catch {
+      setMessage('The selected file could not be read.')
+    }
+  }
+  const reset = () => { setFile(null); setPreview(null); setAffirmed(false); setMessage('') }
+  return <Dialog open={open} onOpenChange={(value) => { setOpen(value); if (!value) reset() }}><DialogTrigger asChild><Button variant="outline"><FileUp />Bulk add</Button></DialogTrigger><DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto"><DialogHeader><DialogTitle>Bulk add people</DialogTitle><DialogDescription>Preview a UTF-8 CSV before adding ready rows. No preview sends messages or creates application accounts.</DialogDescription></DialogHeader>{!preview ? <div className="space-y-4"><a className="text-sm font-medium underline" href="/samples/group-roster-template.csv" download>Download CSV template</a><div className="space-y-2"><Label htmlFor="roster-csv">CSV file</Label><Input id="roster-csv" type="file" accept=".csv,text/csv" onChange={(event) => setFile(event.target.files?.[0] || null)} /><p className="text-xs text-muted-foreground">Required headers: display_name and mobile_number. consent_note is optional. Maximum 1,000 non-blank rows.</p></div><p role="alert" className="text-sm text-destructive">{message}</p><DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={createPreview} disabled={!file || previewMutation.isPending}>{previewMutation.isPending ? 'Validating…' : 'Preview rows'}</Button></DialogFooter></div> : <div className="min-w-0 space-y-4"><div role="status" aria-live="polite" className="rounded-lg border p-3 text-sm"><p className="font-medium">{preview.status === 'APPLIED' ? 'Bulk add complete' : `${preview.totalRows} rows reviewed; ${readyCount} ready.`}</p><p className="mt-1 break-words text-muted-foreground">{Object.entries(preview.counts).map(([key, count]) => `${key}: ${count}`).join(' · ')}</p></div><div className="grid gap-2">{preview.rows.map((row) => <div key={row.rowNumber} className="grid min-w-0 gap-1 rounded-lg border p-3 text-sm sm:grid-cols-[4rem_minmax(0,1fr)_minmax(0,1fr)]"><span>Row {row.rowNumber}</span><span className="break-words">{row.displayName || row.redactedNumber || 'Invalid row'}</span><span className="break-words"><strong>{row.outcome || row.classification}</strong><br />{row.displayNumber || row.redactedNumber} {row.reason}</span></div>)}</div>{preview.status === 'PREVIEW' && <div className="flex items-start gap-3"><Checkbox id="bulk-consent" checked={affirmed} onCheckedChange={(checked) => setAffirmed(checked === true)} /><Label htmlFor="bulk-consent" className="font-normal leading-5">Every person being added asked to receive messages or provided their number for church communications.</Label></div>}<p role="alert" aria-live="assertive" className="text-sm text-destructive">{message}</p><DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Close</Button>{preview.status === 'PREVIEW' && <Button disabled={!affirmed || readyCount === 0 || applyMutation.isPending} onClick={() => applyMutation.mutate(preview.id, { onSuccess: setPreview, onError: (error) => setMessage(apiErrorMessage(error) || 'Ready rows could not be applied.') })}>{applyMutation.isPending ? 'Applying…' : `Apply ${readyCount} ready rows`}</Button>}</DialogFooter></div>}</DialogContent></Dialog>
 }
 
 function AddPersonDialog({ organizationId, groupId }: { organizationId: string; groupId: string }) {

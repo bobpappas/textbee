@@ -25,6 +25,7 @@ import type {
   OrganizationGroup,
   OrganizationOperator,
   ReceivingNumber,
+  RosterBulkImport,
   RosterMember,
 } from './types'
 
@@ -626,6 +627,37 @@ export function useAddRosterMember(organizationId: string, groupId: string) {
       httpBrowserClient
         .post(ApiEndpoints.organizations.roster(organizationId, groupId), input)
         .then(unwrapData<RosterMember>),
+    onSuccess: () => invalidateGroupData(queryClient, organizationId, groupId),
+  })
+}
+
+export function useRenameContact(organizationId: string, groupId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ contactId, displayName }: { contactId: string; displayName: string }) =>
+      httpBrowserClient
+        .patch(ApiEndpoints.organizations.contactName(organizationId, groupId, contactId), { displayName })
+        .then(unwrapData<RosterMember>),
+    onSuccess: () => invalidateGroupData(queryClient, organizationId, groupId),
+  })
+}
+
+export function usePreviewRosterBulkAdd(organizationId: string, groupId: string) {
+  return useMutation({
+    mutationFn: (csvContent: string) =>
+      httpBrowserClient
+        .post(ApiEndpoints.organizations.rosterBulkPreview(organizationId, groupId), { csvContent })
+        .then(unwrapData<RosterBulkImport>),
+  })
+}
+
+export function useApplyRosterBulkAdd(organizationId: string, groupId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (previewId: string) =>
+      httpBrowserClient
+        .post(ApiEndpoints.organizations.rosterBulkApply(organizationId, groupId, previewId), { consentAffirmed: true })
+        .then(unwrapData<RosterBulkImport>),
     onSuccess: () => invalidateGroupData(queryClient, organizationId, groupId),
   })
 }

@@ -25,6 +25,10 @@ import {
   RosterMembership,
   RosterMembershipSchema,
 } from './schemas/roster-membership.schema'
+import {
+  RosterBulkImport,
+  RosterBulkImportSchema,
+} from './schemas/roster-bulk-import.schema'
 
 @Module({
   imports: [
@@ -37,6 +41,7 @@ import {
       { name: Contact.name, schema: ContactSchema },
       { name: GroupOwnerAssignment.name, schema: GroupOwnerAssignmentSchema },
       { name: RosterMembership.name, schema: RosterMembershipSchema },
+      { name: RosterBulkImport.name, schema: RosterBulkImportSchema },
       { name: GroupAuditEvent.name, schema: GroupAuditEventSchema },
       { name: OperatorMembership.name, schema: OperatorMembershipSchema },
       { name: User.name, schema: UserSchema },

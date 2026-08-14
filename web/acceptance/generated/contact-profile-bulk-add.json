@@ -1,0 +1,59 @@
+{
+  "name" : "B015 contact profile and group bulk add",
+  "scenarios" : [ {
+    "name" : "Authorized operator renames a contact without editing its phone",
+    "steps" : [ {
+      "keyword" : "Given",
+      "text" : "an authorized operator opens an active managed group roster"
+    }, {
+      "keyword" : "When",
+      "text" : "the operator changes a contact display name"
+    }, {
+      "keyword" : "Then",
+      "text" : "the updated name is shown and the mobile number remains read-only"
+    } ],
+    "examples" : [ ]
+  }, {
+    "name" : "CSV preview classifies every row without applying it",
+    "steps" : [ {
+      "keyword" : "Given",
+      "text" : "an authorized operator selects a CSV with ready invalid and duplicate rows"
+    }, {
+      "keyword" : "When",
+      "text" : "the operator creates a bulk-add preview"
+    }, {
+      "keyword" : "Then",
+      "text" : "every row has an explicit classification and Apply requires consent affirmation"
+    } ],
+    "examples" : [ ]
+  }, {
+    "name" : "Affirmed ready rows apply with durable individual results",
+    "steps" : [ {
+      "keyword" : "Given",
+      "text" : "a bulk-add preview contains one ready row"
+    }, {
+      "keyword" : "When",
+      "text" : "the operator affirms consent and applies the preview"
+    }, {
+      "keyword" : "Then",
+      "text" : "the final result reports the added invalid and duplicate rows separately"
+    }, {
+      "keyword" : "And",
+      "text" : "no login invitation email or SMS action is presented"
+    } ],
+    "examples" : [ ]
+  }, {
+    "name" : "Contact maintenance remains accessible on a narrow viewport",
+    "steps" : [ {
+      "keyword" : "Given",
+      "text" : "an authorized operator uses a 320-pixel viewport"
+    }, {
+      "keyword" : "When",
+      "text" : "the operator opens contact rename and bulk-add controls"
+    }, {
+      "keyword" : "Then",
+      "text" : "the mobile number is labeled read-only and the page has no horizontal scrolling"
+    } ],
+    "examples" : [ ]
+  } ]
+}

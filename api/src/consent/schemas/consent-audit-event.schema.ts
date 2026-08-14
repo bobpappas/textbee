@@ -48,6 +48,9 @@ export class ConsentAuditEvent {
   @Prop({ type: Number, immutable: true })
   affectedConsentCount?: number
 
+  @Prop({ type: Number, immutable: true })
+  sourceRow?: number
+
   @Prop({ type: String, immutable: true })
   acknowledgmentOutcome?: string
 

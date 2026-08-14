@@ -233,6 +233,84 @@ export class GroupsController {
     )
   }
 
+  @Patch('groups/:groupId/contacts/:contactId/name')
+  renameContact(
+    @Param('organizationId') organizationId: string,
+    @Param('groupId') groupId: string,
+    @Param('contactId') contactId: string,
+    @Request() request,
+    @Body() input: unknown,
+    @Headers('x-request-id') requestId?: string,
+  ) {
+    return this.data(
+      this.groups.renameContact(
+        organizationId,
+        groupId,
+        contactId,
+        request.user,
+        input,
+        requestId,
+      ),
+    )
+  }
+
+  @Post('groups/:groupId/roster-bulk/preview')
+  previewBulkAdd(
+    @Param('organizationId') organizationId: string,
+    @Param('groupId') groupId: string,
+    @Request() request,
+    @Body() input: unknown,
+    @Headers('x-request-id') requestId?: string,
+  ) {
+    return this.data(
+      this.groups.previewBulkAdd(
+        organizationId,
+        groupId,
+        request.user,
+        input,
+        requestId,
+      ),
+    )
+  }
+
+  @Post('groups/:groupId/roster-bulk/:previewId/apply')
+  applyBulkAdd(
+    @Param('organizationId') organizationId: string,
+    @Param('groupId') groupId: string,
+    @Param('previewId') previewId: string,
+    @Request() request,
+    @Body() input: unknown,
+    @Headers('x-request-id') requestId?: string,
+  ) {
+    return this.data(
+      this.groups.applyBulkAdd(
+        organizationId,
+        groupId,
+        previewId,
+        request.user,
+        input,
+        requestId,
+      ),
+    )
+  }
+
+  @Get('groups/:groupId/roster-bulk/:previewId')
+  bulkAddResult(
+    @Param('organizationId') organizationId: string,
+    @Param('groupId') groupId: string,
+    @Param('previewId') previewId: string,
+    @Request() request,
+  ) {
+    return this.data(
+      this.groups.bulkAddResult(
+        organizationId,
+        groupId,
+        previewId,
+        request.user,
+      ),
+    )
+  }
+
   @Delete('groups/:groupId/roster/:membershipId')
   removePerson(
     @Param('organizationId') organizationId: string,

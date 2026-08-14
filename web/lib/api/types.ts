@@ -212,6 +212,37 @@ export type RosterMember = {
   consentSource?: 'OPERATOR_AFFIRMATION' | 'TEXT_TO_JOIN'
   consentedAt?: string
 }
+export type RosterBulkRow = {
+  rowNumber: number
+  displayName?: string
+  displayNumber?: string
+  redactedNumber?: string
+  classification?:
+    | 'READY_NEW_CONTACT'
+    | 'READY_EXISTING_CONTACT'
+    | 'ALREADY_MEMBER'
+    | 'DUPLICATE_IN_FILE'
+    | 'SUPPRESSED'
+    | 'INVALID'
+  outcome?:
+    | 'ADDED'
+    | 'REUSED_AND_ADDED'
+    | 'ALREADY_MEMBER'
+    | 'DUPLICATE_IN_FILE'
+    | 'SUPPRESSED'
+    | 'INVALID'
+    | 'FAILED'
+  reason: string
+}
+export type RosterBulkImport = {
+  id: string
+  status: 'PREVIEW' | 'APPLIED'
+  expiresAt: string
+  appliedAt?: string
+  totalRows: number
+  counts: Record<string, number>
+  rows: RosterBulkRow[]
+}
 
 export type ActiveOrganizationContext = {
   state: 'ACTIVE'

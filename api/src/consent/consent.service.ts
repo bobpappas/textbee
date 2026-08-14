@@ -110,6 +110,7 @@ export class ConsentService {
     actorUserId: Types.ObjectId | string
     affirmed: unknown
     methodNote?: unknown
+    sourceRow?: number
   }) {
     if (input.affirmed !== true)
       throw new BadRequestException({
@@ -145,12 +146,16 @@ export class ConsentService {
             actorUserId: new Types.ObjectId(String(input.actorUserId)),
             methodNote,
             consentedAt: now,
+            ...(input.sourceRow === undefined
+              ? {}
+              : { sourceRow: input.sourceRow }),
           },
           $unset: {
             receivingNumber: 1,
             inboundSmsId: 1,
             endedAt: 1,
             endedByCommand: 1,
+            ...(input.sourceRow === undefined ? { sourceRow: 1 } : {}),
           },
         },
         { upsert: true },
@@ -163,6 +168,7 @@ export class ConsentService {
         actorUserId: new Types.ObjectId(String(input.actorUserId)),
         contactId: input.contactId,
         groupId: input.groupId,
+        sourceRow: input.sourceRow,
       })
     } catch (error) {
       if (priorConsent)
@@ -173,6 +179,16 @@ export class ConsentService {
       else await this.consents.deleteOne(filter)
       throw error
     }
+  }
+
+  async isSuppressed(organizationId: Types.ObjectId, mobileNumber: string) {
+    return Boolean(
+      await this.suppressions.exists({
+        organizationId,
+        mobileNumber,
+        status: SuppressionStatus.ACTIVE,
+      }),
+    )
   }
 
   async endGroupConsent(input: {
@@ -938,9 +954,9 @@ export class ConsentService {
 
   private methodNote(value: unknown) {
     if (value === undefined || value === null || value === '') return undefined
-    if (typeof value !== 'string' || value.trim().length > 200)
+    if (typeof value !== 'string' || value.trim().length > 500)
       throw new BadRequestException({
-        error: 'Consent method note must be 200 characters or fewer',
+        error: 'Consent method note must be 500 characters or fewer',
       })
     return value.trim()
   }

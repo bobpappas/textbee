@@ -44,4 +44,29 @@ describe('GroupsController organization scoping', () => {
       'request-1',
     )
   })
+
+  it('binds contact rename to the organization and managed group paths', async () => {
+    const result = { contactId: 'contact-1', displayName: 'Real Name' }
+    const groups = { renameContact: jest.fn().mockResolvedValue(result) }
+    const controller = new GroupsController(groups as any)
+    const user = { _id: '64b7c42f18f0c31f8c9fd112' }
+    await expect(
+      controller.renameContact(
+        '64b7c42f18f0c31f8c9fd111',
+        '64b7c42f18f0c31f8c9fd201',
+        '64b7c42f18f0c31f8c9fd501',
+        { user },
+        { displayName: 'Real Name', mobileNumber: '+19999999999' },
+        'request-2',
+      ),
+    ).resolves.toEqual({ data: result })
+    expect(groups.renameContact).toHaveBeenCalledWith(
+      '64b7c42f18f0c31f8c9fd111',
+      '64b7c42f18f0c31f8c9fd201',
+      '64b7c42f18f0c31f8c9fd501',
+      user,
+      { displayName: 'Real Name', mobileNumber: '+19999999999' },
+      'request-2',
+    )
+  })
 })

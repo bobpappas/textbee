@@ -3,6 +3,7 @@ import { GroupAuditEventSchema } from './schemas/group-audit-event.schema'
 import { GroupOwnerAssignmentSchema } from './schemas/group-owner-assignment.schema'
 import { GroupSchema } from './schemas/group.schema'
 import { RosterMembershipSchema } from './schemas/roster-membership.schema'
+import { RosterBulkImportSchema } from './schemas/roster-bulk-import.schema'
 
 describe('group persistence constraints', () => {
   it('reserves each receiving-number and canonical join-code pair globally', () => {
@@ -31,6 +32,13 @@ describe('group persistence constraints', () => {
     expect(GroupAuditEventSchema.indexes()).toContainEqual([
       { organizationId: 1, correlationId: 1, action: 1, targetId: 1 },
       { unique: true },
+    ])
+  })
+
+  it('expires bulk previews and results by their server-controlled deadline', () => {
+    expect(RosterBulkImportSchema.indexes()).toContainEqual([
+      { expiresAt: 1 },
+      { expireAfterSeconds: 0 },
     ])
   })
 })
