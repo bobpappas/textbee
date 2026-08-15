@@ -40,9 +40,9 @@ describe('GetStartedCard states', () => {
 
     renderWithProviders(<GetStartedCard />)
 
-    // 5 of 6 done (only verify_email pending with the default fixtures).
+    // 4 of 5 done (only verify_email pending with the default fixtures).
     await waitFor(() =>
-      expect(screen.getByText('5 of 6')).toBeInTheDocument()
+      expect(screen.getByText('4 of 5')).toBeInTheDocument()
     )
     expect(screen.getByRole('progressbar')).toBeInTheDocument()
     // The active step is expanded with its inline resend action.
@@ -57,7 +57,7 @@ describe('GetStartedCard states', () => {
   it('shows full progress for an all-done user (before auto-complete lands)', async () => {
     renderWithProviders(<GetStartedCard />)
 
-    await waitFor(() => expect(screen.getByText('6 of 6')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('5 of 5')).toBeInTheDocument())
     expect(screen.getByText('All steps complete!')).toBeInTheDocument()
   })
 
@@ -68,7 +68,7 @@ describe('GetStartedCard states', () => {
     const user = userEvent.setup()
     renderWithProviders(<GetStartedCard />)
 
-    await waitFor(() => expect(screen.getByText('6 of 6')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('5 of 5')).toBeInTheDocument())
 
     await user.click(screen.getByRole('button', { name: 'Generate an API key' }))
 
@@ -101,9 +101,8 @@ describe('GetStartedCard states', () => {
 
     renderWithProviders(<GetStartedCard />)
 
-    // Done with these stats: verify_email (fixture user is verified) and
-    // choose_plan (fixture subscription is a paid plan).
-    await waitFor(() => expect(screen.getByText('2 of 6')).toBeInTheDocument())
+    // Done with these stats: verify_email (fixture user is verified).
+    await waitFor(() => expect(screen.getByText('1 of 5')).toBeInTheDocument())
 
     await user.click(screen.getByRole('button', { name: 'Generate an API key' }))
     expect(
@@ -114,7 +113,7 @@ describe('GetStartedCard states', () => {
     apiKeyCount = 3
 
     await waitFor(
-      () => expect(screen.getByText('3 of 6')).toBeInTheDocument(),
+      () => expect(screen.getByText('2 of 5')).toBeInTheDocument(),
       { timeout: 15000 }
     )
 

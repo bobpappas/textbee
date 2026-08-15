@@ -184,6 +184,15 @@ export function useBulkSend() {
   // the template counts the literal "{{ name }}" placeholders and misstates
   // the segment cost.
   const segments = getSegmentInfo(previewMessage)
+  const totalSegments = useMemo(
+    () =>
+      plan.valid.reduce(
+        (total, row) =>
+          total + getSegmentInfo(renderTemplate(template, row.data)).segments,
+        0
+      ),
+    [plan.valid, template]
+  )
 
   const hasFile = rows.length > 0
   const mapped =
@@ -267,6 +276,7 @@ export function useBulkSend() {
     previewRow,
     previewMessage,
     segments,
+    totalSegments,
     hasFile,
     mapped,
     composed,

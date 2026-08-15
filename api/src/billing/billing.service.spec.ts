@@ -9,6 +9,7 @@ import { SMS } from '../gateway/schemas/sms.schema'
 import { PolarWebhookPayload } from './schemas/polar-webhook-payload.schema'
 import { CheckoutSession } from './schemas/checkout-session.schema'
 import { BillingNotificationsService } from './billing-notifications.service'
+import { SelfHostedPolicyService } from './self-hosted-policy.service'
 
 describe('BillingService - cancellation handling', () => {
   let service: BillingService
@@ -26,6 +27,10 @@ describe('BillingService - cancellation handling', () => {
   }
   const emptyModel = {}
   const mockBillingNotifications = {}
+  const mockSelfHostedPolicy = {
+    compatibilityResponse: jest.fn(),
+    policy: jest.fn(),
+  }
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -50,6 +55,10 @@ describe('BillingService - cancellation handling', () => {
           provide: BillingNotificationsService,
           useValue: mockBillingNotifications,
         },
+        {
+          provide: SelfHostedPolicyService,
+          useValue: mockSelfHostedPolicy,
+        },
       ],
     }).compile()
 
@@ -58,6 +67,34 @@ describe('BillingService - cancellation handling', () => {
     jest.clearAllMocks()
     mockPlanModel.findOne.mockResolvedValue(proPlan)
     mockSubscriptionModel.updateOne.mockResolvedValue({ modifiedCount: 1 })
+  })
+
+  describe('self-hosted mode', () => {
+    afterEach(() => delete process.env.TEXTBEE_BILLING_MODE)
+
+    it('returns policy usage without querying plan or subscription records', async () => {
+      process.env.TEXTBEE_BILLING_MODE = 'self_hosted'
+      const policyResponse = { mode: 'self_hosted', usage: { dailyLimit: 200 } }
+      mockSelfHostedPolicy.compatibilityResponse.mockResolvedValue(
+        policyResponse,
+      )
+
+      await expect(
+        service.getCurrentSubscription({ _id: userId }),
+      ).resolves.toEqual(policyResponse)
+      expect(mockSelfHostedPolicy.compatibilityResponse).toHaveBeenCalledWith(
+        userId,
+      )
+      expect(mockPlanModel.findOne).not.toHaveBeenCalled()
+    })
+
+    it('rejects checkout before resolving a plan or contacting Polar', async () => {
+      process.env.TEXTBEE_BILLING_MODE = 'self_hosted'
+      await expect(
+        service.getCheckoutUrl({ user: { _id: userId }, payload: {}, req: {} }),
+      ).rejects.toMatchObject({ status: 403 })
+      expect(mockPlanModel.findOne).not.toHaveBeenCalled()
+    })
   })
 
   describe('cancelSubscription', () => {

@@ -16,6 +16,7 @@ export default function ReviewStep({ bulk }: { bulk: BulkSendState }) {
     plan,
     selectedDevice,
     composed,
+    totalSegments,
     sendBulk,
     isSending,
     sendError,
@@ -38,6 +39,10 @@ export default function ReviewStep({ bulk }: { bulk: BulkSendState }) {
               {selectedDevice ? formatDeviceName(selectedDevice) : 'your device'}
             </strong>
             .
+          </p>
+          <p className='mt-1 text-muted-foreground'>
+            Estimated carrier usage:{' '}
+            <strong>{totalSegments.toLocaleString()} SMS segments</strong>.
           </p>
           {plan.excluded.length > 0 && (
             <details className='mt-2'>

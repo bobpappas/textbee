@@ -32,6 +32,11 @@ describe('getSegmentInfo', () => {
     expect(getSegmentInfo('a'.repeat(307)).segments).toBe(3)
   })
 
+  it('counts GSM extension-table characters as two septets', () => {
+    expect(getSegmentInfo('^'.repeat(80)).segments).toBe(1)
+    expect(getSegmentInfo('^'.repeat(81)).segments).toBe(2)
+  })
+
   it('drops to UCS-2 limits when a character needs it', () => {
     const info = getSegmentInfo('Hello 😀')
     expect(info.encoding).toBe('UCS-2')

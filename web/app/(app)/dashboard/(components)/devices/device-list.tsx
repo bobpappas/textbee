@@ -139,7 +139,7 @@ export default function DeviceList() {
                 <p className='text-xs text-muted-foreground'>
                   {isDeviceLimitReached ? (
                     <>
-                      You've reached your plan's limit of{' '}
+                      You've reached the local policy limit of{' '}
                       <span className='font-medium text-foreground'>
                         {deviceLimit} active device{deviceLimit === 1 ? '' : 's'}
                       </span>
@@ -151,14 +151,11 @@ export default function DeviceList() {
                       <span className='font-medium text-foreground'>
                         {activeDeviceCount} of {deviceLimit}
                       </span>{' '}
-                      active devices included in your plan.
+                      active devices allowed by local policy.
                     </>
                   )}
                 </p>
               </div>
-              <Button variant='outline' size='sm' asChild className='shrink-0'>
-                <Link href='/pricing'>Upgrade plan</Link>
-              </Button>
             </div>
           )}
           <div className='space-y-2'>

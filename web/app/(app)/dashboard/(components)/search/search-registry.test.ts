@@ -104,12 +104,12 @@ describe('search registry', () => {
     }
   })
 
-  it('finds billing by invoice and quota wording', () => {
+  it('finds the operational policy by gateway and segment wording', () => {
     const billing = searchEntries.find(
       (e) => e.href === '/dashboard/account/billing',
     )
     expect(billing).toBeDefined()
-    for (const term of ['invoice', 'quota', 'upgrade', 'cancel']) {
+    for (const term of ['operational', 'gateway', 'segments', 'quota']) {
       expect(billing!.keywords).toContain(term)
     }
   })

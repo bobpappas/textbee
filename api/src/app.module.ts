@@ -23,6 +23,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter'
 import { OrganizationsModule } from './organizations/organizations.module'
 import { GroupsModule } from './groups/groups.module'
 import { ConsentModule } from './consent/consent.module'
+import { validateSelfHostedEnvironment } from './billing/self-hosted-policy.config'
 
 @Injectable()
 export class LoggerMiddleware implements NestMiddleware {
@@ -38,6 +39,7 @@ export class LoggerMiddleware implements NestMiddleware {
     MongooseModule.forRoot(process.env.MONGO_URI),
     ConfigModule.forRoot({
       isGlobal: true,
+      validate: validateSelfHostedEnvironment,
     }),
     EventEmitterModule.forRoot(),
     ThrottlerModule.forRoot([

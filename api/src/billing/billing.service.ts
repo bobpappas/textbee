@@ -3,6 +3,7 @@ import {
   HttpException,
   HttpStatus,
   Injectable,
+  Optional,
 } from '@nestjs/common'
 import { InjectModel } from '@nestjs/mongoose'
 import { Model, Types } from 'mongoose'
@@ -29,6 +30,7 @@ import {
   BillingNotificationsService,
   BillingNotificationType,
 } from './billing-notifications.service'
+import { SelfHostedPolicyService } from './self-hosted-policy.service'
 
 @Injectable()
 export class BillingService {
@@ -45,6 +47,8 @@ export class BillingService {
     @InjectModel(CheckoutSession.name)
     private checkoutSessionModel: Model<CheckoutSessionDocument>,
     private readonly billingNotifications: BillingNotificationsService,
+    @Optional()
+    private readonly selfHostedPolicy?: SelfHostedPolicyService,
   ) {
     this.polarApi = new Polar({
       accessToken: process.env.POLAR_ACCESS_TOKEN ?? '',
@@ -54,12 +58,15 @@ export class BillingService {
   }
 
   async getPlans(): Promise<PlanDTO[]> {
+    if (this.isSelfHosted()) return []
     return this.planModel.find({
       isActive: true,
     })
   }
 
   async getCurrentSubscription(user: any) {
+    if (this.isSelfHosted())
+      return this.requireSelfHostedPolicy().compatibilityResponse(user._id)
     const subscription = await this.subscriptionModel
       .findOne({
         user: user._id,
@@ -250,6 +257,7 @@ export class BillingService {
     payload: any
     req: any
   }): Promise<CheckoutResponseDTO> {
+    this.assertBillingMutationEnabled()
     const billingInterval =
       payload.billingInterval === 'yearly' ? 'yearly' : 'monthly'
 
@@ -311,8 +319,14 @@ export class BillingService {
       // billing interval the user chose
       const orderedProductIds = (
         billingInterval === 'yearly'
-          ? [selectedPlan.polarYearlyProductId, selectedPlan.polarMonthlyProductId]
-          : [selectedPlan.polarMonthlyProductId, selectedPlan.polarYearlyProductId]
+          ? [
+              selectedPlan.polarYearlyProductId,
+              selectedPlan.polarMonthlyProductId,
+            ]
+          : [
+              selectedPlan.polarMonthlyProductId,
+              selectedPlan.polarYearlyProductId,
+            ]
       ).filter(Boolean)
 
       const checkoutOptions: any = {
@@ -330,7 +344,7 @@ export class BillingService {
       }
 
       try {
-        let discount = null;
+        let discount = null
         if (discountId) {
           discount = await this.polarApi.discounts.get({
             id: discountId,
@@ -532,7 +546,9 @@ export class BillingService {
       })
     }
 
-    if (['past_due', 'incomplete', 'unpaid'].includes(polarSubscription.status)) {
+    if (
+      ['past_due', 'incomplete', 'unpaid'].includes(polarSubscription.status)
+    ) {
       throw new BadRequestException({
         message:
           'Your subscription has a payment issue. Please update your payment method in the customer portal before changing plans.',
@@ -550,6 +566,7 @@ export class BillingService {
   }
 
   async changePlan({ user, payload }: { user: any; payload: any }) {
+    this.assertBillingMutationEnabled()
     const billingInterval =
       payload.billingInterval === 'yearly' ? 'yearly' : 'monthly'
 
@@ -719,6 +736,11 @@ export class BillingService {
   }
 
   private getEffectiveLimits(subscription: any, plan: any) {
+    if (!plan)
+      throw new HttpException(
+        { message: 'No operational SMS policy is configured' },
+        HttpStatus.SERVICE_UNAVAILABLE,
+      )
     if (!subscription) {
       return {
         dailyLimit: plan.dailyLimit,
@@ -732,12 +754,20 @@ export class BillingService {
       dailyLimit: subscription.customDailyLimit ?? plan.dailyLimit,
       monthlyLimit: subscription.customMonthlyLimit ?? plan.monthlyLimit,
       bulkSendLimit: subscription.customBulkSendLimit ?? plan.bulkSendLimit,
-      deviceLimit:
-        subscription.customDeviceLimit ?? plan.deviceLimit ?? -1,
+      deviceLimit: subscription.customDeviceLimit ?? plan.deviceLimit ?? -1,
     }
   }
 
   async getUserLimits(userId: string) {
+    if (this.isSelfHosted()) {
+      const policy = this.requireSelfHostedPolicy().policy()
+      return {
+        dailyLimit: policy.segmentsPerDay,
+        monthlyLimit: policy.segmentsRolling30Days,
+        bulkSendLimit: policy.recipientsPerSend,
+        deviceLimit: policy.activeDeviceLimit,
+      }
+    }
     const subscription = await this.subscriptionModel
       .findOne({ user: new Types.ObjectId(userId), isActive: true })
       .populate('plan')
@@ -757,6 +787,7 @@ export class BillingService {
     deviceLimit: number,
     activeDeviceCount: number,
   ) {
+    if (this.isSelfHosted()) return
     await this.billingNotifications.notifyOnce({
       userId,
       type: BillingNotificationType.DEVICE_LIMIT_REACHED,
@@ -960,6 +991,11 @@ export class BillingService {
         )
       }
 
+      // Outbound self-hosted limits are reserved atomically per physical
+      // gateway by SelfHostedPolicyService. Inbound commands must never be
+      // rejected because ordinary outbound capacity is exhausted.
+      if (this.isSelfHosted()) return true
+
       let plan: PlanDocument
       const subscription = await this.subscriptionModel.findOne({
         user: user._id,
@@ -1124,6 +1160,30 @@ export class BillingService {
       console.error(JSON.stringify(error))
       return true
     }
+  }
+
+  isSelfHosted() {
+    return process.env.TEXTBEE_BILLING_MODE === 'self_hosted'
+  }
+
+  assertBillingMutationEnabled() {
+    if (this.isSelfHosted())
+      throw new HttpException(
+        {
+          message: 'Subscription and payment features are disabled',
+          code: 'FEATURE_DISABLED_SELF_HOSTED',
+        },
+        HttpStatus.FORBIDDEN,
+      )
+  }
+
+  private requireSelfHostedPolicy() {
+    if (!this.selfHostedPolicy)
+      throw new HttpException(
+        { message: 'Self-hosted SMS policy service is unavailable' },
+        HttpStatus.SERVICE_UNAVAILABLE,
+      )
+    return this.selfHostedPolicy
   }
 
   async getUsage(userId: string) {

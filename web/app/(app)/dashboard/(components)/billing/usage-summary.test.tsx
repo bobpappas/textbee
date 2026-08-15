@@ -12,8 +12,8 @@ import UsageSummary from './usage-summary'
 const subscriptionResponding = (subscription: JsonBodyType) =>
   server.use(
     http.get(`${API_BASE_URL}/billing/current-subscription`, () =>
-      HttpResponse.json(subscription)
-    )
+      HttpResponse.json(subscription),
+    ),
   )
 
 describe('UsageSummary', () => {
@@ -25,7 +25,7 @@ describe('UsageSummary', () => {
     expect(screen.getByText('/ 5,000')).toBeInTheDocument()
     expect(screen.getByText('4,680 remaining')).toBeInTheDocument()
     expect(
-      screen.getByRole('progressbar', { name: /today usage/i })
+      screen.getByRole('progressbar', { name: /today usage/i }),
     ).toBeInTheDocument()
   })
 
@@ -43,13 +43,13 @@ describe('UsageSummary', () => {
     renderWithProviders(<UsageSummary />)
 
     await waitFor(() =>
-      expect(screen.getAllByText(/Unlimited on your plan/)).toHaveLength(2)
+      expect(screen.getAllByText(/Unlimited by local policy/)).toHaveLength(2),
     )
     // A meter would be meaningless with no ceiling to measure against.
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
   })
 
-  it('warns and offers an upgrade when close to the limit', async () => {
+  it('warns with carrier-safety language when close to the limit', async () => {
     subscriptionResponding({
       ...mockSubscription,
       usage: {
@@ -63,12 +63,12 @@ describe('UsageSummary', () => {
     renderWithProviders(<UsageSummary />)
 
     await waitFor(() =>
-      expect(screen.getByText('500 remaining')).toBeInTheDocument()
+      expect(screen.getByText('500 remaining')).toBeInTheDocument(),
     )
-    expect(screen.getByRole('link', { name: /upgrade/i })).toHaveAttribute(
-      'href',
-      '/dashboard/account/billing'
-    )
+    expect(screen.getByText(/carrier-safety control/i)).toBeInTheDocument()
+    expect(
+      screen.queryByRole('link', { name: /upgrade/i }),
+    ).not.toBeInTheDocument()
   })
 
   it('says the limit is reached rather than showing a remaining count', async () => {
@@ -85,7 +85,7 @@ describe('UsageSummary', () => {
     renderWithProviders(<UsageSummary />)
 
     await waitFor(() =>
-      expect(screen.getByText('Limit reached')).toBeInTheDocument()
+      expect(screen.getByText('Limit reached')).toBeInTheDocument(),
     )
   })
 })

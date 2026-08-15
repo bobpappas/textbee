@@ -8,6 +8,7 @@ describe('BillingController - handlePolarWebhook', () => {
   let controller: BillingController
 
   const mockBillingService = {
+    assertBillingMutationEnabled: jest.fn(),
     validatePolarWebhookPayload: jest.fn(),
     storePolarWebhookPayload: jest.fn(),
     switchPlan: jest.fn(),
@@ -85,6 +86,22 @@ describe('BillingController - handlePolarWebhook', () => {
     expect(mockBillingService.storePolarWebhookPayload).toHaveBeenCalledTimes(1)
   })
 
+  it('rejects disabled webhooks before validation or persistence', async () => {
+    mockBillingService.assertBillingMutationEnabled.mockImplementationOnce(
+      () => {
+        throw new Error('feature disabled')
+      },
+    )
+
+    await expect(handle(makePayload('subscription.created'))).rejects.toThrow(
+      'feature disabled',
+    )
+    expect(
+      mockBillingService.validatePolarWebhookPayload,
+    ).not.toHaveBeenCalled()
+    expect(mockBillingService.storePolarWebhookPayload).not.toHaveBeenCalled()
+  })
+
   it('routes subscription.created to switchPlan with the period fields', async () => {
     await handle(makePayload('subscription.created'))
 
@@ -101,7 +118,9 @@ describe('BillingController - handlePolarWebhook', () => {
   })
 
   it('routes subscription.updated to switchPlan, forwarding cancelAtPeriodEnd', async () => {
-    await handle(makePayload('subscription.updated', { cancelAtPeriodEnd: true }))
+    await handle(
+      makePayload('subscription.updated', { cancelAtPeriodEnd: true }),
+    )
 
     expect(mockBillingService.switchPlan).toHaveBeenCalledWith(
       expect.objectContaining({

@@ -4,18 +4,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   useCurrentUser,
   useGatewayStats,
-  useSubscription,
   useUpdateOnboarding,
 } from '@/lib/api'
 import {
   STEPS,
   computeStepStates,
   type StatsShape,
-  type SubShape,
   type UserShape,
 } from './steps'
 
-// The card must never mislead: it renders the checklist only when all three
+// The card must never mislead: it renders the checklist only when both
 // queries have succeeded ('ready'). Backend down -> 'error' (quiet retry row),
 // never a checklist computed from missing data that would show a verified
 // user stuck on "Verify your email".
@@ -42,7 +40,7 @@ export function useOnboarding() {
   const [celebrationDismissed, setCelebrationDismissed] = useState(false)
   const prevCompletedAtRef = useRef<string | Date | null | undefined>(undefined)
 
-  // Polls until onboarding is finished, then stops. The three queries are the
+  // Polls until onboarding is finished, then stops. Both queries are the
   // shared typed hooks, so the polling here also refreshes what the rest of
   // the dashboard is reading rather than maintaining a parallel copy.
   const userQuery = useCurrentUser({
@@ -56,11 +54,7 @@ export function useOnboarding() {
   })
   const stats = statsQuery.data
 
-  const subQuery = useSubscription({
-    refetchInterval: () => (userData?.onboarding?.completedAt ? false : 10_000),
-  })
-  const currentSubscription = subQuery.data
-  const subLoading = subQuery.isLoading
+  const subLoading = false
 
   const { mutate: updateOnboarding, isPending: savingOnboarding } =
     useUpdateOnboarding()
@@ -84,24 +78,19 @@ export function useOnboarding() {
 
   const stepStates = useMemo(
     () =>
-      computeStepStates(userData, stats, currentSubscription ?? null, skippedIds),
-    [userData, stats, currentSubscription, skippedIds]
+      computeStepStates(userData, stats, null, skippedIds),
+    [userData, stats, skippedIds]
   )
 
   const doneCount = stepStates.filter((s) => s.isDone).length
   const progressPercent = Math.round((doneCount / STEPS.length) * 100)
 
-  const isFreePlan =
-    !currentSubscription?.plan?.name ||
-    currentSubscription.plan.name.toLowerCase() === 'free'
-
   const canNavigateToStep = useCallback(
     (stepId: string) => {
       if (stepId === 'verify_email') return false
-      if (stepId === 'choose_plan') return isFreePlan
       return true
     },
-    [isFreePlan]
+    []
   )
 
   // Restore the persisted current step once, when navigable.
@@ -165,14 +154,14 @@ export function useOnboarding() {
     if (userData.onboarding?.completedAt) return
 
     const allStepsDone = STEPS.every((step) =>
-      step.checkDone(userData, stats, currentSubscription ?? null, skippedIds)
+      step.checkDone(userData, stats, null, skippedIds)
     )
 
     if (allStepsDone) {
       autoCompletedRef.current = true
       updateOnboarding({ complete: true })
     }
-  }, [userData, stats, currentSubscription, skippedIds, subLoading, updateOnboarding])
+  }, [userData, stats, skippedIds, subLoading, updateOnboarding])
 
   // Legacy accounts (created before 2026) that clearly already use the product
   // get auto-completed without walking the checklist.
@@ -199,8 +188,7 @@ export function useOnboarding() {
   const retry = useCallback(() => {
     void userQuery.refetch()
     void statsQuery.refetch()
-    void subQuery.refetch()
-  }, [userQuery, statsQuery, subQuery])
+  }, [userQuery, statsQuery])
 
   // Fail-closed status machine. Note: react-query keeps last-good data on
   // background refetch failures, so an established card never flips to the
@@ -211,16 +199,11 @@ export function useOnboarding() {
     if (completedAt) return 'hidden'
     if (
       (userQuery.isError && userData === undefined) ||
-      (statsQuery.isError && stats === undefined) ||
-      (subQuery.isError && currentSubscription === undefined)
+      (statsQuery.isError && stats === undefined)
     ) {
       return 'error'
     }
-    if (
-      userData === undefined ||
-      stats === undefined ||
-      currentSubscription === undefined
-    ) {
+    if (userData === undefined || stats === undefined) {
       return 'loading'
     }
     return 'ready'
@@ -229,10 +212,8 @@ export function useOnboarding() {
     celebrationDismissed,
     userData,
     stats,
-    currentSubscription,
     userQuery.isError,
     statsQuery.isError,
-    subQuery.isError,
   ])
 
   return {
