@@ -60,7 +60,11 @@ export class ConsentAuditEvent {
 export const ConsentAuditEventSchema =
   SchemaFactory.createForClass(ConsentAuditEvent)
 ConsentAuditEventSchema.index(
-  { organizationId: 1, inboundSmsId: 1, action: 1 },
-  { unique: true, sparse: true },
+  { organizationId: 1, action: 1, inboundSmsId: 1 },
+  {
+    name: 'consent_audit_inbound_idempotency_v2',
+    unique: true,
+    partialFilterExpression: { inboundSmsId: { $exists: true } },
+  },
 )
 ConsentAuditEventSchema.index({ organizationId: 1, createdAt: -1 })

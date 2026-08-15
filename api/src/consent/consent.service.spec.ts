@@ -140,6 +140,30 @@ describe('ConsentService', () => {
     )
   })
 
+  it('reports consent and audit persistence stages without exposing the error', async () => {
+    const stages: string[] = []
+    audit.create.mockRejectedValue(new Error('duplicate-key details'))
+
+    await expect(
+      service.recordOperatorConsent({
+        organizationId,
+        groupId,
+        contactId,
+        mobileNumber: sender,
+        actorUserId,
+        affirmed: true,
+        onPersistenceStage: (stage) => stages.push(stage),
+      }),
+    ).rejects.toThrow('duplicate-key details')
+
+    expect(stages).toEqual(['CONSENT', 'AUDIT'])
+    expect(consents.deleteOne).toHaveBeenCalledWith({
+      organizationId,
+      groupId,
+      contactId,
+    })
+  })
+
   it.each([
     'STOP',
     ' quit ',

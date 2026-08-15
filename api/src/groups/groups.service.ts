@@ -46,6 +46,7 @@ type BulkRow = {
   classification: BulkClassification
   reason: string
 }
+type BulkPersistenceStage = 'CONTACT' | 'MEMBERSHIP' | 'CONSENT' | 'AUDIT'
 
 @Injectable()
 export class GroupsService {
@@ -560,6 +561,7 @@ export class GroupsService {
     inputValue: unknown,
     correlationId: string = randomUUID(),
     sourceRow?: number,
+    onPersistenceStage?: (stage: BulkPersistenceStage) => void,
   ) {
     const actorId = this.actorId(actor)
     const { group } = await this.requireGroup(organizationId, groupId, actor)
@@ -572,6 +574,7 @@ export class GroupsService {
         error:
           'Affirm that this person asked to receive messages or provided this number for church communications',
       })
+    onPersistenceStage?.('CONTACT')
     let contact = await this.contacts.findOne({
       organizationId: group.organizationId,
       mobileNumber,
@@ -597,6 +600,7 @@ export class GroupsService {
       }
     }
     if (!contact) throw new ServiceUnavailableException()
+    onPersistenceStage?.('MEMBERSHIP')
     const existingMembership = await this.memberships.findOne({
       organizationId: group.organizationId,
       groupId: group._id,
@@ -612,6 +616,7 @@ export class GroupsService {
         affirmed: input.consentAffirmed,
         methodNote: input.consentMethodNote,
         sourceRow,
+        onPersistenceStage,
       })
       return {
         id: String(existingMembership._id),
@@ -624,6 +629,7 @@ export class GroupsService {
     }
     const now = new Date()
     try {
+      onPersistenceStage?.('MEMBERSHIP')
       await this.memberships.updateOne(
         {
           organizationId: group.organizationId,
@@ -656,7 +662,9 @@ export class GroupsService {
         affirmed: input.consentAffirmed,
         methodNote: input.consentMethodNote,
         sourceRow,
+        onPersistenceStage,
       })
+      onPersistenceStage?.('AUDIT')
       await this.record(
         group.organizationId,
         actorId,
@@ -848,6 +856,7 @@ export class GroupsService {
         seen,
       )
       let outcome: string = current.classification
+      let failureStage: BulkPersistenceStage | undefined
       let contactId: string | undefined
       let membershipId: string | undefined
       if (
@@ -867,6 +876,9 @@ export class GroupsService {
             },
             `${String(preview._id)}:row:${current.rowNumber}`,
             current.rowNumber,
+            (stage) => {
+              failureStage = stage
+            },
           )
           outcome = member.reusedContact ? 'REUSED_AND_ADDED' : 'ADDED'
           contactId = member.contactId
@@ -896,6 +908,11 @@ export class GroupsService {
         'RosterBulkImportRow',
         `${String(preview._id)}:${current.rowNumber}`,
         correlationId,
+        undefined,
+        undefined,
+        outcome === 'FAILED' && failureStage
+          ? `Persistence stage: ${failureStage}`
+          : undefined,
       )
     }
     preview.rows = results

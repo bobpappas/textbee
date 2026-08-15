@@ -12,6 +12,7 @@ import {
 } from '../organizations/schemas/operator-membership.schema'
 import { SMS, SMSSchema } from '../gateway/schemas/sms.schema'
 import { ConsentService } from './consent.service'
+import { ConsentAuditIndexService } from './consent-audit-index.service'
 import {
   CommandResponseWindow,
   CommandResponseWindowSchema,
@@ -46,7 +47,7 @@ import {
       { name: SMS.name, schema: SMSSchema },
     ]),
   ],
-  providers: [ConsentService],
+  providers: [ConsentService, ConsentAuditIndexService],
   exports: [ConsentService, MongooseModule],
 })
 export class ConsentModule {}
