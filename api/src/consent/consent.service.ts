@@ -111,6 +111,7 @@ export class ConsentService {
     affirmed: unknown
     methodNote?: unknown
     sourceRow?: number
+    onPersistenceStage?: (stage: 'CONSENT' | 'AUDIT') => void
   }) {
     if (input.affirmed !== true)
       throw new BadRequestException({
@@ -118,6 +119,7 @@ export class ConsentService {
           'Affirm that this person asked to receive messages or provided this number for church communications',
       })
     const methodNote = this.methodNote(input.methodNote)
+    input.onPersistenceStage?.('CONSENT')
     const activeSuppression = await this.suppressions.exists({
       organizationId: input.organizationId,
       mobileNumber: input.mobileNumber,
@@ -160,6 +162,7 @@ export class ConsentService {
         },
         { upsert: true },
       )
+      input.onPersistenceStage?.('AUDIT')
       await this.audit.create({
         organizationId: input.organizationId,
         action: 'OPERATOR_CONSENT_RECORDED',

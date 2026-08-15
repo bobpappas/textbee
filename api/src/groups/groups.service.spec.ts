@@ -173,4 +173,83 @@ describe('GroupsService validation', () => {
       }),
     ).rejects.toBeInstanceOf(NotFoundException)
   })
+
+  it('keeps bulk failure details redacted while auditing the persistence stage', async () => {
+    const organizationId = new Types.ObjectId()
+    const groupId = new Types.ObjectId()
+    const actorId = new Types.ObjectId()
+    const previewId = new Types.ObjectId()
+    const preview = {
+      _id: previewId,
+      status: 'PREVIEW',
+      rows: [
+        {
+          rowNumber: 2,
+          displayName: 'Synthetic Person',
+          mobileNumber: '+12085551309',
+          classification: 'READY_NEW_CONTACT',
+          reason: 'A new organization contact will be created',
+        },
+      ],
+      expiresAt: new Date(),
+      save: jest.fn().mockResolvedValue(undefined),
+    }
+    const audit = { updateOne: jest.fn().mockResolvedValue({}) }
+    const diagnosticService = new GroupsService(
+      model,
+      model,
+      model,
+      model,
+      audit as any,
+      model,
+      model,
+      model,
+      policy,
+      consent,
+    )
+    jest.spyOn(diagnosticService as any, 'requireGroup').mockResolvedValue({
+      group: { _id: groupId, organizationId, status: 'ACTIVE' },
+    })
+    jest
+      .spyOn(diagnosticService as any, 'findBulkImport')
+      .mockResolvedValue(preview)
+    jest
+      .spyOn(diagnosticService as any, 'classifyBulkRow')
+      .mockResolvedValue(preview.rows[0])
+    jest
+      .spyOn(diagnosticService, 'addPerson')
+      .mockImplementation(async (...args: any[]) => {
+        args[6]('AUDIT')
+        throw new Error('duplicate-key details')
+      })
+
+    const result = await diagnosticService.applyBulkAdd(
+      String(organizationId),
+      String(groupId),
+      String(previewId),
+      { _id: actorId },
+      { consentAffirmed: true },
+      'apply-correlation',
+    )
+
+    expect(result.rows).toEqual([
+      expect.objectContaining({
+        rowNumber: 2,
+        redactedNumber: '***1309',
+        outcome: 'FAILED',
+        reason: 'The row could not be completed and may be retried',
+      }),
+    ])
+    expect(JSON.stringify(result)).not.toContain('+12085551309')
+    expect(JSON.stringify(result)).not.toContain('duplicate-key details')
+    expect(audit.updateOne).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'ROSTER_BULK_ROW_FAILED' }),
+      expect.objectContaining({
+        $setOnInsert: expect.objectContaining({
+          reason: 'Persistence stage: AUDIT',
+        }),
+      }),
+      { upsert: true },
+    )
+  })
 })
