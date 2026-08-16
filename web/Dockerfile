@@ -27,7 +27,9 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # Set environment variables for building
-ENV NEXT_TELEMETRY_DISABLED 1
+ENV NEXT_TELEMETRY_DISABLED=1
+ARG NEXT_PUBLIC_API_BASE_URL=/api/v1
+ENV NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
 
 
 # Build the application
@@ -42,9 +44,9 @@ RUN apk add --no-cache openssl openssl-dev
 RUN npm install -g pnpm@9
 
 # Set environment variables
-ENV NODE_ENV production
-ENV NEXT_TELEMETRY_DISABLED 1
-ENV CONTAINER_RUNTIME docker
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV CONTAINER_RUNTIME=docker
 
 # Add a non-root user to run the app
 RUN addgroup --system --gid 1001 nodejs && \
@@ -68,11 +70,11 @@ RUN pnpm install --prod --frozen-lockfile
 USER nextjs
 
 # Expose the port the app will run on
-ENV PORT 3000
+ENV PORT=3000
 EXPOSE ${PORT}
 
 # Health check to verify app is running
 # HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
 #   CMD wget -q -O - http://localhost:${PORT}/api/health || exit 1
 
-CMD ["node", "server"] 
+CMD ["node", "server"]
