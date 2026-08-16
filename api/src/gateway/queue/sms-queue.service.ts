@@ -3,6 +3,7 @@ import { InjectQueue } from '@nestjs/bull'
 import { Queue } from 'bull'
 import { ConfigService } from '@nestjs/config'
 import { Message } from 'firebase-admin/messaging'
+import { SafetyKind } from '../../billing/self-hosted-policy.service'
 
 @Injectable()
 export class SmsQueueService {
@@ -38,13 +39,21 @@ export class SmsQueueService {
     fcmMessages: Message[],
     smsBatchId: string,
     delayMs?: number,
+    safetyReservation?: {
+      reservationId: string
+      segments: number
+      kind: SafetyKind
+    },
   ) {
     // this.logger.debug(`Adding send-sms job for batch ${smsBatchId}`)
 
     // Split messages into batches of max smsBatchSize messages
     const batches = []
-    for (let i = 0; i < fcmMessages.length; i += this.maxSmsBatchSize) {
-      batches.push(fcmMessages.slice(i, i + this.maxSmsBatchSize))
+    const batchSize = safetyReservation
+      ? Math.max(fcmMessages.length, 1)
+      : this.maxSmsBatchSize
+    for (let i = 0; i < fcmMessages.length; i += batchSize) {
+      batches.push(fcmMessages.slice(i, i + batchSize))
     }
 
     // If delayMs is provided, use it for all batches (scheduled send)
@@ -59,10 +68,11 @@ export class SmsQueueService {
           deviceId,
           fcmMessages: batch,
           smsBatchId,
+          safetyReservation,
         },
         {
           priority: 1, // TODO: Make this dynamic based on users subscription plan
-          attempts: 1,
+          attempts: 2,
           delay: delay,
           backoff: {
             type: 'exponential',

@@ -10,20 +10,19 @@ import { WebhookService } from 'src/webhook/webhook.service'
 import { WebhookEvent } from 'src/webhook/webhook-event.enum'
 import { Logger } from '@nestjs/common'
 import { ConsentService } from '../../consent/consent.service'
+import { SelfHostedPolicyService } from '../../billing/self-hosted-policy.service'
 
-function getFcmErrorCode(error: { code?: string; message?: string } | null): string {
+function getFcmErrorCode(
+  error: { code?: string; message?: string } | null,
+): string {
   if (!error?.code) return 'FCM_DELIVERY_FAILED'
-  const code = String(error.code).toLowerCase().replace(/^messaging\//, '')
-  if (
-    code === 'registration-token-not-registered' ||
-    code === 'unregistered'
-  ) {
+  const code = String(error.code)
+    .toLowerCase()
+    .replace(/^messaging\//, '')
+  if (code === 'registration-token-not-registered' || code === 'unregistered') {
     return 'FCM_TOKEN_NOT_REGISTERED'
   }
-  if (
-    code === 'invalid-registration-token' ||
-    code === 'invalid-argument'
-  ) {
+  if (code === 'invalid-registration-token' || code === 'invalid-argument') {
     return 'FCM_INVALID_REGISTRATION_TOKEN'
   }
   if (code === 'mismatched-credential') {
@@ -35,7 +34,9 @@ function getFcmErrorCode(error: { code?: string; message?: string } | null): str
 const FCM_ACTIONABLE_MESSAGE =
   'The device token is invalid. Please open the textbee mobile app, click on the update button to resync and try again.'
 
-function getFcmErrorMessage(error: { code?: string; message?: string } | null | undefined): string {
+function getFcmErrorMessage(
+  error: { code?: string; message?: string } | null | undefined,
+): string {
   const rawPart = `FCM_DELIVERY_FAILED: ${error?.message || 'FCM delivery failed'}`
   return `${rawPart} — ${FCM_ACTIONABLE_MESSAGE}`
 }
@@ -50,6 +51,7 @@ export class SmsQueueProcessor {
     @InjectModel(SMSBatch.name) private smsBatchModel: Model<SMSBatch>,
     private webhookService: WebhookService,
     private consentService: ConsentService,
+    private selfHostedPolicy: SelfHostedPolicyService,
   ) {}
 
   @Process({
@@ -58,7 +60,12 @@ export class SmsQueueProcessor {
   })
   async handleSendSms(job: Job<any>) {
     // this.logger.debug(`Processing send-sms job ${job.id}`)
-    const { deviceId, fcmMessages: queuedFcmMessages, smsBatchId } = job.data
+    const {
+      deviceId,
+      fcmMessages: queuedFcmMessages,
+      smsBatchId,
+      safetyReservation: acceptedReservation,
+    } = job.data
 
     const device = await this.deviceModel
       .findById(deviceId)
@@ -97,6 +104,12 @@ export class SmsQueueProcessor {
       }
     }
     if (fcmMessages.length === 0) {
+      if (acceptedReservation)
+        await this.selfHostedPolicy.release(
+          deviceId,
+          acceptedReservation.reservationId,
+          acceptedReservation.kind,
+        )
       await this.smsBatchModel.findByIdAndUpdate(smsBatchId, {
         $set: { status: 'failed' },
       })
@@ -104,6 +117,26 @@ export class SmsQueueProcessor {
     }
 
     try {
+      let attemptReservation = acceptedReservation
+      if (
+        process.env.TEXTBEE_BILLING_MODE === 'self_hosted' &&
+        job.attemptsMade > 0
+      ) {
+        attemptReservation = await this.selfHostedPolicy.reserve({
+          deviceId,
+          kind: acceptedReservation?.kind || 'ORDINARY',
+          messages: fcmMessages.map((message) => {
+            const payload = JSON.parse(message.data.smsData)
+            return { message: payload.message, recipientCount: 1 }
+          }),
+        })
+      }
+      if (attemptReservation)
+        await this.selfHostedPolicy.consume(
+          deviceId,
+          attemptReservation.reservationId,
+          attemptReservation.kind,
+        )
       this.smsBatchModel
         .findByIdAndUpdate(smsBatchId, {
           $set: { status: 'processing' },

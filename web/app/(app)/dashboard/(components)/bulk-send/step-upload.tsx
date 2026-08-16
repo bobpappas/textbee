@@ -116,7 +116,7 @@ export default function UploadStep({ bulk }: { bulk: BulkSendState }) {
               <p className='mt-1 text-xs text-muted-foreground'>
                 Up to {formatFileSize(MAX_FILE_SIZE)}
                 {maxRows !== undefined && maxRows !== Number.POSITIVE_INFINITY
-                  ? ` and ${maxRows.toLocaleString()} rows on your plan`
+                  ? ` and ${maxRows.toLocaleString()} rows under local policy`
                   : ''}
               </p>
             </div>
@@ -143,11 +143,11 @@ export default function UploadStep({ bulk }: { bulk: BulkSendState }) {
         {rowCapExceeded && (
           <Alert variant='destructive'>
             <AlertCircle className='h-4 w-4' />
-            <AlertTitle>That file is over your plan limit</AlertTitle>
+            <AlertTitle>That file exceeds the operational limit</AlertTitle>
             <AlertDescription>
-              It has {rows.length.toLocaleString()} rows and your plan allows{' '}
+              It has {rows.length.toLocaleString()} rows and local policy allows{' '}
               {maxRows!.toLocaleString()} per bulk send. Remove the extra rows
-              or upgrade your plan.
+              and try again.
             </AlertDescription>
           </Alert>
         )}

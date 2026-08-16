@@ -1,7 +1,6 @@
 'use client'
 
-import Link from 'next/link'
-import { ArrowRight, CalendarDays, Clock, Infinity as InfinityIcon } from 'lucide-react'
+import { CalendarDays, Clock, Infinity as InfinityIcon } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useSubscription } from '@/lib/api'
@@ -57,7 +56,7 @@ function UsageCard({
             </div>
             <p className='flex items-center gap-1.5 text-xs text-muted-foreground'>
               <InfinityIcon className='h-3.5 w-3.5' />
-              Unlimited on your plan
+              Unlimited by local policy
             </p>
           </>
         ) : (
@@ -86,7 +85,7 @@ function UsageCard({
                     ? 'bg-destructive'
                     : nearLimit
                       ? 'bg-amber-500'
-                      : 'bg-primary'
+                      : 'bg-primary',
                 )}
                 style={{ width: `${percentage}%` }}
               />
@@ -100,7 +99,7 @@ function UsageCard({
                     ? 'font-medium text-destructive'
                     : nearLimit
                       ? 'font-medium text-amber-600 dark:text-amber-500'
-                      : 'text-muted-foreground'
+                      : 'text-muted-foreground',
                 )}
               >
                 {atLimit
@@ -108,13 +107,9 @@ function UsageCard({
                   : `${remaining.toLocaleString()} remaining`}
               </p>
               {(nearLimit || atLimit) && (
-                <Link
-                  href='/dashboard/account/billing'
-                  className='inline-flex items-center gap-0.5 text-xs font-medium text-primary hover:underline'
-                >
-                  Upgrade
-                  <ArrowRight className='h-3 w-3' />
-                </Link>
+                <span className='text-xs text-muted-foreground'>
+                  Carrier-safety control
+                </span>
               )}
             </div>
           </>
@@ -150,7 +145,8 @@ export default function UsageSummary() {
           the backend counts SMS documents with no type filter. Saying "sent"
           would understate what actually consumes the limit. */}
       <p className='text-xs text-muted-foreground'>
-        Counts messages sent and received against your plan limit.
+        Counts reserved and attempted outbound SMS segments against the local
+        operational policy.
       </p>
     </div>
   )

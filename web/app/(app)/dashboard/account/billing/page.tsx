@@ -1,6 +1,6 @@
 import SubscriptionInfo from '../../(components)/billing/subscription-info'
 
-// Billing & plan: current subscription, usage limits and plan CTAs.
+// Compatibility route for the self-hosted operational SMS policy.
 export default function BillingPage() {
   return (
     <div className='max-w-2xl'>

@@ -32,16 +32,23 @@ export function getSegmentInfo(text: string): SegmentInfo {
   const single = gsm ? 160 : 70
   const multi = gsm ? 153 : 67
   const length = text.length
+  const encodedLength = gsm
+    ? Array.from(text).reduce(
+        (total, character) =>
+          total + (GSM_7_EXTENDED.includes(character) ? 2 : 1),
+        0
+      )
+    : length
 
   if (length === 0) {
     return { length: 0, segments: 0, perSegment: single, encoding }
   }
-  if (length <= single) {
+  if (encodedLength <= single) {
     return { length, segments: 1, perSegment: single, encoding }
   }
   return {
     length,
-    segments: Math.ceil(length / multi),
+    segments: Math.ceil(encodedLength / multi),
     perSegment: multi,
     encoding,
   }

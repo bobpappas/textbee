@@ -10,7 +10,6 @@ import httpBrowserClient from '@/lib/httpBrowserClient'
 import { ApiEndpoints } from '@/config/api'
 import { Routes } from '@/config/routes'
 import GenerateApiKey from '../api-keys/generate-api-key'
-import PlanPicker from './plan-picker'
 import InlineRegisterPanel from './inline-register-panel'
 
 const RESEND_COOLDOWN_SECONDS = 60
@@ -88,7 +87,6 @@ export default function StepActions({
   stepId,
   isDone = false,
   isSaving,
-  subLoading,
   userEmail,
   onSkipStep,
 }: StepActionsProps) {
@@ -128,15 +126,6 @@ export default function StepActions({
       )
     case 'register_device':
       return <InlineRegisterPanel />
-    case 'choose_plan':
-      return (
-        <PlanPicker
-          isLoading={subLoading}
-          isSaving={isSaving}
-          isDone={isDone}
-          onSkip={() => onSkipStep('choose_plan')}
-        />
-      )
     case 'first_message':
       return (
         <Button size='sm' asChild>

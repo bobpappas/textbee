@@ -1,8 +1,9 @@
 import axios from 'axios'
 import { getSession } from 'next-auth/react'
+import { resolveBrowserApiBaseUrl } from './api-base-url'
 
 const httpBrowserClient = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_BASE_URL || '',
+  baseURL: resolveBrowserApiBaseUrl(process.env.NEXT_PUBLIC_API_BASE_URL),
 })
 
 // API access token, seeded from the server-fetched session by Providers and

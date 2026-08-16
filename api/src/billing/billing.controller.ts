@@ -64,6 +64,7 @@ export class BillingController {
 
   @Post('webhook/polar')
   async handlePolarWebhook(@Body() data: any, @Request() req: any) {
+    this.billingService.assertBillingMutationEnabled()
     const payload = await this.billingService.validatePolarWebhookPayload(
       data,
       req.headers,
@@ -97,9 +98,8 @@ export class BillingController {
         })
         break
 
-      // @ts-ignore
+      // @ts-expect-error Polar's event union omits its accepted legacy spelling.
       case 'subscription.cancelled':
-      // @ts-ignore
       case 'subscription.canceled':
         console.log('polar webhook event', payload.type)
         console.log(payload)
@@ -116,7 +116,6 @@ export class BillingController {
         })
         break
 
-      // @ts-ignore
       case 'subscription.revoked':
         console.log('polar webhook event', payload.type)
         console.log(payload)

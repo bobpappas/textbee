@@ -30,9 +30,17 @@ function captureAuthHeaders() {
 
 afterEach(() => {
   getSessionMock.mockReset()
+  vi.unstubAllEnvs()
 })
 
 describe('httpBrowserClient auth interceptor', () => {
+  it('uses the same-origin proxy prefix without a compiled override', async () => {
+    vi.stubEnv('NEXT_PUBLIC_API_BASE_URL', '')
+    const { default: client } = await loadClient()
+
+    expect(client.defaults.baseURL).toBe('/api/v1')
+  })
+
   it('attaches a seeded token without calling getSession', async () => {
     const { default: client, setSessionToken } = await loadClient()
     setSessionToken('abc')

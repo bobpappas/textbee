@@ -78,17 +78,6 @@ export const STEPS: StepDef[] = [
     checkDone: (_u, stats) => (stats?.totalDeviceCount ?? 0) > 0,
   },
   {
-    id: 'choose_plan',
-    label: 'Choose your plan',
-    description: 'Pick the plan that fits your usage.',
-    doneDescription: 'Your plan is set. Change it any time.',
-    optional: true,
-    timeEstimate: '~30 sec',
-    checkDone: (_u, _stats, sub, skipped) =>
-      (sub?.plan?.name && sub.plan.name.toLowerCase() !== 'free') ||
-      skipped.includes('choose_plan'),
-  },
-  {
     id: 'first_message',
     label: 'Send your first message',
     description: 'The moment it all works: send an SMS from the dashboard.',

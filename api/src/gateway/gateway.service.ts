@@ -3,7 +3,10 @@ import { InjectModel } from '@nestjs/mongoose'
 import { Device, DeviceDocument } from './schemas/device.schema'
 import { Model, Types } from 'mongoose'
 import * as firebaseAdmin from 'firebase-admin'
-import { DeviceTombstone, DeviceTombstoneDocument } from './schemas/device-tombstone.schema'
+import {
+  DeviceTombstone,
+  DeviceTombstoneDocument,
+} from './schemas/device-tombstone.schema'
 import {
   ReceivedSMSDTO,
   RegisterDeviceInputDTO,
@@ -26,6 +29,10 @@ import { SmsQueueService } from './queue/sms-queue.service'
 import { escapeRegExp } from '../common/escape-regexp'
 import { ConsentService } from '../consent/consent.service'
 import { DispatchPolicyContext } from '../consent/consent.enums'
+import {
+  SafetyKind,
+  SelfHostedPolicyService,
+} from '../billing/self-hosted-policy.service'
 
 @Injectable()
 export class GatewayService {
@@ -40,6 +47,7 @@ export class GatewayService {
     private billingService: BillingService,
     private smsQueueService: SmsQueueService,
     private consentService: ConsentService,
+    private selfHostedPolicy: SelfHostedPolicyService,
   ) {}
 
   // Blocks creating or re-enabling a device when the user's plan device limit
@@ -52,9 +60,7 @@ export class GatewayService {
   ): Promise<void> {
     let deviceLimit: number
     try {
-      const limits = await this.billingService.getUserLimits(
-        userId?.toString(),
-      )
+      const limits = await this.billingService.getUserLimits(userId?.toString())
       deviceLimit = limits?.deviceLimit ?? -1
     } catch (error) {
       console.error('assertDeviceLimitNotReached: failed to load limits', error)
@@ -80,7 +86,9 @@ export class GatewayService {
 
       throw new HttpException(
         {
-          message: `Active device limit reached — your plan allows up to ${deviceLimit} active device(s) and you have ${activeDeviceCount}. Disable or delete another device, or upgrade your plan at https://textbee.dev/pricing`,
+          message: this.isSelfHosted()
+            ? `Active device limit reached — local policy allows up to ${deviceLimit} active device(s) and you have ${activeDeviceCount}. Disable or delete another device before connecting another.`
+            : `Active device limit reached — your plan allows up to ${deviceLimit} active device(s) and you have ${activeDeviceCount}. Disable or delete another device, or upgrade your plan at https://textbee.dev/pricing`,
           hasReachedLimit: true,
           deviceLimit,
           activeDeviceCount,
@@ -107,12 +115,12 @@ export class GatewayService {
 
     const now = new Date()
     const deviceData: any = { ...input, user }
-    
+
     // Set default name to "brand model" if not provided
     if (!deviceData.name && input.brand && input.model) {
       deviceData.name = `${input.brand} ${input.model}`
     }
-    
+
     // Handle simInfo if provided
     if (input.simInfo) {
       deviceData.simInfo = {
@@ -143,10 +151,7 @@ export class GatewayService {
 
   async getDevicesForUser(user: User): Promise<any> {
     // Exclude the push credential and hardware serial from the client response.
-    return await this.deviceModel.find(
-      { user: user._id },
-      '-fcmToken -serial',
-    )
+    return await this.deviceModel.find({ user: user._id }, '-fcmToken -serial')
   }
 
   async getDeviceById(deviceId: string): Promise<any> {
@@ -169,7 +174,7 @@ export class GatewayService {
     }
 
     if (input.enabled !== false) {
-      input.enabled = true;
+      input.enabled = true
     }
 
     // enforce the device limit only on the disabled -> enabled transition so
@@ -182,7 +187,7 @@ export class GatewayService {
 
     const now = new Date()
     const updateData: any = { ...input }
-    
+
     // Handle simInfo if provided
     if (input.simInfo) {
       updateData.simInfo = {
@@ -196,7 +201,7 @@ export class GatewayService {
       updateData.fcmTokenInvalidatedAt = undefined
       updateData.fcmTokenInvalidReason = undefined
     }
-    
+
     return await this.deviceModel.findByIdAndUpdate(
       deviceId,
       { $set: updateData },
@@ -233,20 +238,23 @@ export class GatewayService {
     return { success: true }
   }
 
-  private calculateDelayFromScheduledAt(scheduledAt?: string): number | undefined {
+  private calculateDelayFromScheduledAt(
+    scheduledAt?: string,
+  ): number | undefined {
     if (!scheduledAt) {
       return undefined
     }
 
     try {
       const scheduledDate = new Date(scheduledAt)
-      
+
       // Check if date is valid
       if (isNaN(scheduledDate.getTime())) {
         throw new HttpException(
           {
             success: false,
-            error: 'Invalid scheduledAt format. Must be a valid ISO 8601 date string.',
+            error:
+              'Invalid scheduledAt format. Must be a valid ISO 8601 date string.',
           },
           HttpStatus.BAD_REQUEST,
         )
@@ -275,7 +283,8 @@ export class GatewayService {
       throw new HttpException(
         {
           success: false,
-          error: 'Invalid scheduledAt format. Must be a valid ISO 8601 date string.',
+          error:
+            'Invalid scheduledAt format. Must be a valid ISO 8601 date string.',
         },
         HttpStatus.BAD_REQUEST,
       )
@@ -312,7 +321,10 @@ export class GatewayService {
       )
     }
 
-    if (!Array.isArray(requestedRecipients) || requestedRecipients.length === 0) {
+    if (
+      !Array.isArray(requestedRecipients) ||
+      requestedRecipients.length === 0
+    ) {
       throw new HttpException(
         {
           success: false,
@@ -364,6 +376,18 @@ export class GatewayService {
         recipients.length,
       )
 
+    const safetyKind: SafetyKind =
+      policyContext.kind === 'ORDINARY' ? 'ORDINARY' : 'COMPLIANCE'
+    const safetyReservation = this.isSelfHosted()
+      ? await this.selfHostedPolicy.reserve({
+          deviceId: device._id,
+          kind: safetyKind,
+          messages: [{ message, recipientCount: recipients.length }],
+          effectiveAt:
+            delayMs === undefined ? undefined : new Date(Date.now() + delayMs),
+        })
+      : undefined
+
     // TODO: Implement a queue to send the SMS if recipients are too many
 
     let smsBatch: SMSBatch
@@ -378,6 +402,12 @@ export class GatewayService {
         status: 'pending',
       })
     } catch (e) {
+      if (safetyReservation)
+        await this.selfHostedPolicy.release(
+          device._id,
+          safetyReservation.reservationId,
+          safetyKind,
+        )
       throw new HttpException(
         {
           success: false,
@@ -391,28 +421,42 @@ export class GatewayService {
     const fcmMessages: Message[] = []
 
     for (let recipient of recipients) {
-      recipient = recipient.replace(/\s+/g, "")
+      recipient = recipient.replace(/\s+/g, '')
       const decision = eligibleRecipients.find(
         (item) => item.recipient === recipient,
       )
-      const sms = await this.smsModel.create({
-        user: device.user,
-        device: device._id,
-        smsBatch: smsBatch._id,
-        message: message,
-        type: SMSType.SENT,
-        recipient,
-        requestedAt: new Date(),
-        status: 'pending',
-        metadata: {
-          organizationId: decision?.organizationId,
-          groupId: decision?.groupId,
-          policyContext,
-        },
-        ...(smsData.simSubscriptionId !== undefined && {
-          simSubscriptionId: smsData.simSubscriptionId,
-        }),
-      })
+      let sms: SMS
+      try {
+        sms = await this.smsModel.create({
+          user: device.user,
+          device: device._id,
+          smsBatch: smsBatch._id,
+          message: message,
+          type: SMSType.SENT,
+          recipient,
+          requestedAt: new Date(),
+          status: 'pending',
+          metadata: {
+            organizationId: decision?.organizationId,
+            groupId: decision?.groupId,
+            policyContext,
+          },
+          ...(smsData.simSubscriptionId !== undefined && {
+            simSubscriptionId: smsData.simSubscriptionId,
+          }),
+        })
+      } catch (error) {
+        if (safetyReservation)
+          await this.selfHostedPolicy.release(
+            device._id,
+            safetyReservation.reservationId,
+            safetyKind,
+          )
+        await this.smsBatchModel.findByIdAndUpdate(smsBatch._id, {
+          $set: { status: 'failed', error: error.message },
+        })
+        throw error
+      }
       const updatedSMSData = {
         smsId: sms._id,
         smsBatchId: smsBatch._id,
@@ -455,6 +499,7 @@ export class GatewayService {
           fcmMessages,
           smsBatch._id.toString(),
           delayMs,
+          safetyReservation,
         )
 
         return {
@@ -465,6 +510,12 @@ export class GatewayService {
           excludedRecipients,
         }
       } catch (e) {
+        if (safetyReservation)
+          await this.selfHostedPolicy.release(
+            device._id,
+            safetyReservation.reservationId,
+            safetyKind,
+          )
         // Update batch status to failed
         await this.smsBatchModel.findByIdAndUpdate(smsBatch._id, {
           $set: { status: 'failed', error: e.message },
@@ -493,12 +544,30 @@ export class GatewayService {
         fcmMessages,
         policyContext,
       )
-      if (dispatchableMessages.length === 0)
+      if (dispatchableMessages.length === 0) {
+        if (safetyReservation)
+          await this.selfHostedPolicy.release(
+            device._id,
+            safetyReservation.reservationId,
+            safetyKind,
+          )
         throw new HttpException(
-          { success: false, error: 'Recipients became ineligible before dispatch' },
+          {
+            success: false,
+            error: 'Recipients became ineligible before dispatch',
+          },
           HttpStatus.CONFLICT,
         )
-      const response = await firebaseAdmin.messaging().sendEach(dispatchableMessages)
+      }
+      if (safetyReservation)
+        await this.selfHostedPolicy.consume(
+          device._id,
+          safetyReservation.reservationId,
+          safetyKind,
+        )
+      const response = await firebaseAdmin
+        .messaging()
+        .sendEach(dispatchableMessages)
 
       console.log(response)
 
@@ -596,7 +665,8 @@ export class GatewayService {
           .filter((item) => !item.eligible)
           .map((item) => ({ recipient: item.recipient, reason: item.reason })),
       )
-      if (recipients.length > 0) eligibleMessages.push({ ...message, recipients })
+      if (recipients.length > 0)
+        eligibleMessages.push({ ...message, recipients })
     }
     if (eligibleMessages.length === 0)
       throw new HttpException(
@@ -629,21 +699,48 @@ export class GatewayService {
     const { messageTemplate } = body
     const messages = eligibleMessages
 
-    const smsBatch = await this.smsBatchModel.create({
-      user: device.user,
-      device: device._id,
-      message: messageTemplate,
-      recipientCount: messages
-        .map((m) => m.recipients.length)
-        .reduce((a, b) => a + b, 0),
-      recipientPreview: this.getRecipientsPreview(
-        messages.map((m) => m.recipients).flat(),
-      ),
-      status: 'pending',
-    })
+    const effectiveTimes = messages
+      .map((message) => message.scheduledAt && new Date(message.scheduledAt))
+      .filter((value): value is Date => Boolean(value))
+    const safetyReservation = this.isSelfHosted()
+      ? await this.selfHostedPolicy.reserve({
+          deviceId: device._id,
+          kind: 'ORDINARY',
+          messages: messages.map((item) => ({
+            message: item.message,
+            recipientCount: item.recipients.length,
+          })),
+          effectiveAt: effectiveTimes.length ? effectiveTimes[0] : undefined,
+        })
+      : undefined
+
+    let smsBatch: SMSBatch
+    try {
+      smsBatch = await this.smsBatchModel.create({
+        user: device.user,
+        device: device._id,
+        message: messageTemplate,
+        recipientCount: messages
+          .map((m) => m.recipients.length)
+          .reduce((a, b) => a + b, 0),
+        recipientPreview: this.getRecipientsPreview(
+          messages.map((m) => m.recipients).flat(),
+        ),
+        status: 'pending',
+      })
+    } catch (error) {
+      if (safetyReservation)
+        await this.selfHostedPolicy.release(
+          device._id,
+          safetyReservation.reservationId,
+          'ORDINARY',
+        )
+      throw error
+    }
 
     // Track FCM messages with their calculated delays for grouping
-    const fcmMessagesWithDelays: Array<{ message: Message; delayMs?: number }> = []
+    const fcmMessagesWithDelays: Array<{ message: Message; delayMs?: number }> =
+      []
     const smsDocumentsToInsert: Array<Record<string, any>> = []
     const smsToFcmMetadata: Array<{
       recipient: string
@@ -668,7 +765,7 @@ export class GatewayService {
       const delayMs = this.calculateDelayFromScheduledAt(smsData.scheduledAt)
 
       for (let recipient of recipients) {
-        recipient = recipient.replace(/\s+/g, "")
+        recipient = recipient.replace(/\s+/g, '')
         smsDocumentsToInsert.push({
           user: device.user,
           device: device._id,
@@ -695,23 +792,45 @@ export class GatewayService {
 
     const insertChunkSize = 500
     const insertedSmsDocs: any[] = []
-    const hasInsertMany = typeof (this.smsModel as any).insertMany === 'function'
-    for (let i = 0; i < smsDocumentsToInsert.length; i += insertChunkSize) {
-      const chunk = smsDocumentsToInsert.slice(i, i + insertChunkSize)
-      if (hasInsertMany) {
-        const insertedChunk = await (this.smsModel as any).insertMany(chunk, { ordered: true })
-        insertedSmsDocs.push(...insertedChunk)
-        continue
-      }
+    const hasInsertMany =
+      typeof (this.smsModel as any).insertMany === 'function'
+    try {
+      for (let i = 0; i < smsDocumentsToInsert.length; i += insertChunkSize) {
+        const chunk = smsDocumentsToInsert.slice(i, i + insertChunkSize)
+        if (hasInsertMany) {
+          const insertedChunk = await (this.smsModel as any).insertMany(chunk, {
+            ordered: true,
+          })
+          insertedSmsDocs.push(...insertedChunk)
+          continue
+        }
 
-      // Fallback for mocked/non-standard models that don't expose insertMany
-      for (const smsDocument of chunk) {
-        const createdSmsDoc = await this.smsModel.create(smsDocument)
-        insertedSmsDocs.push(createdSmsDoc)
+        // Fallback for mocked/non-standard models that don't expose insertMany
+        for (const smsDocument of chunk) {
+          const createdSmsDoc = await this.smsModel.create(smsDocument)
+          insertedSmsDocs.push(createdSmsDoc)
+        }
       }
+    } catch (error) {
+      if (safetyReservation)
+        await this.selfHostedPolicy.release(
+          device._id,
+          safetyReservation.reservationId,
+          'ORDINARY',
+        )
+      await this.smsBatchModel.findByIdAndUpdate(smsBatch._id, {
+        $set: { status: 'failed', error: error.message },
+      })
+      throw error
     }
 
     if (insertedSmsDocs.length !== smsToFcmMetadata.length) {
+      if (safetyReservation)
+        await this.selfHostedPolicy.release(
+          device._id,
+          safetyReservation.reservationId,
+          'ORDINARY',
+        )
       throw new HttpException(
         {
           success: false,
@@ -749,7 +868,10 @@ export class GatewayService {
           priority: 'high',
         },
       }
-      fcmMessagesWithDelays.push({ message: fcmMessage, delayMs: metadata.delayMs })
+      fcmMessagesWithDelays.push({
+        message: fcmMessage,
+        delayMs: metadata.delayMs,
+      })
     }
 
     // Check if we should use the queue
@@ -772,6 +894,7 @@ export class GatewayService {
             messages,
             smsBatch._id.toString(),
             delayMs,
+            safetyReservation,
           )
         }
 
@@ -783,6 +906,12 @@ export class GatewayService {
           excludedRecipients,
         }
       } catch (e) {
+        if (safetyReservation)
+          await this.selfHostedPolicy.release(
+            device._id,
+            safetyReservation.reservationId,
+            'ORDINARY',
+          )
         // Update batch status to failed
         await this.smsBatchModel.findByIdAndUpdate(smsBatch._id, {
           $set: {
@@ -812,18 +941,39 @@ export class GatewayService {
 
     // For non-queue path, convert back to simple array
     const fcmMessages = fcmMessagesWithDelays.map(({ message }) => message)
-    const fcmMessagesBatches = fcmMessages.map((m) => [m])
+    const dispatchableMessages = await this.filterDispatchableMessages(
+      device.user.toString(),
+      fcmMessages,
+      { kind: 'ORDINARY' },
+    )
+    if (dispatchableMessages.length === 0) {
+      if (safetyReservation)
+        await this.selfHostedPolicy.release(
+          device._id,
+          safetyReservation.reservationId,
+          'ORDINARY',
+        )
+      throw new HttpException(
+        {
+          success: false,
+          error: 'Recipients became ineligible before dispatch',
+        },
+        HttpStatus.CONFLICT,
+      )
+    }
+    const fcmMessagesBatches = dispatchableMessages.map((message) => [message])
     const fcmResponses: BatchResponse[] = []
+
+    if (safetyReservation)
+      await this.selfHostedPolicy.consume(
+        device._id,
+        safetyReservation.reservationId,
+        'ORDINARY',
+      )
 
     for (const batch of fcmMessagesBatches) {
       try {
-        const dispatchableBatch = await this.filterDispatchableMessages(
-          device.user.toString(),
-          batch,
-          { kind: 'ORDINARY' },
-        )
-        if (dispatchableBatch.length === 0) continue
-        const response = await firebaseAdmin.messaging().sendEach(dispatchableBatch)
+        const response = await firebaseAdmin.messaging().sendEach(batch)
 
         console.log(response)
         fcmResponses.push(response)
@@ -876,6 +1026,10 @@ export class GatewayService {
       fcmResponses,
     }
     return response
+  }
+
+  private isSelfHosted() {
+    return process.env.TEXTBEE_BILLING_MODE === 'self_hosted'
   }
 
   async receiveSMS(deviceId: string, dto: ReceivedSMSDTO): Promise<any> {
@@ -947,7 +1101,9 @@ export class GatewayService {
       status: 'received',
       sender: dto.sender,
       receivedAt,
-      metadata: { receivingNumber: process.env.TEXTBEE_DEFAULT_RECEIVING_NUMBER },
+      metadata: {
+        receivingNumber: process.env.TEXTBEE_DEFAULT_RECEIVING_NUMBER,
+      },
     })
 
     const command = await this.consentService.processInbound({
@@ -1170,10 +1326,12 @@ export class GatewayService {
     }
   }
 
-  async updateSMSStatus(deviceId: string, dto: UpdateSMSStatusDTO): Promise<any> {
+  async updateSMSStatus(
+    deviceId: string,
+    dto: UpdateSMSStatusDTO,
+  ): Promise<any> {
+    const device = await this.deviceModel.findById(deviceId)
 
-    const device = await this.deviceModel.findById(deviceId);
-    
     if (!device) {
       throw new HttpException(
         {
@@ -1181,11 +1339,11 @@ export class GatewayService {
           error: 'Device not found',
         },
         HttpStatus.NOT_FOUND,
-      );
+      )
     }
-    
-    const sms = await this.smsModel.findById(dto.smsId);
-    
+
+    const sms = await this.smsModel.findById(dto.smsId)
+
     if (!sms) {
       throw new HttpException(
         {
@@ -1193,9 +1351,9 @@ export class GatewayService {
           error: 'SMS not found',
         },
         HttpStatus.NOT_FOUND,
-      );
+      )
     }
-    
+
     // Verify the SMS belongs to this device
     if (sms.device.toString() !== deviceId) {
       throw new HttpException(
@@ -1204,84 +1362,89 @@ export class GatewayService {
           error: 'SMS does not belong to this device',
         },
         HttpStatus.FORBIDDEN,
-      );
+      )
     }
-    
+
     // Normalize status to lowercase for comparison
-    const normalizedStatus = dto.status.toLowerCase();
-    
+    const normalizedStatus = dto.status.toLowerCase()
+
     const updateData: any = {
       status: normalizedStatus, // Store normalized status
-    };
-    
+    }
+
     // Update timestamps based on status
     if (normalizedStatus === 'sent' && dto.sentAtInMillis) {
-      updateData.sentAt = new Date(dto.sentAtInMillis);
+      updateData.sentAt = new Date(dto.sentAtInMillis)
     } else if (normalizedStatus === 'delivered' && dto.deliveredAtInMillis) {
-      updateData.deliveredAt = new Date(dto.deliveredAtInMillis);
+      updateData.deliveredAt = new Date(dto.deliveredAtInMillis)
     } else if (normalizedStatus === 'failed' && dto.failedAtInMillis) {
-      updateData.failedAt = new Date(dto.failedAtInMillis);
-      updateData.errorCode = dto.errorCode;
-      updateData.errorMessage = dto.errorMessage || 'Unknown error';
+      updateData.failedAt = new Date(dto.failedAtInMillis)
+      updateData.errorCode = dto.errorCode
+      updateData.errorMessage = dto.errorMessage || 'Unknown error'
     }
-    
+
     // Update the SMS
-const updatedSms = await this.smsModel.findByIdAndUpdate(
-  dto.smsId,
-  { $set: updateData },
-  { new: true } 
-);
-    
+    const updatedSms = await this.smsModel.findByIdAndUpdate(
+      dto.smsId,
+      { $set: updateData },
+      { new: true },
+    )
+
     // Check if all SMS in batch have the same status, then update batch status
     if (dto.smsBatchId) {
-      const smsBatch = await this.smsBatchModel.findById(dto.smsBatchId);
+      const smsBatch = await this.smsBatchModel.findById(dto.smsBatchId)
       if (smsBatch) {
-        const allSmsInBatch = await this.smsModel.find({ smsBatch: dto.smsBatchId });
-        
+        const allSmsInBatch = await this.smsModel.find({
+          smsBatch: dto.smsBatchId,
+        })
+
         // Check if all SMS in batch have the same status (case insensitive)
-        const allHaveSameStatus = allSmsInBatch.every(sms => sms.status.toLowerCase() === normalizedStatus);
-        
+        const allHaveSameStatus = allSmsInBatch.every(
+          (sms) => sms.status.toLowerCase() === normalizedStatus,
+        )
+
         if (allHaveSameStatus) {
-          const smsBatchStatus = normalizedStatus === 'failed' ? 'failed' : 'completed';
-          await this.smsBatchModel.findByIdAndUpdate(dto.smsBatchId, { 
-            $set: { status: smsBatchStatus } 
-          });
+          const smsBatchStatus =
+            normalizedStatus === 'failed' ? 'failed' : 'completed'
+          await this.smsBatchModel.findByIdAndUpdate(dto.smsBatchId, {
+            $set: { status: smsBatchStatus },
+          })
         }
       }
     }
-    
+
     // Trigger webhook event for SMS status update
     try {
-       let event: WebhookEvent
-       switch (normalizedStatus) {
-          case 'sent':
-            event = WebhookEvent.MESSAGE_SENT
-            break
-          case 'delivered':
-            event = WebhookEvent.MESSAGE_DELIVERED
-            break
-          case 'failed':
-            event = WebhookEvent.MESSAGE_FAILED
-            break
-          case 'received':
-            event = WebhookEvent.MESSAGE_RECEIVED
-            break
-          default:
-            event = WebhookEvent.UNKNOWN_STATE
-          }
+      let event: WebhookEvent
+      switch (normalizedStatus) {
+        case 'sent':
+          event = WebhookEvent.MESSAGE_SENT
+          break
+        case 'delivered':
+          event = WebhookEvent.MESSAGE_DELIVERED
+          break
+        case 'failed':
+          event = WebhookEvent.MESSAGE_FAILED
+          break
+        case 'received':
+          event = WebhookEvent.MESSAGE_RECEIVED
+          break
+        default:
+          event = WebhookEvent.UNKNOWN_STATE
+      }
       this.webhookService.deliverNotification({
         sms: updatedSms,
         user: device.user,
         event,
-      });
+      })
     } catch (error) {
-      console.error('Failed to trigger webhook event:', error);
+      console.error('Failed to trigger webhook event:', error)
     }
-    
+
     return {
       success: true,
       message: 'SMS status updated successfully',
-    };
+    }
   }
 
   async getStatsForUser(user: User) {
@@ -1324,8 +1487,7 @@ const updatedSms = await this.smsModel.findByIdAndUpdate(
   }
 
   async getSMSById(smsId: string): Promise<any> {
-
-    const sms = await this.smsModel.findById(smsId);
+    const sms = await this.smsModel.findById(smsId)
 
     if (!sms) {
       throw new HttpException(
@@ -1334,15 +1496,14 @@ const updatedSms = await this.smsModel.findByIdAndUpdate(
           error: 'SMS not found',
         },
         HttpStatus.NOT_FOUND,
-      );
+      )
     }
 
-    return sms;
+    return sms
   }
 
   async getSmsBatchById(smsBatchId: string): Promise<any> {
-
-    const smsBatch = await this.smsBatchModel.findById(smsBatchId);
+    const smsBatch = await this.smsBatchModel.findById(smsBatchId)
 
     if (!smsBatch) {
       throw new HttpException(
@@ -1351,20 +1512,20 @@ const updatedSms = await this.smsModel.findByIdAndUpdate(
           error: 'SMS batch not found',
         },
         HttpStatus.NOT_FOUND,
-      );
+      )
     }
 
     // Find all SMS messages that belong to this batch
-    const smsMessages = await this.smsModel.find({ 
+    const smsMessages = await this.smsModel.find({
       smsBatch: new Types.ObjectId(smsBatchId),
-      device: smsBatch.device
-    });
+      device: smsBatch.device,
+    })
 
     // Return both the batch and its SMS messages
     return {
       batch: smsBatch,
-      messages: smsMessages
-    };
+      messages: smsMessages,
+    }
   }
 
   async heartbeat(
@@ -1417,7 +1578,10 @@ const updatedSms = await this.smsModel.findByIdAndUpdate(
     }
 
     // Update batteryInfo if provided
-    if (input.batteryPercentage !== undefined || input.isCharging !== undefined) {
+    if (
+      input.batteryPercentage !== undefined ||
+      input.isCharging !== undefined
+    ) {
       if (input.batteryPercentage !== undefined) {
         updateData['batteryInfo.percentage'] = input.batteryPercentage
       }
@@ -1434,7 +1598,10 @@ const updatedSms = await this.smsModel.findByIdAndUpdate(
     }
 
     // Update appVersionInfo if provided
-    if (input.appVersionName !== undefined || input.appVersionCode !== undefined) {
+    if (
+      input.appVersionName !== undefined ||
+      input.appVersionCode !== undefined
+    ) {
       if (input.appVersionName !== undefined) {
         updateData['appVersionInfo.versionName'] = input.appVersionName
       }

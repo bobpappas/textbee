@@ -204,6 +204,14 @@ export default function SendSms() {
               <span>
                 {segments.length} characters, {segments.segments} segment
                 {segments.segments === 1 ? '' : 's'} ({segments.encoding})
+                {recipients.length > 0 && (
+                  <>
+                    {' '}· {segments.segments * recipients.length} total segment
+                    {segments.segments * recipients.length === 1 ? '' : 's'} for{' '}
+                    {recipients.length} recipient
+                    {recipients.length === 1 ? '' : 's'}
+                  </>
+                )}
               </span>
               {segments.segments > 1 && (
                 <span className='text-amber-600 dark:text-amber-500'>

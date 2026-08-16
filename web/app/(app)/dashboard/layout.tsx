@@ -5,12 +5,9 @@ import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import AccountDeletionAlert from './(components)/alerts/account-deletion-alert'
-import UpgradeToProAlert from './(components)/alerts/upgrade-to-pro-alert'
 import UpdateAppModal from './(components)/devices/update-app-modal'
 import UpdateAppNotificationBar from './(components)/devices/update-app-notification-bar'
 import VerifyEmailAlert from './(components)/alerts/verify-email-alert'
-import PastDueBillingAlert from './(components)/alerts/past-due-billing-alert'
-import { SurveyModal } from '@/components/shared/survey-modal'
 import Footer from '@/components/shared/footer'
 import ThemeToggle from '@/components/shared/theme-toggle'
 import CommandMenu from './(components)/search/command-menu'
@@ -102,9 +99,7 @@ export default function DashboardLayout({
         <div className="space-y-2 p-4 pb-0">
           <UpdateAppNotificationBar />
           <VerifyEmailAlert />
-          <PastDueBillingAlert />
           <AccountDeletionAlert />
-          <UpgradeToProAlert />
         </div>
         <main id="main-content" tabIndex={-1}>
           {children}
@@ -132,7 +127,6 @@ export default function DashboardLayout({
         </div>
       </nav>
 
-      <SurveyModal />
       <UpdateAppModal />
     </div>
   )

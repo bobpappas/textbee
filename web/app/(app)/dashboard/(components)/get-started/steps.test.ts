@@ -25,13 +25,6 @@ describe('onboarding steps', () => {
     )
   })
 
-  it('choose_plan is done on a paid plan or when skipped', () => {
-    const step = byId('choose_plan')
-    expect(step.checkDone({}, undefined, { plan: { name: 'Free' } }, [])).toBe(false)
-    expect(step.checkDone({}, undefined, { plan: { name: 'Pro' } }, [])).toBe(true)
-    expect(step.checkDone({}, undefined, null, ['choose_plan'])).toBe(true)
-  })
-
   it('api_key / register_device / first_message follow the stats counters', () => {
     expect(byId('api_key').checkDone({}, { totalApiKeyCount: 1 }, null, [])).toBe(true)
     expect(
@@ -42,14 +35,18 @@ describe('onboarding steps', () => {
     ).toBe(true)
   })
 
-  it('computeStepStates marks a fully-set-up paid user as all done', () => {
+  it('computeStepStates marks a fully-set-up self-hosted user as all done', () => {
     const states = computeStepStates(
       { emailVerifiedAt: '2026-01-01' },
       { totalApiKeyCount: 2, totalDeviceCount: 1, totalSentSMSCount: 10 },
-      { plan: { name: 'Pro' } },
+      null,
       []
     )
     expect(states.every((s) => s.isDone)).toBe(true)
+  })
+
+  it('contains no commercial plan-selection step', () => {
+    expect(STEPS.map((step) => step.id)).not.toContain('choose_plan')
   })
 
   it('computeStepStates marks a brand-new user as nothing done', () => {

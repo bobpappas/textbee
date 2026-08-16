@@ -78,6 +78,7 @@ export interface Plan {
 }
 
 export interface SubscriptionUsage {
+  segmentsThisMinute?: number
   dailyLimit?: number
   monthlyLimit?: number
   bulkSendLimit?: number
@@ -93,6 +94,16 @@ export interface SubscriptionUsage {
 export type SubscriptionStatus = 'active' | 'past_due' | 'canceled' | string
 
 export interface Subscription {
+  mode?: 'self_hosted' | string
+  policy?: {
+    timezone: string
+    activeDeviceLimit: number
+    recipientsPerSend: number
+    segmentsPerMinute: number
+    segmentsPerDay: number
+    segmentsRolling30Days: number
+    complianceSegmentsPerDay: number
+  }
   plan?: Plan
   usage?: SubscriptionUsage
   status?: SubscriptionStatus

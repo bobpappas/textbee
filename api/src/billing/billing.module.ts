@@ -10,14 +10,25 @@ import { AuthModule } from 'src/auth/auth.module'
 import { UsersModule } from 'src/users/users.module'
 import { GatewayModule } from 'src/gateway/gateway.module'
 import { MailModule } from 'src/mail/mail.module'
-import { PolarWebhookPayload, PolarWebhookPayloadSchema } from './schemas/polar-webhook-payload.schema'
+import {
+  PolarWebhookPayload,
+  PolarWebhookPayloadSchema,
+} from './schemas/polar-webhook-payload.schema'
 import { Device, DeviceSchema } from '../gateway/schemas/device.schema'
-import { CheckoutSession, CheckoutSessionSchema } from './schemas/checkout-session.schema'
-import { BillingNotification, BillingNotificationSchema } from './schemas/billing-notification.schema'
+import {
+  CheckoutSession,
+  CheckoutSessionSchema,
+} from './schemas/checkout-session.schema'
+import {
+  BillingNotification,
+  BillingNotificationSchema,
+} from './schemas/billing-notification.schema'
 import { BillingNotificationsService } from './billing-notifications.service'
 // import { BillingNotificationsListener } from './billing-notifications.listener'
 import { BullModule } from '@nestjs/bull'
 import { BillingNotificationsProcessor } from 'src/billing/queue/billing-notifications.processor'
+import { SelfHostedPolicyService } from './self-hosted-policy.service'
+import { SmsSafetyUsage, SmsSafetyUsageSchema } from './sms-safety-usage.schema'
 
 @Module({
   imports: [
@@ -40,6 +51,7 @@ import { BillingNotificationsProcessor } from 'src/billing/queue/billing-notific
       { name: Device.name, schema: DeviceSchema },
       { name: CheckoutSession.name, schema: CheckoutSessionSchema },
       { name: BillingNotification.name, schema: BillingNotificationSchema },
+      { name: SmsSafetyUsage.name, schema: SmsSafetyUsageSchema },
     ]),
     forwardRef(() => AuthModule),
     forwardRef(() => UsersModule),
@@ -47,7 +59,16 @@ import { BillingNotificationsProcessor } from 'src/billing/queue/billing-notific
     MailModule,
   ],
   controllers: [BillingController],
-  providers: [BillingService, BillingNotificationsService, BillingNotificationsProcessor],
-  exports: [BillingService, BillingNotificationsService],
+  providers: [
+    BillingService,
+    BillingNotificationsService,
+    BillingNotificationsProcessor,
+    SelfHostedPolicyService,
+  ],
+  exports: [
+    BillingService,
+    BillingNotificationsService,
+    SelfHostedPolicyService,
+  ],
 })
 export class BillingModule {}
