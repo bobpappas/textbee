@@ -48,8 +48,9 @@ describe('GroupWorkspace group messaging', () => {
             data: {
               id: 'preview-1',
               group: { id: group.id, displayName: group.displayName },
+              joinCode: group.joinCode,
               body: body.body,
-              message: `${group.displayName}: ${body.body}`,
+              message: `${group.joinCode}: ${body.body}`,
               deviceId: 'device-1',
               candidateCount: 2,
               eligibleCount: 1,
@@ -86,7 +87,8 @@ describe('GroupWorkspace group messaging', () => {
               id: 'send-1',
               status: 'QUEUED',
               groupName: group.displayName,
-              message: `${group.displayName}: Updated body`,
+              joinCode: group.joinCode,
+              message: `${group.joinCode}: Updated body`,
               candidateCount: 2,
               counts: { QUEUED: 1, EXCLUDED: 1 },
               recipients: [
@@ -108,16 +110,16 @@ describe('GroupWorkspace group messaging', () => {
     )
 
     await user.click(await screen.findByRole('button', { name: 'Send message' }))
-    expect(screen.getByLabelText('Required prefix')).toHaveValue(`${group.displayName}:`)
+    expect(screen.getByLabelText('Required prefix')).toHaveValue(`${group.joinCode}:`)
     const message = screen.getByLabelText('Message')
     await user.type(message, 'Original body')
     await user.click(screen.getByRole('button', { name: 'Preview recipients' }))
-    expect(await screen.findByText(`${group.displayName}: Original body`)).toBeInTheDocument()
+    expect(await screen.findByText(`${group.joinCode}: Original body`)).toBeInTheDocument()
     expect(screen.getByText('Synthetic Excluded · ***0199')).toBeInTheDocument()
 
     await user.clear(message)
     await user.type(message, 'Updated body')
-    expect(screen.queryByText(`${group.displayName}: Original body`)).not.toBeInTheDocument()
+    expect(screen.queryByText(`${group.joinCode}: Original body`)).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Preview recipients' }))
     await user.click(await screen.findByRole('button', { name: 'Confirm send to 1' }))
 

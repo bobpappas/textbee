@@ -58,6 +58,12 @@ export class GroupMessageSend {
   groupName: string
 
   @Prop({ type: String, required: true, immutable: true })
+  joinCode: string
+
+  @Prop({ type: String, required: true, immutable: true })
+  body: string
+
+  @Prop({ type: String, required: true, immutable: true })
   message: string
 
   @Prop({ type: String, required: true })

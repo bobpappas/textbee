@@ -74,7 +74,7 @@ export default function GroupWorkspace({ groupId }: { groupId: string }) {
 
   return (
     <section className="container mx-auto min-w-0 px-4 py-6 sm:px-6">
-      <PageHeader title={group.data.displayName} description={archived ? 'Archived group detail' : 'Group detail and roster'} icon={UsersRound} actions={<div className="flex flex-wrap gap-2">{!archived && <GroupMessageDialog organizationId={organizationId} groupId={groupId} groupName={group.data.displayName} />}<Button asChild variant="outline"><Link href="/dashboard/groups">Back to groups</Link></Button></div>} />
+      <PageHeader title={group.data.displayName} description={archived ? 'Archived group detail' : 'Group detail and roster'} icon={UsersRound} actions={<div className="flex flex-wrap gap-2">{!archived && <GroupMessageDialog key={group.data.joinCode} organizationId={organizationId} groupId={groupId} groupName={group.data.displayName} joinCode={group.data.joinCode} />}<Button asChild variant="outline"><Link href="/dashboard/groups">Back to groups</Link></Button></div>} />
       <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)]">
         <div className="min-w-0 space-y-5">
           <Card className="min-w-0"><CardHeader><div className="flex flex-wrap items-center justify-between gap-2"><CardTitle>Join this group</CardTitle><Badge variant={archived ? 'secondary' : 'outline'}>{archived ? 'Archived' : 'Active'}</Badge></div></CardHeader><CardContent><GroupCommand group={group.data} />{!archived && <p className="mt-3 text-xs text-muted-foreground">Advertising must say: Message frequency varies. Message and data rates may apply. Reply STOP to stop all Boise Church of Christ texts; HELP for help. Include an administrator-controlled privacy or support contact.</p>}</CardContent></Card>
@@ -95,7 +95,7 @@ export default function GroupWorkspace({ groupId }: { groupId: string }) {
   )
 }
 
-function GroupMessageDialog({ organizationId, groupId, groupName }: { organizationId: string; groupId: string; groupName: string }) {
+function GroupMessageDialog({ organizationId, groupId, groupName, joinCode }: { organizationId: string; groupId: string; groupName: string; joinCode: string }) {
   const previewMutation = usePreviewGroupMessage(organizationId, groupId)
   const confirmMutation = useConfirmGroupMessage(organizationId, groupId)
   const [open, setOpen] = useState(false)
@@ -124,9 +124,9 @@ function GroupMessageDialog({ organizationId, groupId, groupName }: { organizati
   return <Dialog open={open} onOpenChange={(value) => { setOpen(value); if (!value) reset() }}>
     <DialogTrigger asChild><Button><Send />Send message</Button></DialogTrigger>
     <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
-      <DialogHeader><DialogTitle>Send to {groupName}</DialogTitle><DialogDescription>Preview the exact recipients and required group prefix before confirming. Previewing never sends or reserves capacity.</DialogDescription></DialogHeader>
+      <DialogHeader><DialogTitle>Send to {groupName}</DialogTitle><DialogDescription>Preview the exact recipients and required join-code prefix before confirming. Previewing never sends or reserves capacity.</DialogDescription></DialogHeader>
       {!result && <div className="min-w-0 space-y-4">
-        <div className="space-y-2"><Label htmlFor="group-message-prefix">Required prefix</Label><Input id="group-message-prefix" value={`${groupName}:`} readOnly aria-readonly="true" /></div>
+        <div className="space-y-2"><Label htmlFor="group-message-prefix">Required prefix</Label><Input id="group-message-prefix" value={`${preview?.joinCode || joinCode}:`} readOnly aria-readonly="true" /></div>
         <div className="space-y-2"><Label htmlFor="group-message-body">Message</Label><Textarea id="group-message-body" value={body} maxLength={1000} rows={5} onChange={(event) => { setBody(event.target.value); setPreview(null); setResult(null); setRequestId(''); setMessage('') }} /><p className="text-xs text-muted-foreground">The prefix is included in segment calculations and cannot be edited.</p></div>
         {!preview ? <Button type="button" onClick={createPreview} disabled={!body.trim() || previewMutation.isPending}>{previewMutation.isPending ? 'Building preview…' : 'Preview recipients'}</Button> : <div className="space-y-4">
           <div role="status" aria-live="polite" className="rounded-lg border p-4 text-sm"><p className="break-words font-medium">{preview.message}</p><p className="mt-2 text-muted-foreground">{preview.eligibleCount} eligible of {preview.candidateCount} candidates · {preview.totalSegments} segments total</p><p className="text-muted-foreground">Remaining local capacity: {capacity(preview.remainingCapacity.minuteSegments)} this minute · {capacity(preview.remainingCapacity.dailySegments)} today · {capacity(preview.remainingCapacity.rolling30DaySegments)} rolling 30 days</p></div>

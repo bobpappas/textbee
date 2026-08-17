@@ -20,6 +20,7 @@ describe('GroupMessagingService', () => {
         _id: groupId,
         organizationId,
         displayName: 'Youth Group',
+        joinCode: 'UNIFIEDYA',
         status: 'ACTIVE',
       }),
     }
@@ -61,6 +62,7 @@ describe('GroupMessagingService', () => {
         _id: new Types.ObjectId(),
         ...value,
       })),
+      findOne: jest.fn(),
     }
     const sends = { findOne: jest.fn() }
     const deliveries = { find: jest.fn() }
@@ -127,7 +129,8 @@ describe('GroupMessagingService', () => {
       { body: 'Meeting at 7' },
     )
 
-    expect(result.message).toBe('Youth Group: Meeting at 7')
+    expect(result.message).toBe('UNIFIEDYA: Meeting at 7')
+    expect(result.joinCode).toBe('UNIFIEDYA')
     expect(result.candidateCount).toBe(2)
     expect(result.eligibleCount).toBe(1)
     expect(result.excluded).toEqual([
@@ -138,7 +141,10 @@ describe('GroupMessagingService', () => {
       }),
     ])
     expect(previews.create).toHaveBeenCalledWith(
-      expect.objectContaining({ message: 'Youth Group: Meeting at 7' }),
+      expect.objectContaining({
+        joinCode: 'UNIFIEDYA',
+        message: 'UNIFIEDYA: Meeting at 7',
+      }),
     )
     expect(gateway.sendSMS).not.toHaveBeenCalled()
   })
@@ -188,7 +194,9 @@ describe('GroupMessagingService', () => {
       previewId,
       requestId: 'stable-request',
       groupName: 'Youth Group',
-      message: 'Youth Group: Meeting at 7',
+      joinCode: 'UNIFIEDYA',
+      body: 'Meeting at 7',
+      message: 'UNIFIEDYA: Meeting at 7',
       status: 'QUEUED',
       candidateCount: 1,
     })
@@ -208,6 +216,38 @@ describe('GroupMessagingService', () => {
       organizationId,
       groupId,
       $or: [{ previewId }, { requestId: 'stable-request' }],
+    })
+  })
+
+  it('invalidates an outstanding preview when the canonical join code changes', async () => {
+    const { service, previews } = fixture()
+    const previewId = new Types.ObjectId()
+    previews.findOne.mockResolvedValue({
+      _id: previewId,
+      organizationId,
+      groupId,
+      actorUserId: userId,
+      deviceId,
+      groupName: 'Youth Group',
+      joinCode: 'OLDYA',
+      body: 'Meeting at 7',
+      message: 'OLDYA: Meeting at 7',
+      recipients: [],
+      expiresAt: new Date(Date.now() + 60_000),
+    })
+
+    await expect(
+      service.confirm(
+        String(organizationId),
+        String(groupId),
+        String(previewId),
+        { _id: userId },
+        'join-code-change',
+      ),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: 'GROUP_MESSAGE_PREVIEW_INVALID',
+      }),
     })
   })
 })
