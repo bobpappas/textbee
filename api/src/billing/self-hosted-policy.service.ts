@@ -191,6 +191,34 @@ export class SelfHostedPolicyService {
     }
   }
 
+  async previewAvailability(deviceIdValue: string | Types.ObjectId) {
+    const policy = this.policy()
+    const deviceId = new Types.ObjectId(String(deviceIdValue))
+    const document = await this.usage.findOne({ deviceId })
+    const events = (
+      (document?.ordinaryEvents || []) as Array<{
+        at: Date
+        dayKey: string
+        segments: number
+      }>
+    ).map((event) => ({ ...event, at: new Date(event.at) }))
+    const now = new Date()
+    return {
+      minuteSegments: this.remaining(
+        policy.segmentsPerMinute,
+        this.sumEvents(events, now, policy.timezone, 'MINUTE'),
+      ),
+      dailySegments: this.remaining(
+        policy.segmentsPerDay,
+        this.sumEvents(events, now, policy.timezone, 'DAY'),
+      ),
+      rolling30DaySegments: this.remaining(
+        policy.segmentsRolling30Days,
+        this.sumEvents(events, now, policy.timezone, 'ROLLING_30_DAYS'),
+      ),
+    }
+  }
+
   private sumExpression(
     field: string,
     at: Date,

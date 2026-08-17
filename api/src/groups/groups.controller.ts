@@ -14,13 +14,17 @@ import {
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger'
 import { AuthGuard } from '../auth/guards/auth.guard'
 import { GroupsService } from './groups.service'
+import { GroupMessagingService } from './group-messaging.service'
 
 @ApiTags('organization groups')
 @ApiBearerAuth()
 @Controller('organizations/:organizationId')
 @UseGuards(AuthGuard)
 export class GroupsController {
-  constructor(private readonly groups: GroupsService) {}
+  constructor(
+    private readonly groups: GroupsService,
+    private readonly messaging: GroupMessagingService,
+  ) {}
 
   @Get('receiving-numbers')
   receivingNumbers(
@@ -91,6 +95,49 @@ export class GroupsController {
     @Request() request,
   ) {
     return this.data(this.groups.read(organizationId, groupId, request.user))
+  }
+
+  @Post('groups/:groupId/messages/preview')
+  previewMessage(
+    @Param('organizationId') organizationId: string,
+    @Param('groupId') groupId: string,
+    @Request() request,
+    @Body() input: unknown,
+  ) {
+    return this.data(
+      this.messaging.preview(organizationId, groupId, request.user, input),
+    )
+  }
+
+  @Post('groups/:groupId/messages/:previewId/confirm')
+  confirmMessage(
+    @Param('organizationId') organizationId: string,
+    @Param('groupId') groupId: string,
+    @Param('previewId') previewId: string,
+    @Request() request,
+    @Headers('x-request-id') requestId?: string,
+  ) {
+    return this.data(
+      this.messaging.confirm(
+        organizationId,
+        groupId,
+        previewId,
+        request.user,
+        requestId,
+      ),
+    )
+  }
+
+  @Get('groups/:groupId/messages/:sendId')
+  messageResult(
+    @Param('organizationId') organizationId: string,
+    @Param('groupId') groupId: string,
+    @Param('sendId') sendId: string,
+    @Request() request,
+  ) {
+    return this.data(
+      this.messaging.result(organizationId, groupId, sendId, request.user),
+    )
   }
 
   @Patch('groups/:groupId/name')

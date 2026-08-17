@@ -335,6 +335,7 @@ export class GatewayService {
     deviceId: string,
     smsData: SendSMSInputDTO,
     policyContext: DispatchPolicyContext = { kind: 'ORDINARY' },
+    includeDispatchMetadata = false,
   ): Promise<any> {
     const device = await this.deviceModel.findById(deviceId)
 
@@ -556,6 +557,7 @@ export class GatewayService {
           recipientCount: recipients.length,
           excludedRecipients: eligibilityDetails.excludedRecipients,
           exclusionSummary: eligibilityDetails.exclusionSummary,
+          ...(includeDispatchMetadata ? { queued: true } : {}),
         }
       } catch (e) {
         if (safetyReservation)
@@ -651,13 +653,21 @@ export class GatewayService {
           console.error('failed to update sms batch status to completed')
         })
 
-      return excludedRecipients.length
+      const dispatchResult = excludedRecipients.length
         ? {
             ...response,
             excludedRecipients: eligibilityDetails.excludedRecipients,
             exclusionSummary: eligibilityDetails.exclusionSummary,
           }
         : response
+      return includeDispatchMetadata
+        ? {
+            ...dispatchResult,
+            queued: false,
+            smsBatchId: smsBatch._id,
+            recipientCount: recipients.length,
+          }
+        : dispatchResult
     } catch (e) {
       this.smsBatchModel
         .findByIdAndUpdate(smsBatch._id, {
