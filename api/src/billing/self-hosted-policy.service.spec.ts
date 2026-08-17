@@ -149,4 +149,31 @@ describe('SelfHostedPolicyService', () => {
       { arrayFilters: [{ 'event.reservationId': 'reservation-2' }] },
     )
   })
+
+  it('previews every active ordinary capacity window without reserving', async () => {
+    const now = new Date()
+    usage.findOne.mockResolvedValue({
+      ordinaryEvents: [
+        {
+          at: now,
+          dayKey: new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'America/Boise',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+          }).format(now),
+          segments: 7,
+          status: 'CONSUMED',
+        },
+      ],
+    })
+
+    await expect(service.previewAvailability(deviceId)).resolves.toEqual({
+      minuteSegments: 3,
+      dailySegments: 193,
+      rolling30DaySegments: 1993,
+    })
+    expect(usage.updateOne).not.toHaveBeenCalled()
+    expect(usage.findOneAndUpdate).not.toHaveBeenCalled()
+  })
 })

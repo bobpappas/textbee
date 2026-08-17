@@ -62,6 +62,12 @@ export const ApiEndpoints = {
       `/organizations/${id}/groups${includeArchived ? '?includeArchived=true' : ''}`,
     group: (id: string, groupId: string) =>
       `/organizations/${id}/groups/${groupId}`,
+    groupMessagePreview: (id: string, groupId: string) =>
+      `/organizations/${id}/groups/${groupId}/messages/preview`,
+    groupMessageConfirm: (id: string, groupId: string, previewId: string) =>
+      `/organizations/${id}/groups/${groupId}/messages/${previewId}/confirm`,
+    groupMessageResult: (id: string, groupId: string, sendId: string) =>
+      `/organizations/${id}/groups/${groupId}/messages/${sendId}`,
     groupName: (id: string, groupId: string) =>
       `/organizations/${id}/groups/${groupId}/name`,
     groupJoinSettings: (id: string, groupId: string) =>

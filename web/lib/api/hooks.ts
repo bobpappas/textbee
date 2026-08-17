@@ -27,6 +27,8 @@ import type {
   ReceivingNumber,
   RosterBulkImport,
   RosterMember,
+  GroupMessagePreview,
+  GroupMessageSend,
 } from './types'
 
 // Most endpoints wrap their payload as { data: ... }; a few (subscription)
@@ -469,6 +471,28 @@ export function useGroup(
         .then(unwrapData<OrganizationGroup>),
     enabled: Boolean(organizationId && groupId),
     ...options,
+  })
+}
+
+export function usePreviewGroupMessage(organizationId: string, groupId: string) {
+  return useMutation({
+    mutationFn: (body: string) =>
+      httpBrowserClient
+        .post(ApiEndpoints.organizations.groupMessagePreview(organizationId, groupId), { body })
+        .then(unwrapData<GroupMessagePreview>),
+  })
+}
+
+export function useConfirmGroupMessage(organizationId: string, groupId: string) {
+  return useMutation({
+    mutationFn: ({ previewId, requestId }: { previewId: string; requestId: string }) =>
+      httpBrowserClient
+        .post(
+          ApiEndpoints.organizations.groupMessageConfirm(organizationId, groupId, previewId),
+          {},
+          { headers: { 'X-Request-Id': requestId } },
+        )
+        .then(unwrapData<GroupMessageSend>),
   })
 }
 

@@ -255,6 +255,50 @@ export type RosterBulkImport = {
   rows: RosterBulkRow[]
 }
 
+export type GroupMessagePreview = {
+  id: string
+  group: { id: string; displayName: string }
+  body: string
+  message: string
+  deviceId: string
+  candidateCount: number
+  eligibleCount: number
+  excludedCount: number
+  reasonCounts: Record<string, number>
+  excluded: Array<{
+    displayName: string
+    maskedNumber: string
+    reason: string
+    explanation: string
+  }>
+  segmentsPerRecipient: number
+  totalSegments: number
+  remainingCapacity: {
+    minuteSegments: number
+    dailySegments: number
+    rolling30DaySegments: number
+  }
+  capacityAvailable: boolean
+  canConfirm: boolean
+  expiresAt: string
+}
+
+export type GroupMessageSend = {
+  id: string
+  status: 'PROCESSING' | 'QUEUED' | 'ACCEPTED' | 'FAILED'
+  groupName: string
+  message: string
+  candidateCount: number
+  counts: Record<string, number>
+  recipients: Array<{
+    displayName: string
+    maskedNumber: string
+    status: string
+    reason?: string
+  }>
+  createdAt: string
+}
+
 export type ActiveOrganizationContext = {
   state: 'ACTIVE'
   organization: { id: string; displayName: string }
