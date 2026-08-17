@@ -23,9 +23,13 @@ import { Spinner } from '@/components/ui/spinner'
 import { useForm, Controller, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { sendSmsSchema, type SendSmsFormData } from '@/lib/schemas'
-import { AlertCircle, CheckCircle2, MessageSquare, Send } from 'lucide-react'
-import { formatError } from '@/lib/utils/errorHandler'
-import { RateLimitError } from '@/components/shared/rate-limit-error'
+import { CheckCircle2, MessageSquare, Send } from 'lucide-react'
+import { MessagingErrorAlert } from '@/components/shared/messaging-error-alert'
+import {
+  MessagingExclusionSummary,
+  type MessagingExclusion,
+  type MessagingExclusionSummaryData,
+} from '@/components/shared/messaging-exclusion-summary'
 import { formatDeviceName } from '@/lib/utils'
 import { useDevices, useSendSms } from '@/lib/api'
 import { getSegmentInfo } from '@/lib/sms'
@@ -40,6 +44,7 @@ export default function SendSms() {
     mutate: sendSms,
     isPending: isSendingSms,
     error: sendSmsError,
+    data: sendResult,
     isSuccess,
     reset: resetSend,
   } = useSendSms()
@@ -81,6 +86,11 @@ export default function SendSms() {
     : []
 
   const segments = getSegmentInfo(message)
+  const result = sendResult?.data?.data
+  const exclusionSummary = result?.exclusionSummary as
+    | MessagingExclusionSummaryData
+    | undefined
+  const excludedRecipients = (result?.excludedRecipients ?? []) as MessagingExclusion[]
 
   const onSubmit = (data: SendSmsFormData) =>
     sendSms(data, {
@@ -114,7 +124,13 @@ export default function SendSms() {
               name='deviceId'
               control={control}
               render={({ field }) => (
-                <Select onValueChange={field.onChange} value={field.value ?? ''}>
+                <Select
+                  onValueChange={(value) => {
+                    resetSend()
+                    field.onChange(value)
+                  }}
+                  value={field.value ?? ''}
+                >
                   <SelectTrigger id='sms-device'>
                     <SelectValue
                       placeholder={
@@ -152,7 +168,10 @@ export default function SendSms() {
                 control={control}
                 render={({ field }) => (
                   <Select
-                    onValueChange={(value) => field.onChange(Number(value))}
+                    onValueChange={(value) => {
+                      resetSend()
+                      field.onChange(Number(value))
+                    }}
                     value={field.value?.toString() ?? ''}
                   >
                     <SelectTrigger id='sms-sim'>
@@ -180,7 +199,10 @@ export default function SendSms() {
             render={({ field }) => (
               <RecipientInput
                 recipients={field.value ?? []}
-                onChange={field.onChange}
+                onChange={(value) => {
+                  resetSend()
+                  field.onChange(value)
+                }}
                 error={
                   errors.recipients?.message ??
                   errors.recipients?.root?.message ??
@@ -198,7 +220,7 @@ export default function SendSms() {
               id='sms-message'
               placeholder='Type your message'
               rows={5}
-              {...register('message')}
+              {...register('message', { onChange: () => resetSend() })}
             />
             <div className='flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground'>
               <span>
@@ -227,25 +249,7 @@ export default function SendSms() {
             )}
           </div>
 
-          {sendSmsError &&
-            (() => {
-              const formatted = formatError(sendSmsError)
-              if (formatted.isRateLimit) {
-                return (
-                  <RateLimitError
-                    errorData={formatted.rateLimitData}
-                    variant='alert'
-                  />
-                )
-              }
-              return (
-                <Alert variant='destructive'>
-                  <AlertCircle className='h-4 w-4' />
-                  <AlertTitle>Could not send</AlertTitle>
-                  <AlertDescription>{formatted.message}</AlertDescription>
-                </Alert>
-              )
-            })()}
+          {sendSmsError && <MessagingErrorAlert error={sendSmsError} />}
 
           {isSuccess && (
             <Alert>
@@ -255,6 +259,14 @@ export default function SendSms() {
                 Delivery status appears in your message history.
               </AlertDescription>
             </Alert>
+          )}
+
+          {isSuccess && exclusionSummary && (
+            <MessagingExclusionSummary
+              summary={exclusionSummary}
+              exclusions={excludedRecipients}
+              titleSuffix='excluded'
+            />
           )}
 
           <Button

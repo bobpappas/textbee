@@ -11,6 +11,7 @@ import { WebhookEvent } from 'src/webhook/webhook-event.enum'
 import { Logger } from '@nestjs/common'
 import { ConsentService } from '../../consent/consent.service'
 import { SelfHostedPolicyService } from '../../billing/self-hosted-policy.service'
+import { ELIGIBILITY_CHANGED_MESSAGE } from '../messaging-eligibility'
 
 function getFcmErrorCode(
   error: { code?: string; message?: string } | null,
@@ -97,7 +98,7 @@ export class SmsQueueProcessor {
               status: 'failed',
               failedAt: new Date(),
               errorCode: decision?.reason || 'RECIPIENT_INELIGIBLE',
-              errorMessage: 'Recipient is not eligible at dispatch time',
+              errorMessage: ELIGIBILITY_CHANGED_MESSAGE,
             },
           },
         )

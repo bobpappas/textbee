@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, type ComponentType } from 'react'
+import { useEffect, useState, type ComponentType } from 'react'
 import { useForm, Controller, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { sendSmsSchema, type SendSmsFormData } from '@/lib/schemas'
@@ -24,8 +24,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { toast } from '@/hooks/use-toast'
-import { formatError } from '@/lib/utils/errorHandler'
-import { formatRateLimitMessageForToast } from '@/components/shared/rate-limit-error'
+import { MessagingErrorAlert } from '@/components/shared/messaging-error-alert'
 import { formatDeviceName } from '@/lib/utils'
 import { useDevices, useSendSms } from '@/lib/api'
 import { getSegmentInfo } from '@/lib/sms'
@@ -61,6 +60,7 @@ export default function SmsComposerDialog({
 }: SmsComposerDialogProps) {
   const { data: devices } = useDevices()
   const { mutate: sendSms, isPending: isSendingSms } = useSendSms()
+  const [sendError, setSendError] = useState<unknown>(null)
 
   const {
     register,
@@ -96,11 +96,7 @@ export default function SmsComposerDialog({
         }, 1500)
       },
       onError: (error: unknown) => {
-        const formattedError = formatError(error)
-        const description = formattedError.isRateLimit
-          ? formatRateLimitMessageForToast(formattedError.rateLimitData)
-          : formattedError.message || 'Please try again.'
-        toast({ title: errorTitle, description, variant: 'destructive' })
+        setSendError(error)
       },
     })
 
@@ -123,7 +119,10 @@ export default function SmsComposerDialog({
                 control={control}
                 render={({ field }) => (
                   <Select
-                    onValueChange={field.onChange}
+                    onValueChange={(value) => {
+                      setSendError(null)
+                      field.onChange(value)
+                    }}
                     value={field.value}
                     defaultValue={deviceId}
                   >
@@ -155,7 +154,9 @@ export default function SmsComposerDialog({
                 id='composer-recipient'
                 type='tel'
                 placeholder='+14155550101'
-                {...register('recipients.0')}
+                {...register('recipients.0', {
+                  onChange: () => setSendError(null),
+                })}
               />
               {errors.recipients?.[0] && (
                 <p className='text-sm text-destructive mt-1'>
@@ -168,7 +169,9 @@ export default function SmsComposerDialog({
               <Textarea
                 id='composer-message'
                 placeholder='Type your message'
-                {...register('message')}
+                {...register('message', {
+                  onChange: () => setSendError(null),
+                })}
                 rows={4}
               />
               <p className='text-xs text-muted-foreground'>
@@ -190,13 +193,20 @@ export default function SmsComposerDialog({
             >
               Cancel
             </Button>
-            <Button type='submit' disabled={isSendingSms}>
+            <Button
+              type='submit'
+              disabled={isSendingSms}
+              onClick={() => setSendError(null)}
+            >
               {isSendingSms && (
                 <Spinner size='sm' className='mr-2' color='white' />
               )}
               {isSendingSms ? 'Sending...' : submitLabel}
             </Button>
           </div>
+          {Boolean(sendError) && (
+            <MessagingErrorAlert error={sendError} title={errorTitle} />
+          )}
         </form>
       </DialogContent>
     </Dialog>
