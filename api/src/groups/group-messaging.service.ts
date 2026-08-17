@@ -86,7 +86,7 @@ export class GroupMessagingService {
   ) {
     const access = await this.requireActiveGroup(organizationId, groupId, actor)
     const body = this.body(input)
-    const message = `${access.group.displayName}: ${body}`
+    const message = `${access.group.joinCode}: ${body}`
     const device = await this.soleEnabledDevice()
     const candidates = await this.candidates(
       access.group.organizationId,
@@ -126,6 +126,7 @@ export class GroupMessagingService {
       actorUserId: access.userId,
       deviceId: device._id,
       groupName: access.group.displayName,
+      joinCode: access.group.joinCode,
       body,
       message,
       recipients,
@@ -166,7 +167,7 @@ export class GroupMessagingService {
       actorUserId: access.userId,
       expiresAt: { $gt: new Date() },
     })
-    if (!preview || preview.groupName !== access.group.displayName)
+    if (!preview || preview.joinCode !== access.group.joinCode)
       throw this.previewExpired()
     const device = await this.soleEnabledDevice()
     if (String(device._id) !== String(preview.deviceId))
@@ -210,6 +211,8 @@ export class GroupMessagingService {
         previewId: preview._id,
         requestId,
         groupName: preview.groupName,
+        joinCode: preview.joinCode,
+        body: preview.body,
         message: preview.message,
         status: 'PROCESSING',
         candidateCount: preview.recipients.length,
@@ -465,6 +468,7 @@ export class GroupMessagingService {
     return {
       id: String(preview._id),
       group: { id: String(preview.groupId), displayName: preview.groupName },
+      joinCode: preview.joinCode,
       body: preview.body,
       message: preview.message,
       deviceId: String(preview.deviceId),
@@ -521,6 +525,7 @@ export class GroupMessagingService {
       id: String(send._id),
       status: send.status,
       groupName: send.groupName,
+      joinCode: send.joinCode,
       message: send.message,
       candidateCount: send.candidateCount,
       counts,

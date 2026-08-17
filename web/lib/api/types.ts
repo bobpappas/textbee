@@ -258,6 +258,7 @@ export type RosterBulkImport = {
 export type GroupMessagePreview = {
   id: string
   group: { id: string; displayName: string }
+  joinCode: string
   body: string
   message: string
   deviceId: string
@@ -287,6 +288,7 @@ export type GroupMessageSend = {
   id: string
   status: 'PROCESSING' | 'QUEUED' | 'ACCEPTED' | 'FAILED'
   groupName: string
+  joinCode: string
   message: string
   candidateCount: number
   counts: Record<string, number>
