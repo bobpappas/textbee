@@ -139,6 +139,15 @@ export class SMSData {
 }
 export class SendSMSInputDTO extends SMSData {}
 
+export class MessagingEligibilityInputDTO {
+  @ApiProperty({
+    type: [String],
+    required: true,
+    description: 'Recipients to check without creating or dispatching messages',
+  })
+  recipients: string[]
+}
+
 export class SendBulkSMSInputDTO {
   @ApiProperty({
     type: String,

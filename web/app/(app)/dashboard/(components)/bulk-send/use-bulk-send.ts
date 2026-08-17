@@ -1,9 +1,9 @@
 'use client'
 
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useDropzone, type FileRejection } from 'react-dropzone'
 import Papa from 'papaparse'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import httpBrowserClient from '@/lib/httpBrowserClient'
 import { ApiEndpoints } from '@/config/api'
 import { useDevices, useSubscription } from '@/lib/api'
@@ -203,11 +203,43 @@ export function useBulkSend() {
     plan.valid.length > 0
   const composed = mapped && template.trim().length > 0 && Boolean(deviceId)
 
+  const eligibility = useQuery({
+    queryKey: [
+      'messaging-eligibility',
+      deviceId,
+      plan.valid.map((row) => row.raw),
+    ],
+    queryFn: async () => {
+      const response = await httpBrowserClient.post(
+        ApiEndpoints.gateway.messagingEligibility(deviceId!),
+        { recipients: plan.valid.map((row) => row.raw) }
+      )
+      return response.data.data as {
+        total: number
+        eligibleCount: number
+        excludedRecipients: Array<{
+          position: number
+          recipient: string
+          code: string
+          message: string
+        }>
+        exclusionSummary: {
+          total: number
+          reasons: Array<{ code: string; label: string; count: number }>
+        }
+      }
+    },
+    enabled: composed,
+    staleTime: 0,
+    refetchOnWindowFocus: false,
+  })
+
   const {
     mutate: sendBulk,
     isPending: isSending,
     isSuccess,
     error: sendError,
+    data: sendResult,
     reset: resetSend,
   } = useMutation({
     mutationFn: async () => {
@@ -225,6 +257,10 @@ export function useBulkSend() {
       )
     },
   })
+
+  useEffect(() => {
+    resetSend()
+  }, [deviceId, recipientColumn, resetSend, rows, simSubscriptionId, template])
 
   const insertVariable = (column: string) => {
     const el = templateRef.current
@@ -280,10 +316,12 @@ export function useBulkSend() {
     hasFile,
     mapped,
     composed,
+    eligibility,
     sendBulk,
     isSending,
     isSuccess,
     sendError,
+    sendResult,
     resetSend,
     insertVariable,
   }

@@ -4,8 +4,9 @@ import { AlertCircle, Send } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
-import { RateLimitError } from '@/components/shared/rate-limit-error'
 import { formatError } from '@/lib/utils/errorHandler'
+import { MessagingErrorAlert } from '@/components/shared/messaging-error-alert'
+import { MessagingExclusionSummary } from '@/components/shared/messaging-exclusion-summary'
 import { formatDeviceName } from '@/lib/utils'
 import StepShell from './step-shell'
 import { REASON_LABEL } from './constants'
@@ -20,7 +21,12 @@ export default function ReviewStep({ bulk }: { bulk: BulkSendState }) {
     sendBulk,
     isSending,
     sendError,
+    resetSend,
+    eligibility,
   } = bulk
+  const preview = eligibility.data
+  const eligibleCount = preview?.eligibleCount ?? plan.valid.length
+  const previewError = eligibility.error ? formatError(eligibility.error) : null
 
   return (
     <>
@@ -66,30 +72,66 @@ export default function ReviewStep({ bulk }: { bulk: BulkSendState }) {
           )}
         </div>
 
-        {sendError &&
-          (() => {
-            const formatted = formatError(sendError)
-            if (formatted.isRateLimit) {
-              return (
-                <RateLimitError
-                  errorData={formatted.rateLimitData}
-                  variant='alert'
-                />
-              )
+        {eligibility.isPending && (
+          <p role='status' aria-live='polite' className='text-sm text-muted-foreground'>
+            Checking recipient eligibility…
+          </p>
+        )}
+
+        {previewError && (
+          <Alert variant='destructive' aria-live='assertive'>
+            <AlertCircle className='h-4 w-4' />
+            <AlertTitle>Could not check recipients</AlertTitle>
+            <AlertDescription>
+              <p>{previewError.message}</p>
+              <Button
+                type='button'
+                size='sm'
+                variant='outline'
+                className='mt-2'
+                onClick={() => eligibility.refetch()}
+              >
+                Retry eligibility check
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {preview && (
+          <MessagingExclusionSummary
+            summary={preview.exclusionSummary}
+            exclusions={preview.excludedRecipients}
+            titleSuffix='will be excluded'
+            rowNumberAtPosition={(position) =>
+              plan.valid[position - 1]?.rowNumber ?? position
             }
-            return (
-              <Alert variant='destructive'>
-                <AlertCircle className='h-4 w-4' />
-                <AlertTitle>Could not send</AlertTitle>
-                <AlertDescription>{formatted.message}</AlertDescription>
-              </Alert>
-            )
-          })()}
+          >
+              {eligibleCount > 0 ? (
+                <p className='mt-2'>
+                  Only the {eligibleCount} eligible recipient
+                  {eligibleCount === 1 ? '' : 's'} will be sent after confirmation.
+                </p>
+              ) : (
+                <p className='mt-2'>No messages will be dispatched.</p>
+              )}
+          </MessagingExclusionSummary>
+        )}
+
+        {sendError && <MessagingErrorAlert error={sendError} />}
 
         <Button
           className='w-full'
-          disabled={!composed || isSending || plan.valid.length === 0}
-          onClick={() => sendBulk()}
+          disabled={
+            !composed ||
+            isSending ||
+            eligibility.isPending ||
+            Boolean(eligibility.error) ||
+            eligibleCount === 0
+          }
+          onClick={() => {
+            resetSend()
+            sendBulk()
+          }}
         >
           {isSending ? (
             <>
@@ -99,8 +141,8 @@ export default function ReviewStep({ bulk }: { bulk: BulkSendState }) {
           ) : (
             <>
               <Send className='mr-2 h-4 w-4' />
-              Send {plan.valid.length.toLocaleString()} message
-              {plan.valid.length === 1 ? '' : 's'}
+              Send {eligibleCount.toLocaleString()} message
+              {eligibleCount === 1 ? '' : 's'}
             </>
           )}
         </Button>

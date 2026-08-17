@@ -154,6 +154,45 @@ describe('GatewayService', () => {
     expect(service).toBeDefined()
   })
 
+  describe('previewMessagingEligibility', () => {
+    it('returns counts and redacted recipient positions without dispatching', async () => {
+      mockDeviceModel.findById.mockResolvedValue({
+        _id: 'device123',
+        enabled: true,
+        user: 'user123',
+      })
+      mockConsentService.authorizeRecipients.mockResolvedValue([
+        { recipient: '+12085550101', eligible: true },
+        {
+          recipient: '+12085550102',
+          eligible: false,
+          reason: 'NO_ACTIVE_GROUP_CONSENT',
+        },
+        {
+          recipient: '+12085550103',
+          eligible: false,
+          reason: 'ORGANIZATION_SUPPRESSION',
+        },
+      ])
+
+      const result = await service.previewMessagingEligibility('device123', [
+        '+12085550101',
+        '+12085550102',
+        '+12085550103',
+      ])
+
+      expect(result).toMatchObject({ total: 3, eligibleCount: 1 })
+      expect(result.excludedRecipients.map((item) => item.position)).toEqual([
+        2, 3,
+      ])
+      expect(JSON.stringify(result)).not.toMatch(
+        /\+1208555010|NO_ACTIVE_GROUP_CONSENT|ORGANIZATION_SUPPRESSION/,
+      )
+      expect(mockSmsModel.create).not.toHaveBeenCalled()
+      expect(firebaseAdmin.messaging().sendEach).not.toHaveBeenCalled()
+    })
+  })
+
   describe('registerDevice', () => {
     const mockUser = {
       _id: 'user123',
@@ -452,6 +491,98 @@ describe('GatewayService', () => {
       expect(mockSmsModel.create).toHaveBeenCalled()
       expect(firebaseAdmin.messaging().sendEach).toHaveBeenCalled()
       expect(result).toEqual(mockFcmResponse)
+    })
+
+    it('rejects an all-ineligible audience with actionable redacted details', async () => {
+      mockConsentService.authorizeRecipients.mockResolvedValue([
+        {
+          recipient: '+12085550101',
+          eligible: false,
+          reason: 'NO_ACTIVE_GROUP_CONSENT',
+        },
+      ])
+
+      let response: unknown
+      try {
+        await service.sendSMS(mockDeviceId, {
+          ...mockSmsInput,
+          recipients: ['+12085550101'],
+        })
+      } catch (error) {
+        response = (error as HttpException).getResponse()
+      }
+
+      expect(response).toMatchObject({
+        code: 'MESSAGING_INELIGIBLE',
+        message: expect.stringContaining('no active group consent'),
+        exclusionSummary: { total: 1 },
+      })
+      expect(JSON.stringify(response)).not.toMatch(
+        /\+12085550101|NO_ACTIVE_GROUP_CONSENT/,
+      )
+      expect(firebaseAdmin.messaging().sendEach).not.toHaveBeenCalled()
+    })
+
+    it('preserves the partial-send contract with privacy-safe exclusions', async () => {
+      mockConsentService.authorizeRecipients.mockImplementation(
+        async (_userId, recipients) =>
+          recipients.map((recipient) =>
+            recipient === '+12085550102'
+              ? {
+                  recipient,
+                  eligible: false,
+                  reason: 'ORGANIZATION_SUPPRESSION',
+                }
+              : { recipient, eligible: true },
+          ),
+      )
+
+      const result = await service.sendSMS(mockDeviceId, {
+        ...mockSmsInput,
+        recipients: ['+12085550101', '+12085550102'],
+      })
+
+      expect(result).toMatchObject({
+        successCount: 1,
+        exclusionSummary: { total: 1 },
+        excludedRecipients: [
+          {
+            position: 2,
+            recipient: 'Recipient ending in 0102',
+            code: 'opted-out',
+          },
+        ],
+      })
+      expect(JSON.stringify(result)).not.toMatch(
+        /\+12085550102|ORGANIZATION_SUPPRESSION/,
+      )
+    })
+
+    it('explains when eligibility changes before immediate dispatch', async () => {
+      mockConsentService.authorizeRecipients
+        .mockResolvedValueOnce([
+          { recipient: mockSmsInput.recipients[0], eligible: true },
+        ])
+        .mockResolvedValueOnce([
+          {
+            recipient: mockSmsInput.recipients[0],
+            eligible: false,
+            reason: 'ORGANIZATION_SUPPRESSION',
+          },
+        ])
+
+      let response: unknown
+      try {
+        await service.sendSMS(mockDeviceId, mockSmsInput)
+      } catch (error) {
+        response = (error as HttpException).getResponse()
+      }
+
+      expect(response).toMatchObject({
+        code: 'MESSAGING_ELIGIBILITY_CHANGED',
+        message: expect.stringContaining('no message was sent'),
+      })
+      expect(mockSelfHostedPolicy.consume).not.toHaveBeenCalled()
     })
 
     it('reserves and consumes gateway segment capacity in self-hosted mode', async () => {

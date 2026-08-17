@@ -33,6 +33,11 @@ import {
   SafetyKind,
   SelfHostedPolicyService,
 } from '../billing/self-hosted-policy.service'
+import {
+  buildMessagingEligibilityDetails,
+  ELIGIBILITY_CHANGED_MESSAGE,
+  MessagingExclusionInput,
+} from './messaging-eligibility'
 
 @Injectable()
 export class GatewayService {
@@ -49,6 +54,41 @@ export class GatewayService {
     private consentService: ConsentService,
     private selfHostedPolicy: SelfHostedPolicyService,
   ) {}
+
+  async previewMessagingEligibility(deviceId: string, recipients: string[]) {
+    const device = await this.deviceModel.findById(deviceId)
+    if (!device?.enabled)
+      throw new HttpException(
+        { error: 'Device does not exist or is not enabled' },
+        HttpStatus.BAD_REQUEST,
+      )
+    if (!Array.isArray(recipients) || recipients.length === 0)
+      throw new HttpException(
+        { error: 'At least one recipient is required' },
+        HttpStatus.BAD_REQUEST,
+      )
+
+    const decisions = await this.consentService.authorizeRecipients(
+      device.user.toString(),
+      recipients,
+      { kind: 'ORDINARY' },
+    )
+    const excluded = decisions
+      .map((item, index) => ({ item, position: index + 1 }))
+      .filter(({ item }) => !item.eligible)
+      .map(({ item, position }) => ({
+        recipient: item.recipient,
+        reason: item.reason,
+        position,
+      }))
+    const details = buildMessagingEligibilityDetails(excluded)
+    return {
+      total: decisions.length,
+      eligibleCount: decisions.filter((item) => item.eligible).length,
+      excludedRecipients: details.excludedRecipients,
+      exclusionSummary: details.exclusionSummary,
+    }
+  }
 
   // Blocks creating or re-enabling a device when the user's plan device limit
   // is reached. Effective limit comes from the subscription override or the
@@ -342,14 +382,21 @@ export class GatewayService {
     const eligibleRecipients = recipientPolicy.filter((item) => item.eligible)
     const recipients = eligibleRecipients.map((item) => item.recipient)
     const excludedRecipients = recipientPolicy
-      .filter((item) => !item.eligible)
-      .map((item) => ({ recipient: item.recipient, reason: item.reason }))
+      .map((item, index) => ({ item, position: index + 1 }))
+      .filter(({ item }) => !item.eligible)
+      .map(({ item, position }) => ({
+        recipient: item.recipient,
+        reason: item.reason,
+        position,
+      }))
+    const eligibilityDetails =
+      buildMessagingEligibilityDetails(excludedRecipients)
     if (recipients.length === 0) {
       throw new HttpException(
         {
           success: false,
           error: 'No recipients are eligible for messaging',
-          excludedRecipients,
+          ...eligibilityDetails,
         },
         HttpStatus.CONFLICT,
       )
@@ -507,7 +554,8 @@ export class GatewayService {
           message: 'SMS added to queue for processing',
           smsBatchId: smsBatch._id,
           recipientCount: recipients.length,
-          excludedRecipients,
+          excludedRecipients: eligibilityDetails.excludedRecipients,
+          exclusionSummary: eligibilityDetails.exclusionSummary,
         }
       } catch (e) {
         if (safetyReservation)
@@ -555,6 +603,8 @@ export class GatewayService {
           {
             success: false,
             error: 'Recipients became ineligible before dispatch',
+            message: ELIGIBILITY_CHANGED_MESSAGE,
+            code: 'MESSAGING_ELIGIBILITY_CHANGED',
           },
           HttpStatus.CONFLICT,
         )
@@ -601,7 +651,13 @@ export class GatewayService {
           console.error('failed to update sms batch status to completed')
         })
 
-      return response
+      return excludedRecipients.length
+        ? {
+            ...response,
+            excludedRecipients: eligibilityDetails.excludedRecipients,
+            exclusionSummary: eligibilityDetails.exclusionSummary,
+          }
+        : response
     } catch (e) {
       this.smsBatchModel
         .findByIdAndUpdate(smsBatch._id, {
@@ -611,6 +667,7 @@ export class GatewayService {
         .catch(() => {
           console.error('failed to update sms batch status to failed')
         })
+      if (e instanceof HttpException) throw e
       throw new HttpException(
         {
           success: false,
@@ -650,7 +707,8 @@ export class GatewayService {
     }
 
     const eligibleMessages: SendBulkSMSInputDTO['messages'] = []
-    const excludedRecipients: Array<{ recipient: string; reason?: string }> = []
+    const excludedRecipients: MessagingExclusionInput[] = []
+    let recipientPosition = 0
     for (const message of body.messages) {
       const decisions = await this.consentService.authorizeRecipients(
         device.user.toString(),
@@ -662,18 +720,29 @@ export class GatewayService {
         .map((item) => item.recipient)
       excludedRecipients.push(
         ...decisions
-          .filter((item) => !item.eligible)
-          .map((item) => ({ recipient: item.recipient, reason: item.reason })),
+          .map((item, index) => ({
+            item,
+            position: recipientPosition + index + 1,
+          }))
+          .filter(({ item }) => !item.eligible)
+          .map(({ item, position }) => ({
+            recipient: item.recipient,
+            reason: item.reason,
+            position,
+          })),
       )
+      recipientPosition += message.recipients.length
       if (recipients.length > 0)
         eligibleMessages.push({ ...message, recipients })
     }
+    const eligibilityDetails =
+      buildMessagingEligibilityDetails(excludedRecipients)
     if (eligibleMessages.length === 0)
       throw new HttpException(
         {
           success: false,
           error: 'No recipients are eligible for messaging',
-          excludedRecipients,
+          ...eligibilityDetails,
         },
         HttpStatus.CONFLICT,
       )
@@ -903,7 +972,8 @@ export class GatewayService {
           message: 'Bulk SMS added to queue for processing',
           smsBatchId: smsBatch._id,
           recipientCount: messages.map((m) => m.recipients).flat().length,
-          excludedRecipients,
+          excludedRecipients: eligibilityDetails.excludedRecipients,
+          exclusionSummary: eligibilityDetails.exclusionSummary,
         }
       } catch (e) {
         if (safetyReservation)
@@ -957,6 +1027,8 @@ export class GatewayService {
         {
           success: false,
           error: 'Recipients became ineligible before dispatch',
+          message: ELIGIBILITY_CHANGED_MESSAGE,
+          code: 'MESSAGING_ELIGIBILITY_CHANGED',
         },
         HttpStatus.CONFLICT,
       )
@@ -1025,7 +1097,13 @@ export class GatewayService {
       failureCount,
       fcmResponses,
     }
-    return response
+    return excludedRecipients.length
+      ? {
+          ...response,
+          excludedRecipients: eligibilityDetails.excludedRecipients,
+          exclusionSummary: eligibilityDetails.exclusionSummary,
+        }
+      : response
   }
 
   private isSelfHosted() {
@@ -1185,7 +1263,7 @@ export class GatewayService {
               status: 'failed',
               failedAt: new Date(),
               errorCode: decision?.reason || 'RECIPIENT_INELIGIBLE',
-              errorMessage: 'Recipient is not eligible at dispatch time',
+              errorMessage: ELIGIBILITY_CHANGED_MESSAGE,
             },
           },
         )

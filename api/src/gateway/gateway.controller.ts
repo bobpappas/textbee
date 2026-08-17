@@ -28,6 +28,7 @@ import {
   UpdateSMSStatusDTO,
   HeartbeatInputDTO,
   HeartbeatResponseDTO,
+  MessagingEligibilityInputDTO,
 } from './gateway.dto'
 import { GatewayService } from './gateway.service'
 import { CanModifyDevice } from './guards/can-modify-device.guard'
@@ -104,6 +105,20 @@ export class GatewayController {
     return { data }
   }
 
+  @ApiOperation({ summary: 'Preview ordinary messaging eligibility' })
+  @UseGuards(AuthGuard, CanModifyDevice)
+  @Post('/devices/:id/messaging-eligibility')
+  async previewMessagingEligibility(
+    @Param('id') deviceId: string,
+    @Body() body: MessagingEligibilityInputDTO,
+  ) {
+    const data = await this.gatewayService.previewMessagingEligibility(
+      deviceId,
+      body.recipients,
+    )
+    return { data }
+  }
+
   @ApiOperation({ summary: 'Send Bulk SMS' })
   @UseGuards(AuthGuard, CanModifyDevice)
   @Post(['/devices/:id/send-bulk-sms'])
@@ -114,7 +129,6 @@ export class GatewayController {
     const data = await this.gatewayService.sendBulkSMS(deviceId, body)
     return { data }
   }
-
 
   @ApiOperation({ summary: 'Received SMS from a device' })
   @HttpCode(HttpStatus.OK)
