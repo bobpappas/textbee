@@ -204,5 +204,10 @@ describe('GroupMessagingService', () => {
 
     expect(result.status).toBe('QUEUED')
     expect(gateway.sendSMS).not.toHaveBeenCalled()
+    expect(sends.findOne).toHaveBeenCalledWith({
+      organizationId,
+      groupId,
+      $or: [{ previewId }, { requestId: 'stable-request' }],
+    })
   })
 })

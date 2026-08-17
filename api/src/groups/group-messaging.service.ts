@@ -155,6 +155,7 @@ export class GroupMessagingService {
     if (!Types.ObjectId.isValid(previewId)) throw this.previewExpired()
     const prior = await this.sends.findOne({
       organizationId: access.group.organizationId,
+      groupId: access.group._id,
       $or: [{ previewId: new Types.ObjectId(previewId) }, { requestId }],
     })
     if (prior) return this.sendView(prior)
@@ -219,6 +220,7 @@ export class GroupMessagingService {
       if (error?.code === 11000) {
         const existing = await this.sends.findOne({
           organizationId: access.group.organizationId,
+          groupId: access.group._id,
           $or: [{ previewId: preview._id }, { requestId }],
         })
         if (existing) return this.sendView(existing)

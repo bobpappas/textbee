@@ -86,6 +86,6 @@ export const GroupMessageSendSchema =
   SchemaFactory.createForClass(GroupMessageSend)
 GroupMessageSendSchema.index({ organizationId: 1, groupId: 1, createdAt: -1 })
 GroupMessageSendSchema.index(
-  { organizationId: 1, requestId: 1 },
+  { organizationId: 1, groupId: 1, requestId: 1 },
   { unique: true },
 )
