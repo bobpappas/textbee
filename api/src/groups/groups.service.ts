@@ -569,11 +569,25 @@ export class GroupsService {
     const input = this.input(inputValue)
     const displayName = this.normalizeName(input.displayName)
     const mobileNumber = this.normalizePhone(input.mobileNumber)
-    if (input.consentAffirmed !== true)
+    if (
+      input.consentAffirmed !== undefined &&
+      typeof input.consentAffirmed !== 'boolean'
+    )
       throw new BadRequestException({
-        error:
-          'Affirm that this person asked to receive messages or provided this number for church communications',
+        error: 'Consent affirmation must be selected or left unselected',
       })
+    const consentAffirmed = input.consentAffirmed === true
+    if (
+      !consentAffirmed &&
+      input.consentMethodNote !== undefined &&
+      input.consentMethodNote !== null &&
+      input.consentMethodNote !== ''
+    )
+      throw new BadRequestException({
+        error: 'A consent method note requires the consent affirmation',
+      })
+    if (await this.consent.isSuppressed(group.organizationId, mobileNumber))
+      throw this.suppressionConflict(group)
     onPersistenceStage?.('CONTACT')
     let contact = await this.contacts.findOne({
       organizationId: group.organizationId,
@@ -607,17 +621,25 @@ export class GroupsService {
       contactId: contact._id,
     })
     if (existingMembership?.status === RosterMembershipStatus.ACTIVE) {
-      await this.consent.recordOperatorConsent({
-        organizationId: group.organizationId,
-        groupId: group._id,
-        contactId: contact._id,
-        mobileNumber,
-        actorUserId: actorId,
-        affirmed: input.consentAffirmed,
-        methodNote: input.consentMethodNote,
-        sourceRow,
-        onPersistenceStage,
-      })
+      if (consentAffirmed)
+        await this.consent.recordOperatorConsent({
+          organizationId: group.organizationId,
+          groupId: group._id,
+          contactId: contact._id,
+          mobileNumber,
+          actorUserId: actorId,
+          affirmed: true,
+          methodNote: input.consentMethodNote,
+          sourceRow,
+          onPersistenceStage,
+        })
+      else if (
+        await this.consent.isSuppressed(
+          group.organizationId,
+          contact.mobileNumber,
+        )
+      )
+        throw this.suppressionConflict(group)
       return {
         id: String(existingMembership._id),
         contactId: String(contact._id),
@@ -653,17 +675,25 @@ export class GroupsService {
         status: RosterMembershipStatus.ACTIVE,
       })
       if (!membership) throw new Error('membership-postcondition')
-      await this.consent.recordOperatorConsent({
-        organizationId: group.organizationId,
-        groupId: group._id,
-        contactId: contact._id,
-        mobileNumber,
-        actorUserId: actorId,
-        affirmed: input.consentAffirmed,
-        methodNote: input.consentMethodNote,
-        sourceRow,
-        onPersistenceStage,
-      })
+      if (consentAffirmed)
+        await this.consent.recordOperatorConsent({
+          organizationId: group.organizationId,
+          groupId: group._id,
+          contactId: contact._id,
+          mobileNumber,
+          actorUserId: actorId,
+          affirmed: true,
+          methodNote: input.consentMethodNote,
+          sourceRow,
+          onPersistenceStage,
+        })
+      else if (
+        await this.consent.isSuppressed(
+          group.organizationId,
+          contact.mobileNumber,
+        )
+      )
+        throw this.suppressionConflict(group)
       onPersistenceStage?.('AUDIT')
       await this.record(
         group.organizationId,
