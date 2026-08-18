@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common'
@@ -251,6 +252,257 @@ describe('GroupsService validation', () => {
       }),
       { upsert: true },
     )
+  })
+
+  it('creates a contact and membership without fabricating consent', async () => {
+    const organizationId = new Types.ObjectId()
+    const groupId = new Types.ObjectId()
+    const contactId = new Types.ObjectId()
+    const membershipId = new Types.ObjectId()
+    const actorId = new Types.ObjectId()
+    const group = {
+      _id: groupId,
+      organizationId,
+      status: 'ACTIVE',
+      joinCode: 'UNIFIEDYA',
+    }
+    const contact = {
+      _id: contactId,
+      displayName: 'Synthetic Person',
+      mobileNumber: '+12085550123',
+    }
+    const contacts = {
+      findOne: jest.fn().mockResolvedValue(null),
+      create: jest.fn().mockResolvedValue(contact),
+      deleteOne: jest.fn(),
+    }
+    const memberships = {
+      findOne: jest
+        .fn()
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({ _id: membershipId }),
+      updateOne: jest.fn().mockResolvedValue({ modifiedCount: 1 }),
+      deleteOne: jest.fn(),
+    }
+    const audit = {
+      updateOne: jest.fn().mockResolvedValue({}),
+      deleteMany: jest.fn(),
+    }
+    const consent = {
+      isSuppressed: jest.fn().mockResolvedValue(false),
+      recordOperatorConsent: jest.fn(),
+    }
+    const addService = new GroupsService(
+      model,
+      contacts as any,
+      model,
+      memberships as any,
+      audit as any,
+      model,
+      model,
+      model,
+      policy,
+      consent as any,
+    )
+    jest.spyOn(addService as any, 'requireGroup').mockResolvedValue({ group })
+
+    await expect(
+      addService.addPerson(
+        String(organizationId),
+        String(groupId),
+        { _id: actorId },
+        {
+          displayName: 'Synthetic Person',
+          mobileNumber: '(208) 555-0123',
+          consentAffirmed: false,
+        },
+        'request-1',
+      ),
+    ).resolves.toEqual({
+      id: String(membershipId),
+      contactId: String(contactId),
+      displayName: 'Synthetic Person',
+      mobileNumber: '+12085550123',
+      displayNumber: '(208) 555-0123',
+      reusedContact: false,
+    })
+    expect(contacts.create).toHaveBeenCalledWith({
+      organizationId,
+      displayName: 'Synthetic Person',
+      mobileNumber: '+12085550123',
+      createdBy: String(actorId),
+    })
+    expect(memberships.updateOne).toHaveBeenCalledWith(
+      { organizationId, groupId, contactId },
+      expect.objectContaining({
+        $set: expect.objectContaining({ status: 'ACTIVE' }),
+      }),
+      { upsert: true },
+    )
+    expect(consent.recordOperatorConsent).not.toHaveBeenCalled()
+    expect(audit.updateOne).toHaveBeenCalledTimes(2)
+  })
+
+  it('reuses an active membership and records consent only when affirmed', async () => {
+    const organizationId = new Types.ObjectId()
+    const groupId = new Types.ObjectId()
+    const contactId = new Types.ObjectId()
+    const membershipId = new Types.ObjectId()
+    const actorId = new Types.ObjectId()
+    const group = {
+      _id: groupId,
+      organizationId,
+      status: 'ACTIVE',
+      joinCode: 'UNIFIEDYA',
+    }
+    const contact = {
+      _id: contactId,
+      displayName: 'Existing Person',
+      mobileNumber: '+12085550123',
+    }
+    const contacts = { findOne: jest.fn().mockResolvedValue(contact) }
+    const memberships = {
+      findOne: jest.fn().mockResolvedValue({
+        _id: membershipId,
+        status: 'ACTIVE',
+      }),
+      updateOne: jest.fn(),
+    }
+    const consent = {
+      isSuppressed: jest.fn().mockResolvedValue(false),
+      recordOperatorConsent: jest.fn().mockResolvedValue({ recorded: true }),
+    }
+    const addService = new GroupsService(
+      model,
+      contacts as any,
+      model,
+      memberships as any,
+      model,
+      model,
+      model,
+      model,
+      policy,
+      consent as any,
+    )
+    jest.spyOn(addService as any, 'requireGroup').mockResolvedValue({ group })
+    const baseInput = {
+      displayName: 'Existing Person',
+      mobileNumber: '(208) 555-0123',
+    }
+
+    await addService.addPerson(
+      String(organizationId),
+      String(groupId),
+      { _id: actorId },
+      { ...baseInput, consentAffirmed: false },
+    )
+    expect(memberships.updateOne).not.toHaveBeenCalled()
+    expect(consent.recordOperatorConsent).not.toHaveBeenCalled()
+
+    await addService.addPerson(
+      String(organizationId),
+      String(groupId),
+      { _id: actorId },
+      {
+        ...baseInput,
+        consentAffirmed: true,
+        consentMethodNote: 'Asked in person',
+      },
+    )
+    expect(consent.recordOperatorConsent).toHaveBeenCalledWith({
+      organizationId,
+      groupId,
+      contactId,
+      mobileNumber: '+12085550123',
+      actorUserId: String(actorId),
+      affirmed: true,
+      methodNote: 'Asked in person',
+      sourceRow: undefined,
+      onPersistenceStage: undefined,
+    })
+  })
+
+  it('rejects suppression and a consent note without affirmation', async () => {
+    const organizationId = new Types.ObjectId()
+    const groupId = new Types.ObjectId()
+    const actorId = new Types.ObjectId()
+    const contactId = new Types.ObjectId()
+    const group = {
+      _id: groupId,
+      organizationId,
+      status: 'ACTIVE',
+      joinCode: 'UNIFIEDYA',
+    }
+    const contacts = { findOne: jest.fn(), create: jest.fn() }
+    const memberships = { findOne: jest.fn(), updateOne: jest.fn() }
+    const consent = {
+      isSuppressed: jest.fn().mockResolvedValue(true),
+      recordOperatorConsent: jest.fn(),
+    }
+    const addService = new GroupsService(
+      model,
+      contacts as any,
+      model,
+      memberships as any,
+      model,
+      model,
+      model,
+      model,
+      policy,
+      consent as any,
+    )
+    jest.spyOn(addService as any, 'requireGroup').mockResolvedValue({ group })
+    const baseInput = {
+      displayName: 'Synthetic Person',
+      mobileNumber: '(208) 555-0123',
+      consentAffirmed: false,
+    }
+
+    await expect(
+      addService.addPerson(
+        String(organizationId),
+        String(groupId),
+        { _id: actorId },
+        { ...baseInput, consentMethodNote: 'Unproven note' },
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException)
+    expect(consent.isSuppressed).not.toHaveBeenCalled()
+
+    await expect(
+      addService.addPerson(
+        String(organizationId),
+        String(groupId),
+        { _id: actorId },
+        baseInput,
+      ),
+    ).rejects.toBeInstanceOf(ConflictException)
+    expect(contacts.findOne).not.toHaveBeenCalled()
+    expect(contacts.create).not.toHaveBeenCalled()
+    expect(memberships.updateOne).not.toHaveBeenCalled()
+    expect(consent.recordOperatorConsent).not.toHaveBeenCalled()
+
+    consent.isSuppressed
+      .mockReset()
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true)
+    contacts.findOne.mockResolvedValue({
+      _id: contactId,
+      displayName: 'Synthetic Person',
+      mobileNumber: '+12085550123',
+    })
+    memberships.findOne.mockResolvedValue({
+      _id: new Types.ObjectId(),
+      status: 'ACTIVE',
+    })
+    await expect(
+      addService.addPerson(
+        String(organizationId),
+        String(groupId),
+        { _id: actorId },
+        baseInput,
+      ),
+    ).rejects.toBeInstanceOf(ConflictException)
+    expect(consent.isSuppressed).toHaveBeenCalledTimes(2)
   })
 
   it('loads group-scoped contact details without changing membership', async () => {

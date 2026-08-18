@@ -242,4 +242,77 @@ describe('GroupWorkspace group messaging', () => {
     expect(await screen.findByText('Source: Operator affirmation')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Record consent' })).not.toBeInTheDocument()
   })
+
+  it('adds a send-ineligible roster member without claiming consent', async () => {
+    const addedMember = {
+      id: '64b7c42f18f0c31f8c9fd402',
+      contactId: '64b7c42f18f0c31f8c9fd502',
+      displayName: 'Synthetic New',
+      mobileNumber: '+12085550124',
+      displayNumber: '(208) 555-0124',
+      consentStatus: 'MISSING',
+    }
+    const addPerson = vi.fn()
+    let roster: typeof mockRosterMembers | (typeof addedMember)[] = []
+    server.use(
+      http.get(url(ApiEndpoints.organizations.group(organizationId, group.id)), () =>
+        HttpResponse.json({ data: group }),
+      ),
+      http.get(url(ApiEndpoints.organizations.roster(organizationId, group.id)), () =>
+        HttpResponse.json({ data: roster }),
+      ),
+      http.get(url(ApiEndpoints.organizations.operators(organizationId)), () =>
+        HttpResponse.json({ data: group.owners }),
+      ),
+      http.get(url(ApiEndpoints.organizations.receivingNumbers(organizationId)), () =>
+        HttpResponse.json({ data: [] }),
+      ),
+      http.post(
+        url(ApiEndpoints.organizations.roster(organizationId, group.id)),
+        async ({ request }) => {
+          addPerson(await request.json())
+          roster = [addedMember]
+          return HttpResponse.json({ data: addedMember })
+        },
+      ),
+      http.get(
+        url(
+          ApiEndpoints.organizations.contactDetails(
+            organizationId,
+            group.id,
+            addedMember.contactId,
+          ),
+        ),
+        () => HttpResponse.json({ data: addedMember }),
+      ),
+    )
+
+    const user = userEvent.setup()
+    renderWithProviders(
+      <OrganizationContextProvider enabled>
+        <GroupWorkspace groupId={group.id} />
+      </OrganizationContextProvider>,
+    )
+
+    await user.click(await screen.findByRole('button', { name: 'Add person' }))
+    expect(
+      screen.getByText(/added to the roster but cannot receive messages/i),
+    ).toBeInTheDocument()
+    expect(screen.getByLabelText(/Consent method note/)).toBeDisabled()
+    await user.type(screen.getByLabelText('Display name'), 'Synthetic New')
+    await user.type(screen.getByLabelText('US mobile number'), '(208) 555-0124')
+    await user.click(screen.getByRole('button', { name: 'Add person' }))
+
+    expect(addPerson).toHaveBeenCalledWith({
+      displayName: 'Synthetic New',
+      mobileNumber: '(208) 555-0124',
+      consentAffirmed: false,
+    })
+    expect(await screen.findByText('Synthetic New')).toBeInTheDocument()
+    expect(screen.getByText('No active group consent')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Edit details' }))
+    expect(await screen.findByText('Missing')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Record consent' })).toBeInTheDocument()
+  })
 })
