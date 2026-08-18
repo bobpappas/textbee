@@ -188,6 +188,16 @@ export class ConsentService {
         if (current) return { recorded: false }
         throw new ConflictException({ error: 'Consent state changed; retry' })
       }
+      const activeSuppressionAfterWrite = await this.suppressions.exists({
+        organizationId: input.organizationId,
+        mobileNumber: input.mobileNumber,
+        status: SuppressionStatus.ACTIVE,
+      })
+      if (activeSuppressionAfterWrite)
+        throw new ConflictException({
+          error:
+            'Recipient suppression is active and cannot be cleared by an operator',
+        })
       await this.audit.create({
         organizationId: input.organizationId,
         action: 'OPERATOR_CONSENT_RECORDED',

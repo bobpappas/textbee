@@ -114,6 +114,28 @@ describe('ConsentService', () => {
     expect(consents.updateOne).not.toHaveBeenCalled()
   })
 
+  it('rolls back consent when STOP wins the race with recording', async () => {
+    suppressions.exists.mockResolvedValueOnce(false).mockResolvedValueOnce(true)
+
+    await expect(
+      service.recordOperatorConsent({
+        organizationId,
+        groupId,
+        contactId,
+        mobileNumber: sender,
+        actorUserId,
+        affirmed: true,
+      }),
+    ).rejects.toBeInstanceOf(ConflictException)
+    expect(consents.updateOne).toHaveBeenCalled()
+    expect(consents.deleteOne).toHaveBeenCalledWith({
+      organizationId,
+      groupId,
+      contactId,
+    })
+    expect(audit.create).not.toHaveBeenCalled()
+  })
+
   it('records actor, server time, scope, and optional method note for manual consent', async () => {
     await service.recordOperatorConsent({
       organizationId,
