@@ -223,6 +223,15 @@ export type RosterMember = {
   consentSource?: 'OPERATOR_AFFIRMATION' | 'TEXT_TO_JOIN'
   consentedAt?: string
 }
+export type ContactDetails = {
+  contactId: string
+  displayName: string
+  displayNumber: string
+  consentStatus: 'ACTIVE' | 'MISSING' | 'OPTED_OUT'
+  consentSource?: 'OPERATOR_AFFIRMATION' | 'TEXT_TO_JOIN'
+  consentedAt?: string
+  recoveryGuidance?: string
+}
 export type RosterBulkRow = {
   rowNumber: number
   displayName?: string

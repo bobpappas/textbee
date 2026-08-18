@@ -27,6 +27,7 @@ import type {
   ReceivingNumber,
   RosterBulkImport,
   RosterMember,
+  ContactDetails,
   GroupMessagePreview,
   GroupMessageSend,
 } from './types'
@@ -662,6 +663,57 @@ export function useRenameContact(organizationId: string, groupId: string) {
       httpBrowserClient
         .patch(ApiEndpoints.organizations.contactName(organizationId, groupId, contactId), { displayName })
         .then(unwrapData<RosterMember>),
+    onSuccess: () => invalidateGroupData(queryClient, organizationId, groupId),
+  })
+}
+
+export function useContactDetails(
+  organizationId: string,
+  groupId: string,
+  contactId: string,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: queryKeys.contactDetails(organizationId, groupId, contactId),
+    queryFn: () =>
+      httpBrowserClient
+        .get(
+          ApiEndpoints.organizations.contactDetails(
+            organizationId,
+            groupId,
+            contactId,
+          ),
+        )
+        .then(unwrapData<ContactDetails>),
+    enabled: Boolean(organizationId && groupId && contactId) && enabled,
+  })
+}
+
+export function useRecordContactConsent(
+  organizationId: string,
+  groupId: string,
+) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      contactId,
+      affirmed,
+      methodNote,
+    }: {
+      contactId: string
+      affirmed: boolean
+      methodNote?: string
+    }) =>
+      httpBrowserClient
+        .post(
+          ApiEndpoints.organizations.contactConsent(
+            organizationId,
+            groupId,
+            contactId,
+          ),
+          { affirmed, methodNote },
+        )
+        .then(unwrapData<ContactDetails>),
     onSuccess: () => invalidateGroupData(queryClient, organizationId, groupId),
   })
 }

@@ -84,6 +84,10 @@ export const ApiEndpoints = {
       `/organizations/${id}/groups/${groupId}/roster/${membershipId}`,
     contactName: (id: string, groupId: string, contactId: string) =>
       `/organizations/${id}/groups/${groupId}/contacts/${contactId}/name`,
+    contactDetails: (id: string, groupId: string, contactId: string) =>
+      `/organizations/${id}/groups/${groupId}/contacts/${contactId}/details`,
+    contactConsent: (id: string, groupId: string, contactId: string) =>
+      `/organizations/${id}/groups/${groupId}/contacts/${contactId}/consent`,
     rosterBulkPreview: (id: string, groupId: string) =>
       `/organizations/${id}/groups/${groupId}/roster-bulk/preview`,
     rosterBulkImport: (id: string, groupId: string, previewId: string) =>

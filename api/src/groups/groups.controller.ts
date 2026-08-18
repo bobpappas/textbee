@@ -301,6 +301,42 @@ export class GroupsController {
     )
   }
 
+  @Get('groups/:groupId/contacts/:contactId/details')
+  contactDetails(
+    @Param('organizationId') organizationId: string,
+    @Param('groupId') groupId: string,
+    @Param('contactId') contactId: string,
+    @Request() request,
+  ) {
+    return this.data(
+      this.groups.contactDetails(
+        organizationId,
+        groupId,
+        contactId,
+        request.user,
+      ),
+    )
+  }
+
+  @Post('groups/:groupId/contacts/:contactId/consent')
+  recordContactConsent(
+    @Param('organizationId') organizationId: string,
+    @Param('groupId') groupId: string,
+    @Param('contactId') contactId: string,
+    @Request() request,
+    @Body() input: unknown,
+  ) {
+    return this.data(
+      this.groups.recordContactConsent(
+        organizationId,
+        groupId,
+        contactId,
+        request.user,
+        input,
+      ),
+    )
+  }
+
   @Post('groups/:groupId/roster-bulk/preview')
   previewBulkAdd(
     @Param('organizationId') organizationId: string,

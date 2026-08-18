@@ -252,4 +252,191 @@ describe('GroupsService validation', () => {
       { upsert: true },
     )
   })
+
+  it('loads group-scoped contact details without changing membership', async () => {
+    const organizationId = new Types.ObjectId()
+    const groupId = new Types.ObjectId()
+    const contactId = new Types.ObjectId()
+    const userId = new Types.ObjectId()
+    const group = {
+      _id: groupId,
+      organizationId,
+      status: 'ACTIVE',
+      joinCode: 'UNIFIEDYA',
+    }
+    const contact = {
+      _id: contactId,
+      displayName: 'Synthetic Person',
+      mobileNumber: '+12085550123',
+    }
+    const groups = { findOne: jest.fn().mockResolvedValue(group) }
+    const contacts = { findOne: jest.fn().mockResolvedValue(contact) }
+    const memberships = { exists: jest.fn().mockResolvedValue(true) }
+    const operators = {
+      findOne: jest.fn().mockResolvedValue({ _id: new Types.ObjectId() }),
+    }
+    const policy = {
+      activeAdminMembership: jest.fn().mockResolvedValue({}),
+    }
+    const consent = {
+      isSuppressed: jest.fn().mockResolvedValue(false),
+      activeConsentViews: jest.fn().mockResolvedValue(new Map()),
+    }
+    const scopedService = new GroupsService(
+      groups as any,
+      contacts as any,
+      model,
+      memberships as any,
+      model,
+      model,
+      operators as any,
+      model,
+      policy as any,
+      consent as any,
+    )
+
+    await expect(
+      scopedService.contactDetails(
+        String(organizationId),
+        String(groupId),
+        String(contactId),
+        { _id: userId },
+      ),
+    ).resolves.toEqual({
+      contactId: String(contactId),
+      displayName: 'Synthetic Person',
+      displayNumber: '(208) 555-0123',
+      consentStatus: 'MISSING',
+    })
+    expect(memberships.exists).toHaveBeenCalledWith({
+      organizationId,
+      groupId,
+      contactId,
+      status: 'ACTIVE',
+    })
+    expect(memberships).not.toHaveProperty('updateOne')
+
+    consent.isSuppressed.mockResolvedValue(true)
+    await expect(
+      scopedService.contactDetails(
+        String(organizationId),
+        String(groupId),
+        String(contactId),
+        { _id: userId },
+      ),
+    ).resolves.toEqual({
+      contactId: String(contactId),
+      displayName: 'Synthetic Person',
+      displayNumber: '(208) 555-0123',
+      consentStatus: 'OPTED_OUT',
+      recoveryGuidance:
+        'Only the recipient can restore messaging by texting START, then JOIN UNIFIEDYA.',
+    })
+    expect(consent.activeConsentViews).toHaveBeenCalledTimes(1)
+
+    group.status = 'ARCHIVED'
+    await expect(
+      scopedService.contactDetails(
+        String(organizationId),
+        String(groupId),
+        String(contactId),
+        { _id: userId },
+      ),
+    ).rejects.toBeInstanceOf(NotFoundException)
+  })
+
+  it('records consent from server-authoritative contact and group state', async () => {
+    const organizationId = new Types.ObjectId()
+    const groupId = new Types.ObjectId()
+    const contactId = new Types.ObjectId()
+    const userId = new Types.ObjectId()
+    const group = {
+      _id: groupId,
+      organizationId,
+      status: 'ACTIVE',
+      joinCode: 'UNIFIEDYA',
+    }
+    const contact = {
+      _id: contactId,
+      displayName: 'Synthetic Person',
+      mobileNumber: '+12085550123',
+    }
+    const groups = { findOne: jest.fn().mockResolvedValue(group) }
+    const contacts = { findOne: jest.fn().mockResolvedValue(contact) }
+    const memberships = { exists: jest.fn().mockResolvedValue(true) }
+    const operators = {
+      findOne: jest.fn().mockResolvedValue({ _id: new Types.ObjectId() }),
+    }
+    const policy = {
+      activeAdminMembership: jest.fn().mockResolvedValue({}),
+    }
+    const consent = {
+      recordOperatorConsent: jest.fn().mockResolvedValue({ recorded: true }),
+      isSuppressed: jest.fn().mockResolvedValue(false),
+      activeConsentViews: jest.fn().mockResolvedValue(
+        new Map([
+          [
+            String(contactId),
+            {
+              status: 'ACTIVE',
+              source: 'OPERATOR_AFFIRMATION',
+              consentedAt: new Date('2026-08-18T12:00:00Z'),
+            },
+          ],
+        ]),
+      ),
+    }
+    const scopedService = new GroupsService(
+      groups as any,
+      contacts as any,
+      model,
+      memberships as any,
+      model,
+      model,
+      operators as any,
+      model,
+      policy as any,
+      consent as any,
+    )
+
+    await scopedService.recordContactConsent(
+      String(organizationId),
+      String(groupId),
+      String(contactId),
+      { _id: userId },
+      {
+        affirmed: true,
+        methodNote: 'Asked in person',
+        organizationId: 'forged',
+        mobileNumber: '+12085550999',
+        actorUserId: 'forged',
+      },
+    )
+    expect(consent.recordOperatorConsent).toHaveBeenCalledWith({
+      organizationId,
+      groupId,
+      contactId,
+      mobileNumber: '+12085550123',
+      actorUserId: String(userId),
+      affirmed: true,
+      methodNote: 'Asked in person',
+    })
+
+    consent.isSuppressed.mockResolvedValue(true)
+    await expect(
+      scopedService.recordContactConsent(
+        String(organizationId),
+        String(groupId),
+        String(contactId),
+        { _id: userId },
+        { affirmed: true },
+      ),
+    ).rejects.toMatchObject({
+      response: {
+        error:
+          'This person opted out. Only the recipient can restore messaging by texting START, then JOIN UNIFIEDYA.',
+      },
+    })
+    expect(consent.recordOperatorConsent).toHaveBeenCalledTimes(1)
+  })
 })
