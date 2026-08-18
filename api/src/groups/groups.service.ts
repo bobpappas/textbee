@@ -766,6 +766,60 @@ export class GroupsService {
     return this.contactView(contact)
   }
 
+  async contactDetails(
+    organizationId: string,
+    groupId: string,
+    contactId: string,
+    actor: Actor,
+  ) {
+    const { group } = await this.requireGroup(organizationId, groupId, actor)
+    if (group.status !== GroupStatus.ACTIVE) throw this.notFound()
+    const contact = await this.requireActiveRosterContact(group, contactId)
+    return this.contactDetailsView(group, contact)
+  }
+
+  async recordContactConsent(
+    organizationId: string,
+    groupId: string,
+    contactId: string,
+    actor: Actor,
+    inputValue: unknown,
+  ) {
+    const actorId = this.actorId(actor)
+    const { group } = await this.requireGroup(organizationId, groupId, actor)
+    if (group.status !== GroupStatus.ACTIVE) throw this.notFound()
+    const contact = await this.requireActiveRosterContact(group, contactId)
+    const input = this.input(inputValue)
+    if (
+      await this.consent.isSuppressed(
+        group.organizationId,
+        contact.mobileNumber,
+      )
+    )
+      throw this.suppressionConflict(group)
+    try {
+      await this.consent.recordOperatorConsent({
+        organizationId: group.organizationId,
+        groupId: group._id,
+        contactId: contact._id,
+        mobileNumber: contact.mobileNumber,
+        actorUserId: actorId,
+        affirmed: input.affirmed,
+        methodNote: input.methodNote,
+      })
+    } catch (error) {
+      if (
+        await this.consent.isSuppressed(
+          group.organizationId,
+          contact.mobileNumber,
+        )
+      )
+        throw this.suppressionConflict(group)
+      throw error
+    }
+    return this.contactDetailsView(group, contact)
+  }
+
   async previewBulkAdd(
     organizationId: string,
     groupId: string,
@@ -1282,6 +1336,52 @@ export class GroupsService {
     return { ...access, group, admin }
   }
 
+  private async requireActiveRosterContact(group: Group, contactId: string) {
+    const contactObjectId = this.objectId(contactId)
+    const membership = await this.memberships.exists({
+      organizationId: group.organizationId,
+      groupId: group._id,
+      contactId: contactObjectId,
+      status: RosterMembershipStatus.ACTIVE,
+    })
+    if (!membership) throw this.notFound()
+    const contact = await this.contacts.findOne({
+      _id: contactObjectId,
+      organizationId: group.organizationId,
+    })
+    if (!contact) throw this.notFound()
+    return contact
+  }
+
+  private async contactDetailsView(group: Group, contact: Contact) {
+    const suppressed = await this.consent.isSuppressed(
+      group.organizationId,
+      contact.mobileNumber,
+    )
+    const activeConsent = suppressed
+      ? undefined
+      : (
+          await this.consent.activeConsentViews(
+            group.organizationId,
+            group._id,
+            [contact._id],
+          )
+        ).get(String(contact._id))
+    return {
+      contactId: String(contact._id),
+      displayName: contact.displayName,
+      displayNumber: this.formatPhone(contact.mobileNumber),
+      consentStatus: suppressed
+        ? 'OPTED_OUT'
+        : activeConsent?.status || 'MISSING',
+      consentSource: activeConsent?.source,
+      consentedAt: activeConsent?.consentedAt,
+      recoveryGuidance: suppressed
+        ? `Only the recipient can restore messaging by texting START, then JOIN ${group.joinCode}.`
+        : undefined,
+    }
+  }
+
   private async findScopedGroup(organizationId: string, groupId: string) {
     if (!Types.ObjectId.isValid(groupId)) throw this.notFound()
     const group = await this.groups.findOne({
@@ -1451,6 +1551,11 @@ export class GroupsService {
   private codeConflict() {
     return new ConflictException({
       error: 'Join code is unavailable for the selected gateway number',
+    })
+  }
+  private suppressionConflict(group: Group) {
+    return new ConflictException({
+      error: `This person opted out. Only the recipient can restore messaging by texting START, then JOIN ${group.joinCode}.`,
     })
   }
 }

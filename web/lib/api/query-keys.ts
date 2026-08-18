@@ -33,6 +33,8 @@ export const queryKeys = {
     ['groups', organizationId, groupId] as const,
   roster: (organizationId: string, groupId: string, search = '') =>
     ['groups', organizationId, groupId, 'roster', search] as const,
+  contactDetails: (organizationId: string, groupId: string, contactId: string) =>
+    ['groups', organizationId, groupId, 'contacts', contactId] as const,
   receivingNumbers: (organizationId: string) =>
     ['groups', organizationId, 'receiving-numbers'] as const,
   organizationOperators: (organizationId: string) =>

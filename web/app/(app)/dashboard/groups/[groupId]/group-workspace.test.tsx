@@ -124,4 +124,120 @@ describe('GroupWorkspace group messaging', () => {
     expect(await screen.findByText('Group send queued')).toBeInTheDocument()
     expect(confirm).toHaveBeenCalledWith(expect.stringMatching(/\S+/))
   })
+
+  it('edits contact details and records missing consent as separate actions', async () => {
+    const member = mockRosterMembers[0]
+    const rename = vi.fn()
+    const recordConsent = vi.fn()
+    let consentStatus: 'MISSING' | 'ACTIVE' = 'MISSING'
+    server.use(
+      http.get(url(ApiEndpoints.organizations.group(organizationId, group.id)), () =>
+        HttpResponse.json({ data: group }),
+      ),
+      http.get(url(ApiEndpoints.organizations.roster(organizationId, group.id)), () =>
+        HttpResponse.json({ data: mockRosterMembers }),
+      ),
+      http.get(url(ApiEndpoints.organizations.operators(organizationId)), () =>
+        HttpResponse.json({ data: group.owners }),
+      ),
+      http.get(url(ApiEndpoints.organizations.receivingNumbers(organizationId)), () =>
+        HttpResponse.json({ data: [] }),
+      ),
+      http.get(
+        url(
+          ApiEndpoints.organizations.contactDetails(
+            organizationId,
+            group.id,
+            member.contactId,
+          ),
+        ),
+        () =>
+          HttpResponse.json({
+            data: {
+              contactId: member.contactId,
+              displayName: member.displayName,
+              displayNumber: member.displayNumber,
+              consentStatus,
+              ...(consentStatus === 'ACTIVE'
+                ? {
+                    consentSource: 'OPERATOR_AFFIRMATION',
+                    consentedAt: '2026-08-18T12:00:00.000Z',
+                  }
+                : {}),
+            },
+          }),
+      ),
+      http.patch(
+        url(
+          ApiEndpoints.organizations.contactName(
+            organizationId,
+            group.id,
+            member.contactId,
+          ),
+        ),
+        async ({ request }) => {
+          rename(await request.json())
+          return HttpResponse.json({ data: member })
+        },
+      ),
+      http.post(
+        url(
+          ApiEndpoints.organizations.contactConsent(
+            organizationId,
+            group.id,
+            member.contactId,
+          ),
+        ),
+        async ({ request }) => {
+          recordConsent(await request.json())
+          consentStatus = 'ACTIVE'
+          return HttpResponse.json({
+            data: {
+              contactId: member.contactId,
+              displayName: member.displayName,
+              displayNumber: member.displayNumber,
+              consentStatus,
+              consentSource: 'OPERATOR_AFFIRMATION',
+              consentedAt: '2026-08-18T12:00:00.000Z',
+            },
+          })
+        },
+      ),
+    )
+
+    const user = userEvent.setup()
+    renderWithProviders(
+      <OrganizationContextProvider enabled>
+        <GroupWorkspace groupId={group.id} />
+      </OrganizationContextProvider>,
+    )
+
+    await user.click(await screen.findByRole('button', { name: 'Edit details' }))
+    expect(await screen.findByText('Missing')).toBeInTheDocument()
+    expect(screen.getByLabelText('Mobile number')).toHaveValue(
+      member.displayNumber,
+    )
+    expect(screen.getByLabelText('Mobile number')).toHaveAttribute('readonly')
+
+    const displayName = screen.getByLabelText('Display name')
+    await user.clear(displayName)
+    await user.type(displayName, 'Jordan Updated')
+    await user.click(screen.getByRole('button', { name: 'Save name' }))
+    expect(await screen.findByText('Name updated.')).toBeInTheDocument()
+    expect(rename).toHaveBeenCalledWith({ displayName: 'Jordan Updated' })
+    expect(recordConsent).not.toHaveBeenCalled()
+
+    const affirmation = screen.getByRole('checkbox', {
+      name: /asked to receive messages or provided this number/i,
+    })
+    await user.click(affirmation)
+    await user.type(screen.getByLabelText('Consent method note (optional)'), 'Asked in person')
+    await user.click(screen.getByRole('button', { name: 'Record consent' }))
+    expect(recordConsent).toHaveBeenCalledWith({
+      affirmed: true,
+      methodNote: 'Asked in person',
+    })
+    expect(await screen.findByText('Source: Operator affirmation')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Record consent' })).not.toBeInTheDocument()
+  })
 })

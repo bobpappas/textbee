@@ -125,7 +125,12 @@ describe('ConsentService', () => {
       methodNote: 'In-person request',
     })
     expect(consents.updateOne).toHaveBeenCalledWith(
-      { organizationId, groupId, contactId },
+      {
+        organizationId,
+        groupId,
+        contactId,
+        status: { $ne: 'ACTIVE' },
+      },
       expect.objectContaining({
         $set: expect.objectContaining({
           mobileNumber: sender,
@@ -138,6 +143,88 @@ describe('ConsentService', () => {
       }),
       { upsert: true },
     )
+  })
+
+  it('preserves active evidence and audit history on a retry', async () => {
+    consents.findOne.mockResolvedValue({
+      status: 'ACTIVE',
+      source: 'TEXT_TO_JOIN',
+      consentedAt: new Date('2026-08-01T12:00:00Z'),
+    })
+
+    await expect(
+      service.recordOperatorConsent({
+        organizationId,
+        groupId,
+        contactId,
+        mobileNumber: sender,
+        actorUserId,
+        affirmed: true,
+        methodNote: 'Should not replace prior evidence',
+      }),
+    ).resolves.toEqual({ recorded: false })
+    expect(consents.updateOne).not.toHaveBeenCalled()
+    expect(audit.create).not.toHaveBeenCalled()
+  })
+
+  it('archives ended evidence before recording a new effective consent', async () => {
+    const endedAt = new Date('2026-08-02T12:00:00Z')
+    const consentedAt = new Date('2026-08-01T12:00:00Z')
+    consents.findOne.mockResolvedValue({
+      status: 'ENDED',
+      source: 'TEXT_TO_JOIN',
+      consentedAt,
+      receivingNumber,
+      inboundSmsId,
+      endedAt,
+      endedByCommand: 'STOP',
+    })
+
+    await service.recordOperatorConsent({
+      organizationId,
+      groupId,
+      contactId,
+      mobileNumber: sender,
+      actorUserId,
+      affirmed: true,
+    })
+
+    expect(consents.updateOne).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId, groupId, contactId }),
+      expect.objectContaining({
+        $push: {
+          evidenceHistory: expect.objectContaining({
+            source: 'TEXT_TO_JOIN',
+            status: 'ENDED',
+            consentedAt,
+            receivingNumber,
+            inboundSmsId,
+            endedAt,
+            endedByCommand: 'STOP',
+          }),
+        },
+      }),
+      { upsert: true },
+    )
+  })
+
+  it('treats a concurrent active insert as the same effective transition', async () => {
+    consents.findOne
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ status: 'ACTIVE' })
+    consents.updateOne.mockRejectedValue({ code: 11000 })
+
+    await expect(
+      service.recordOperatorConsent({
+        organizationId,
+        groupId,
+        contactId,
+        mobileNumber: sender,
+        actorUserId,
+        affirmed: true,
+      }),
+    ).resolves.toEqual({ recorded: false })
+    expect(audit.create).not.toHaveBeenCalled()
   })
 
   it.each([

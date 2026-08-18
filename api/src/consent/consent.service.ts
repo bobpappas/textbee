@@ -135,9 +135,11 @@ export class ConsentService {
       contactId: input.contactId,
     }
     const priorConsent = await this.consents.findOne(filter)
+    if (priorConsent?.status === ConsentStatus.ACTIVE)
+      return { recorded: false }
     try {
-      await this.consents.updateOne(
-        filter,
+      const result = await this.consents.updateOne(
+        { ...filter, status: { $ne: ConsentStatus.ACTIVE } },
         {
           $set: {
             mobileNumber: input.mobileNumber,
@@ -157,9 +159,35 @@ export class ConsentService {
             endedByCommand: 1,
             ...(input.sourceRow === undefined ? { sourceRow: 1 } : {}),
           },
+          ...(priorConsent
+            ? {
+                $push: {
+                  evidenceHistory: {
+                    source: priorConsent.source,
+                    status: priorConsent.status,
+                    actorUserId: priorConsent.actorUserId,
+                    methodNote: priorConsent.methodNote,
+                    sourceRow: priorConsent.sourceRow,
+                    receivingNumber: priorConsent.receivingNumber,
+                    inboundSmsId: priorConsent.inboundSmsId,
+                    consentedAt: priorConsent.consentedAt,
+                    endedAt: priorConsent.endedAt,
+                    endedByCommand: priorConsent.endedByCommand,
+                  },
+                },
+              }
+            : {}),
         },
         { upsert: true },
       )
+      if (!result.modifiedCount && !result.upsertedCount) {
+        const current = await this.consents.findOne({
+          ...filter,
+          status: ConsentStatus.ACTIVE,
+        })
+        if (current) return { recorded: false }
+        throw new ConflictException({ error: 'Consent state changed; retry' })
+      }
       await this.audit.create({
         organizationId: input.organizationId,
         action: 'OPERATOR_CONSENT_RECORDED',
@@ -170,7 +198,15 @@ export class ConsentService {
         groupId: input.groupId,
         sourceRow: input.sourceRow,
       })
+      return { recorded: true }
     } catch (error) {
+      if ((error as { code?: number }).code === 11000) {
+        const current = await this.consents.findOne({
+          ...filter,
+          status: ConsentStatus.ACTIVE,
+        })
+        if (current) return { recorded: false }
+      }
       if (priorConsent)
         await this.consents.replaceOne(
           { _id: priorConsent._id },
