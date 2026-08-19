@@ -1,14 +1,13 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { SMS } from '../schemas/sms.schema';
-import { SMSBatch } from '../schemas/sms-batch.schema';
-
+import { Injectable, Logger } from '@nestjs/common'
+import { Cron, CronExpression } from '@nestjs/schedule'
+import { InjectModel } from '@nestjs/mongoose'
+import { Model } from 'mongoose'
+import { SMS } from '../schemas/sms.schema'
+import { SMSBatch } from '../schemas/sms-batch.schema'
 
 @Injectable()
 export class SmsStatusUpdateTask {
-  private readonly logger = new Logger(SmsStatusUpdateTask.name);
+  private readonly logger = new Logger(SmsStatusUpdateTask.name)
 
   constructor(
     @InjectModel(SMS.name) private smsModel: Model<SMS>,
@@ -21,25 +20,26 @@ export class SmsStatusUpdateTask {
    */
   @Cron(CronExpression.EVERY_MINUTE)
   async handlePendingSmsTimeout() {
-    this.logger.log('Running cron job to update stale pending and dispatched SMS messages');
+    this.logger.log(
+      'Running cron job to update stale pending and dispatched SMS messages',
+    )
 
-    const twoMinutesAgo = new Date();
-    twoMinutesAgo.setMinutes(twoMinutesAgo.getMinutes() - 2);
-    const twentyMinutesAgo = new Date();
-    twentyMinutesAgo.setMinutes(twentyMinutesAgo.getMinutes() - 20);
+    const now = new Date()
+    const twentyMinutesAgo = new Date()
+    twentyMinutesAgo.setMinutes(twentyMinutesAgo.getMinutes() - 20)
 
     try {
       const timedOutSms = await this.smsModel
         .find({
           status: 'pending',
-          requestedAt: { $lt: twoMinutesAgo },
+          dispatchExpiresAt: { $lt: now },
         })
         .select('smsBatch')
         .lean()
       const pendingResult = await this.smsModel.updateMany(
         {
           status: 'pending',
-          requestedAt: { $lt: twoMinutesAgo },
+          dispatchExpiresAt: { $lt: now },
         },
         {
           $set: {
@@ -50,13 +50,15 @@ export class SmsStatusUpdateTask {
               'Gateway unavailable - the phone did not claim this command within 2 minutes',
           },
         },
-      );
+      )
       this.logger.log(
         `Updated ${pendingResult.modifiedCount} unclaimed SMS messages from 'pending' to 'failed' status`,
-      );
+      )
 
       const timedOutBatchIds = [
-        ...new Set(timedOutSms.map((sms) => sms.smsBatch?.toString()).filter(Boolean)),
+        ...new Set(
+          timedOutSms.map((sms) => sms.smsBatch?.toString()).filter(Boolean),
+        ),
       ]
       if (timedOutBatchIds.length > 0) {
         await this.smsBatchModel.updateMany(
@@ -64,7 +66,8 @@ export class SmsStatusUpdateTask {
           {
             $set: {
               status: 'failed',
-              error: 'Gateway unavailable - a dispatch command was not claimed within 2 minutes',
+              error:
+                'Gateway unavailable - a dispatch command was not claimed within 2 minutes',
             },
           },
         )
@@ -82,10 +85,10 @@ export class SmsStatusUpdateTask {
               'Status update timeout - no response from device after dispatch',
           },
         },
-      );
+      )
       this.logger.log(
         `Updated ${dispatchedResult.modifiedCount} SMS messages from 'dispatched' to 'unknown' status`,
-      );
+      )
 
       const batchResult = await this.smsBatchModel.updateMany(
         {
@@ -99,12 +102,12 @@ export class SmsStatusUpdateTask {
               'Status update timeout - no response received after 20 minutes',
           },
         },
-      );
+      )
       this.logger.log(
         `Updated ${batchResult.modifiedCount} SMS batches from 'pending' to 'unknown' status`,
-      );
+      )
     } catch (error) {
-      this.logger.error('Error updating stale pending SMS messages', error);
+      this.logger.error('Error updating stale pending SMS messages', error)
     }
   }
 }

@@ -334,11 +334,17 @@ describe('GatewayService', () => {
       ).resolves.toEqual({ success: true })
 
       expect(mockSmsModel.findOneAndUpdate).toHaveBeenCalledWith(
-        { _id: 'sms123', device: 'device123', status: 'pending' },
+        {
+          _id: 'sms123',
+          device: 'device123',
+          status: 'pending',
+          dispatchAttemptId: 'attempt-1',
+          dispatchExpiresAt: new Date(Number(expiresAt)),
+        },
         expect.objectContaining({
           $set: expect.objectContaining({
             status: 'dispatched',
-            'metadata.dispatchAttemptId': 'attempt-1',
+            'metadata.claimedAt': expect.any(Date),
           }),
         }),
         { new: true },

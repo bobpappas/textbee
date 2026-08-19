@@ -40,7 +40,7 @@ import {
   MessagingExclusionInput,
 } from './messaging-eligibility'
 import { getGatewayAvailability } from './device-availability'
-import { withFreshDispatchAttempt } from './dispatch-attempt'
+import { issueDispatchAttempts } from './dispatch-attempt'
 
 @Injectable()
 export class GatewayService {
@@ -200,7 +200,8 @@ export class GatewayService {
       '-fcmToken -serial',
     )
     return devices.map((device: any) => {
-      const plain = typeof device.toObject === 'function' ? device.toObject() : device
+      const plain =
+        typeof device.toObject === 'function' ? device.toObject() : device
       return { ...plain, availability: getGatewayAvailability(plain) }
     })
   }
@@ -644,9 +645,13 @@ export class GatewayService {
           safetyReservation.reservationId,
           safetyKind,
         )
+      const dispatchMessages = await issueDispatchAttempts(
+        dispatchableMessages,
+        this.smsModel,
+      )
       const response = await firebaseAdmin
         .messaging()
-        .sendEach(dispatchableMessages.map((message) => withFreshDispatchAttempt(message)))
+        .sendEach(dispatchMessages)
 
       console.log(response)
 
@@ -1074,9 +1079,13 @@ export class GatewayService {
 
     for (const batch of fcmMessagesBatches) {
       try {
+        const dispatchMessages = await issueDispatchAttempts(
+          batch,
+          this.smsModel,
+        )
         const response = await firebaseAdmin
           .messaging()
-          .sendEach(batch.map((message) => withFreshDispatchAttempt(message)))
+          .sendEach(dispatchMessages)
 
         console.log(response)
         fcmResponses.push(response)
@@ -1090,7 +1099,6 @@ export class GatewayService {
             console.log('Failed to update sentSMSCount')
             console.log(e)
           })
-
       } catch (e) {
         console.log('Failed to send SMS: FCM')
         console.log(e)
@@ -1568,13 +1576,17 @@ export class GatewayService {
     }
 
     const claimed = await this.smsModel.findOneAndUpdate(
-      { _id: smsId as any, device: deviceId as any, status: 'pending' },
+      {
+        _id: smsId as any,
+        device: deviceId as any,
+        status: 'pending',
+        dispatchAttemptId: input.attemptId,
+        dispatchExpiresAt: new Date(expiresAt),
+      },
       {
         $set: {
           status: 'dispatched',
           dispatchedAt: new Date(now),
-          'metadata.dispatchAttemptId': input.attemptId,
-          'metadata.dispatchExpiresAt': new Date(expiresAt),
           'metadata.claimedAt': new Date(now),
         },
       },

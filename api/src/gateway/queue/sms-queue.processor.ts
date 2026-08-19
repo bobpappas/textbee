@@ -12,7 +12,7 @@ import { Logger } from '@nestjs/common'
 import { ConsentService } from '../../consent/consent.service'
 import { SelfHostedPolicyService } from '../../billing/self-hosted-policy.service'
 import { ELIGIBILITY_CHANGED_MESSAGE } from '../messaging-eligibility'
-import { withFreshDispatchAttempt } from '../dispatch-attempt'
+import { issueDispatchAttempts } from '../dispatch-attempt'
 import { getGatewayAvailability } from '../device-availability'
 
 function getFcmErrorCode(
@@ -169,10 +169,13 @@ export class SmsQueueProcessor {
           throw error
         })
 
-      const dispatchMessages = fcmMessages.map((message) =>
-        withFreshDispatchAttempt(message),
+      const dispatchMessages = await issueDispatchAttempts(
+        fcmMessages,
+        this.smsModel,
       )
-      const response = await firebaseAdmin.messaging().sendEach(dispatchMessages)
+      const response = await firebaseAdmin
+        .messaging()
+        .sendEach(dispatchMessages)
 
       // this.logger.debug(
       //   `SMS Job ${job.id}( smsBatchId: ${smsBatchId}) completed, success: ${response.successCount}, failures: ${response.failureCount}`,
