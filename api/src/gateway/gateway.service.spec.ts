@@ -35,6 +35,7 @@ describe('GatewayService', () => {
   let service: GatewayService
   const mockDeviceModel = {
     findOne: jest.fn(),
+    findOneAndUpdate: jest.fn(),
     find: jest.fn(),
     findById: jest.fn(),
     findByIdAndUpdate: jest.fn(),
@@ -48,6 +49,7 @@ describe('GatewayService', () => {
     create: jest.fn(),
     find: jest.fn(),
     findOne: jest.fn(),
+    findOneAndUpdate: jest.fn(),
     updateMany: jest.fn(),
     updateOne: jest.fn(),
     countDocuments: jest.fn(),
@@ -160,6 +162,14 @@ describe('GatewayService', () => {
         _id: 'device123',
         enabled: true,
         user: 'user123',
+        lastHeartbeat: new Date(),
+        reliability: {
+          modeActive: true,
+          smsPermissionGranted: true,
+          notificationPermissionGranted: true,
+          networkConnected: true,
+          backgroundRestricted: false,
+        },
       })
       mockConsentService.authorizeRecipients.mockResolvedValue([
         { recipient: '+12085550101', eligible: true },
@@ -311,6 +321,47 @@ describe('GatewayService', () => {
     })
   })
 
+  describe('claimSMSDispatch', () => {
+    it('atomically advances a fresh pending command to dispatched', async () => {
+      mockSmsModel.findOneAndUpdate.mockResolvedValue({ _id: 'sms123' })
+      const expiresAt = String(Date.now() + 60_000)
+
+      await expect(
+        service.claimSMSDispatch('device123', 'sms123', {
+          attemptId: 'attempt-1',
+          expiresAt,
+        }),
+      ).resolves.toEqual({ success: true })
+
+      expect(mockSmsModel.findOneAndUpdate).toHaveBeenCalledWith(
+        {
+          _id: 'sms123',
+          device: 'device123',
+          status: 'pending',
+          dispatchAttemptId: 'attempt-1',
+          dispatchExpiresAt: new Date(Number(expiresAt)),
+        },
+        expect.objectContaining({
+          $set: expect.objectContaining({
+            status: 'dispatched',
+            'metadata.claimedAt': expect.any(Date),
+          }),
+        }),
+        { new: true },
+      )
+    })
+
+    it('rejects an expired command without changing SMS state', async () => {
+      await expect(
+        service.claimSMSDispatch('device123', 'sms123', {
+          attemptId: 'attempt-1',
+          expiresAt: String(Date.now() - 1),
+        }),
+      ).rejects.toMatchObject({ status: HttpStatus.CONFLICT })
+      expect(mockSmsModel.findOneAndUpdate).not.toHaveBeenCalled()
+    })
+  })
+
   describe('getDevicesForUser', () => {
     const mockUser = {
       _id: 'user123',
@@ -338,7 +389,11 @@ describe('GatewayService', () => {
       // should be shipped to the browser in the device list.
       expect(projection).toContain('-fcmToken')
       expect(projection).toContain('-serial')
-      expect(result).toEqual(mockDevices)
+      expect(result).toHaveLength(2)
+      expect(result[0]).toMatchObject({
+        ...mockDevices[0],
+        availability: { status: 'DISABLED', available: false },
+      })
     })
   })
 
@@ -431,6 +486,14 @@ describe('GatewayService', () => {
       enabled: true,
       fcmToken: 'fcm-token',
       user: 'user123',
+      lastHeartbeat: new Date(),
+      reliability: {
+        modeActive: true,
+        smsPermissionGranted: true,
+        notificationPermissionGranted: true,
+        networkConnected: true,
+        backgroundRestricted: false,
+      },
     }
     const mockSmsInput: SendSMSInputDTO = {
       message: 'Hello there',
@@ -676,6 +739,14 @@ describe('GatewayService', () => {
       enabled: true,
       fcmToken: 'fcm-token',
       user: 'user123',
+      lastHeartbeat: new Date(),
+      reliability: {
+        modeActive: true,
+        smsPermissionGranted: true,
+        notificationPermissionGranted: true,
+        networkConnected: true,
+        backgroundRestricted: false,
+      },
     }
     const mockBulkSmsInput: SendBulkSMSInputDTO = {
       messageTemplate: 'Hello {name}',

@@ -7,7 +7,8 @@ public class AppConstants {
     public static final String[] requiredPermissions = new String[]{
             Manifest.permission.SEND_SMS,
             Manifest.permission.RECEIVE_SMS,
-            Manifest.permission.READ_PHONE_STATE
+            Manifest.permission.READ_PHONE_STATE,
+            Manifest.permission.POST_NOTIFICATIONS
     };
     public static final String SHARED_PREFS_DEVICE_ID_KEY = "DEVICE_ID";
     public static final String SHARED_PREFS_API_KEY_KEY = "API_KEY";
@@ -28,4 +29,5 @@ public class AppConstants {
     public static final int DEFAULT_SMS_SEND_DELAY_SECONDS = 5;
     public static final String SHARED_PREFS_USE_NEW_UI_KEY = "USE_NEW_UI";
     public static final String SHARED_PREFS_LAST_HEARTBEAT_MS_KEY = "LAST_HEARTBEAT_MS";
+    public static final String SHARED_PREFS_RELIABILITY_SERVICE_ACTIVE_KEY = "RELIABILITY_SERVICE_ACTIVE";
 }

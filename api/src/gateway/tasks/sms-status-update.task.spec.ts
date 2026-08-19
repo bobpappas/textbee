@@ -1,14 +1,14 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { getModelToken } from '@nestjs/mongoose';
-import { SmsStatusUpdateTask } from './sms-status-update.task';
-import { SMS } from '../schemas/sms.schema';
-import { SMSBatch } from '../schemas/sms-batch.schema';
-import { Model } from 'mongoose';
+import { Test, TestingModule } from '@nestjs/testing'
+import { getModelToken } from '@nestjs/mongoose'
+import { SmsStatusUpdateTask } from './sms-status-update.task'
+import { SMS } from '../schemas/sms.schema'
+import { SMSBatch } from '../schemas/sms-batch.schema'
+import { Model } from 'mongoose'
 
 describe('SmsStatusUpdateTask', () => {
-  let task: SmsStatusUpdateTask;
-  let smsModel: Model<SMS>;
-  let smsBatchModel: Model<SMSBatch>;
+  let task: SmsStatusUpdateTask
+  let smsModel: Model<SMS>
+  let smsBatchModel: Model<SMSBatch>
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -18,6 +18,11 @@ describe('SmsStatusUpdateTask', () => {
           provide: getModelToken(SMS.name),
           useValue: {
             updateMany: jest.fn().mockResolvedValue({ modifiedCount: 5 }),
+            find: jest.fn().mockReturnValue({
+              select: jest.fn().mockReturnValue({
+                lean: jest.fn().mockResolvedValue([{ smsBatch: 'batch-1' }]),
+              }),
+            }),
           },
         },
         {
@@ -27,39 +32,56 @@ describe('SmsStatusUpdateTask', () => {
           },
         },
       ],
-    }).compile();
+    }).compile()
 
-    task = module.get<SmsStatusUpdateTask>(SmsStatusUpdateTask);
-    smsModel = module.get<Model<SMS>>(getModelToken(SMS.name));
-    smsBatchModel = module.get<Model<SMSBatch>>(getModelToken(SMSBatch.name));
-  });
+    task = module.get<SmsStatusUpdateTask>(SmsStatusUpdateTask)
+    smsModel = module.get<Model<SMS>>(getModelToken(SMS.name))
+    smsBatchModel = module.get<Model<SMSBatch>>(getModelToken(SMSBatch.name))
+  })
 
   it('should be defined', () => {
-    expect(task).toBeDefined();
-  });
+    expect(task).toBeDefined()
+  })
 
   describe('handlePendingSmsTimeout', () => {
-    it('should update stale pending SMS messages to unknown status', async () => {
-      jest.spyOn(smsModel, 'updateMany');
-      jest.spyOn(smsBatchModel, 'updateMany');
+    it('should fail issued SMS attempts after their claim deadline', async () => {
+      jest.spyOn(smsModel, 'updateMany')
+      jest.spyOn(smsBatchModel, 'updateMany')
 
-      await task.handlePendingSmsTimeout();
+      await task.handlePendingSmsTimeout()
 
       // Check that SMS model was updated with correct query
       expect(smsModel.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
           status: 'pending',
-          requestedAt: expect.any(Object),
+          dispatchExpiresAt: expect.any(Object),
         }),
         {
           $set: {
-            status: 'unknown',
-            errorMessage: 'Status update timeout - no response received after 20 minutes',
+            status: 'failed',
+            failedAt: expect.any(Date),
+            errorCode: 'GATEWAY_UNAVAILABLE',
+            errorMessage:
+              'Gateway unavailable - the phone did not claim this command within 2 minutes',
           },
         },
-      );
+      )
+      expect(
+        (smsModel.updateMany as jest.Mock).mock.calls[0][0],
+      ).not.toHaveProperty('requestedAt')
 
       // Check that SMSBatch model was updated with correct query
+      expect(smsBatchModel.updateMany).toHaveBeenCalledWith(
+        { _id: { $in: ['batch-1'] } },
+        {
+          $set: {
+            status: 'failed',
+            error:
+              'Gateway unavailable - a dispatch command was not claimed within 2 minutes',
+          },
+        },
+      )
+
       expect(smsBatchModel.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
           status: 'pending',
@@ -68,10 +90,11 @@ describe('SmsStatusUpdateTask', () => {
         {
           $set: {
             status: 'unknown',
-            error: 'Status update timeout - no response received after 20 minutes',
+            error:
+              'Status update timeout - no response received after 20 minutes',
           },
         },
-      );
-    });
-  });
-}); 
+      )
+    })
+  })
+})

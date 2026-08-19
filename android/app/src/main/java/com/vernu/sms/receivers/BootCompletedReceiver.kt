@@ -26,11 +26,11 @@ class BootCompletedReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
 
-        val stickyNotificationEnabled = SharedPreferenceHelper.getSharedPreferenceBoolean(
-            context, AppConstants.SHARED_PREFS_STICKY_NOTIFICATION_ENABLED_KEY, false
+        val gatewayEnabled = SharedPreferenceHelper.getSharedPreferenceBoolean(
+            context, AppConstants.SHARED_PREFS_GATEWAY_ENABLED_KEY, false
         )
-        if (stickyNotificationEnabled && TextBeeUtils.isPermissionGranted(context, Manifest.permission.RECEIVE_SMS)) {
-            Log.i(TAG, "Device booted, starting sticky notification service")
+        if (gatewayEnabled && TextBeeUtils.isPermissionGranted(context, Manifest.permission.SEND_SMS)) {
+            Log.i(TAG, "Device booted, starting gateway reliability service")
             TextBeeUtils.startStickyNotificationService(context)
         }
 
@@ -50,6 +50,7 @@ class BootCompletedReceiver : BroadcastReceiver() {
             if (deviceEnabled) {
                 Log.i(TAG, "Device booted, scheduling heartbeat")
                 HeartbeatManager.scheduleHeartbeat(context)
+                HeartbeatManager.triggerHeartbeat(context)
             }
         }
     }

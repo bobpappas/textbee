@@ -15,6 +15,7 @@ import {
   UpdateSMSStatusDTO,
   HeartbeatInputDTO,
   HeartbeatResponseDTO,
+  ClaimSMSDispatchInputDTO,
 } from './gateway.dto'
 import { User } from '../users/schemas/user.schema'
 import { AuthService } from '../auth/auth.service'
@@ -38,6 +39,8 @@ import {
   ELIGIBILITY_CHANGED_MESSAGE,
   MessagingExclusionInput,
 } from './messaging-eligibility'
+import { getGatewayAvailability } from './device-availability'
+import { issueDispatchAttempts } from './dispatch-attempt'
 
 @Injectable()
 export class GatewayService {
@@ -62,6 +65,7 @@ export class GatewayService {
         { error: 'Device does not exist or is not enabled' },
         HttpStatus.BAD_REQUEST,
       )
+    this.assertOrdinaryGatewayAvailable(device)
     if (!Array.isArray(recipients) || recipients.length === 0)
       throw new HttpException(
         { error: 'At least one recipient is required' },
@@ -191,7 +195,29 @@ export class GatewayService {
 
   async getDevicesForUser(user: User): Promise<any> {
     // Exclude the push credential and hardware serial from the client response.
-    return await this.deviceModel.find({ user: user._id }, '-fcmToken -serial')
+    const devices = await this.deviceModel.find(
+      { user: user._id },
+      '-fcmToken -serial',
+    )
+    return devices.map((device: any) => {
+      const plain =
+        typeof device.toObject === 'function' ? device.toObject() : device
+      return { ...plain, availability: getGatewayAvailability(plain) }
+    })
+  }
+
+  private assertOrdinaryGatewayAvailable(device: DeviceDocument): void {
+    const availability = getGatewayAvailability(device)
+    if (availability.available) return
+    throw new HttpException(
+      {
+        success: false,
+        error: 'Gateway unavailable',
+        reasonCode: availability.reasonCode,
+        nextAction: availability.nextAction,
+      },
+      HttpStatus.CONFLICT,
+    )
   }
 
   async getDeviceById(deviceId: string): Promise<any> {
@@ -348,6 +374,8 @@ export class GatewayService {
         HttpStatus.BAD_REQUEST,
       )
     }
+    if (policyContext.kind === 'ORDINARY')
+      this.assertOrdinaryGatewayAvailable(device)
 
     const message = smsData.message || smsData.smsBody
     const requestedRecipients = smsData.recipients || smsData.receivers
@@ -617,9 +645,13 @@ export class GatewayService {
           safetyReservation.reservationId,
           safetyKind,
         )
+      const dispatchMessages = await issueDispatchAttempts(
+        dispatchableMessages,
+        this.smsModel,
+      )
       const response = await firebaseAdmin
         .messaging()
-        .sendEach(dispatchableMessages)
+        .sendEach(dispatchMessages)
 
       console.log(response)
 
@@ -642,15 +674,6 @@ export class GatewayService {
         .catch((e) => {
           console.log('Failed to update sentSMSCount')
           console.log(e)
-        })
-
-      this.smsBatchModel
-        .findByIdAndUpdate(smsBatch._id, {
-          $set: { status: 'completed' },
-        })
-        .exec()
-        .catch(() => {
-          console.error('failed to update sms batch status to completed')
         })
 
       const dispatchResult = excludedRecipients.length
@@ -701,6 +724,7 @@ export class GatewayService {
         HttpStatus.BAD_REQUEST,
       )
     }
+    this.assertOrdinaryGatewayAvailable(device)
 
     if (
       !Array.isArray(body.messages) ||
@@ -1055,7 +1079,13 @@ export class GatewayService {
 
     for (const batch of fcmMessagesBatches) {
       try {
-        const response = await firebaseAdmin.messaging().sendEach(batch)
+        const dispatchMessages = await issueDispatchAttempts(
+          batch,
+          this.smsModel,
+        )
+        const response = await firebaseAdmin
+          .messaging()
+          .sendEach(dispatchMessages)
 
         console.log(response)
         fcmResponses.push(response)
@@ -1068,15 +1098,6 @@ export class GatewayService {
           .catch((e) => {
             console.log('Failed to update sentSMSCount')
             console.log(e)
-          })
-
-        this.smsBatchModel
-          .findByIdAndUpdate(smsBatch._id, {
-            $set: { status: 'completed' },
-          })
-          .exec()
-          .catch(() => {
-            console.error('failed to update sms batch status to completed')
           })
       } catch (e) {
         console.log('Failed to send SMS: FCM')
@@ -1535,6 +1556,51 @@ export class GatewayService {
     }
   }
 
+  async claimSMSDispatch(
+    deviceId: string,
+    smsId: string,
+    input: ClaimSMSDispatchInputDTO,
+  ): Promise<{ success: true }> {
+    const now = Date.now()
+    const expiresAt = Number(input.expiresAt)
+    if (
+      !input.attemptId ||
+      !Number.isFinite(expiresAt) ||
+      expiresAt <= now ||
+      expiresAt > now + 2 * 60 * 1000
+    ) {
+      throw new HttpException(
+        { success: false, error: 'Dispatch command expired' },
+        HttpStatus.CONFLICT,
+      )
+    }
+
+    const claimed = await this.smsModel.findOneAndUpdate(
+      {
+        _id: smsId as any,
+        device: deviceId as any,
+        status: 'pending',
+        dispatchAttemptId: input.attemptId,
+        dispatchExpiresAt: new Date(expiresAt),
+      },
+      {
+        $set: {
+          status: 'dispatched',
+          dispatchedAt: new Date(now),
+          'metadata.claimedAt': new Date(now),
+        },
+      },
+      { new: true },
+    )
+    if (!claimed) {
+      throw new HttpException(
+        { success: false, error: 'Dispatch command is no longer available' },
+        HttpStatus.CONFLICT,
+      )
+    }
+    return { success: true }
+  }
+
   async getStatsForUser(user: User) {
     const devices = await this.deviceModel.find({ user: user._id })
     const apiKeys = await this.authService.getUserApiKeys(user)
@@ -1635,6 +1701,29 @@ export class GatewayService {
     const now = new Date()
     const updateData: any = {
       lastHeartbeat: now,
+    }
+
+    if (
+      input.reliabilityModeActive !== undefined ||
+      input.smsPermissionGranted !== undefined ||
+      input.notificationPermissionGranted !== undefined ||
+      input.networkConnected !== undefined ||
+      input.backgroundRestricted !== undefined ||
+      input.batteryOptimizationRestricted !== undefined ||
+      input.reliabilityReasonCode !== undefined ||
+      input.bootSessionId !== undefined
+    ) {
+      updateData.reliability = {
+        modeActive: input.reliabilityModeActive,
+        smsPermissionGranted: input.smsPermissionGranted,
+        notificationPermissionGranted: input.notificationPermissionGranted,
+        networkConnected: input.networkConnected,
+        backgroundRestricted: input.backgroundRestricted,
+        batteryOptimizationRestricted: input.batteryOptimizationRestricted,
+        reasonCode: input.reliabilityReasonCode,
+        bootSessionId: input.bootSessionId,
+        lastUpdated: now,
+      }
     }
 
     let fcmTokenUpdated = false

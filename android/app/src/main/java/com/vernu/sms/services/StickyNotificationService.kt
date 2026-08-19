@@ -11,14 +11,22 @@ import androidx.core.app.NotificationCompat
 import com.vernu.sms.AppConstants
 import com.vernu.sms.R
 import com.vernu.sms.activities.MainActivity
+import com.vernu.sms.helpers.HeartbeatHelper
+import com.vernu.sms.helpers.HeartbeatManager
 import com.vernu.sms.helpers.SharedPreferenceHelper
+import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.TimeUnit
 
 class StickyNotificationService : Service() {
     companion object {
         private const val TAG = "StickyNotificationService"
         private const val NOTIFICATION_CHANNEL_ID = "stickyNotificationChannel"
         private const val NOTIFICATION_ID = 1
+        private const val HEARTBEAT_INTERVAL_MINUTES = 15L
     }
+
+    private var heartbeatExecutor: ScheduledExecutorService? = null
 
     override fun onBind(intent: Intent): IBinder? {
         Log.i(TAG, "Service onBind ${intent.action}")
@@ -28,12 +36,17 @@ class StickyNotificationService : Service() {
     override fun onCreate() {
         super.onCreate()
         Log.i(TAG, "Service Started")
-
-        val stickyNotificationEnabled = SharedPreferenceHelper.getSharedPreferenceBoolean(
-            applicationContext, AppConstants.SHARED_PREFS_STICKY_NOTIFICATION_ENABLED_KEY, false
+        SharedPreferenceHelper.setSharedPreferenceBoolean(
+            applicationContext,
+            AppConstants.SHARED_PREFS_RELIABILITY_SERVICE_ACTIVE_KEY,
+            false
         )
 
-        if (stickyNotificationEnabled) {
+        val gatewayEnabled = SharedPreferenceHelper.getSharedPreferenceBoolean(
+            applicationContext, AppConstants.SHARED_PREFS_GATEWAY_ENABLED_KEY, false
+        )
+
+        if (gatewayEnabled) {
             val notification = createNotification()
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -41,14 +54,22 @@ class StickyNotificationService : Service() {
                 } else {
                     startForeground(NOTIFICATION_ID, notification)
                 }
-                Log.i(TAG, "Started foreground service with sticky notification")
+                SharedPreferenceHelper.setSharedPreferenceBoolean(
+                    applicationContext,
+                    AppConstants.SHARED_PREFS_RELIABILITY_SERVICE_ACTIVE_KEY,
+                    true
+                )
+                HeartbeatManager.scheduleHeartbeat(applicationContext)
+                startHeartbeatLoop()
+                Log.i(TAG, "Started required gateway reliability service")
             } catch (e: Exception) {
                 // ForegroundServiceStartNotAllowedException on API 31+ when app is in background
                 Log.w(TAG, "Cannot start foreground service (likely background restriction): ${e.message}")
                 stopSelf()
             }
         } else {
-            Log.i(TAG, "Sticky notification disabled by user preference")
+            Log.i(TAG, "Gateway disabled; reliability service stopping")
+            stopSelf()
         }
     }
 
@@ -58,8 +79,34 @@ class StickyNotificationService : Service() {
     }
 
     override fun onDestroy() {
+        heartbeatExecutor?.shutdownNow()
+        SharedPreferenceHelper.setSharedPreferenceBoolean(
+            applicationContext,
+            AppConstants.SHARED_PREFS_RELIABILITY_SERVICE_ACTIVE_KEY,
+            false
+        )
         super.onDestroy()
         Log.i(TAG, "StickyNotificationService destroyed")
+    }
+
+    private fun startHeartbeatLoop() {
+        val deviceId = SharedPreferenceHelper.getSharedPreferenceString(
+            applicationContext, AppConstants.SHARED_PREFS_DEVICE_ID_KEY, ""
+        ) ?: ""
+        val apiKey = SharedPreferenceHelper.getSharedPreferenceString(
+            applicationContext, AppConstants.SHARED_PREFS_API_KEY_KEY, ""
+        ) ?: ""
+        heartbeatExecutor = Executors.newSingleThreadScheduledExecutor()
+        heartbeatExecutor?.scheduleWithFixedDelay(
+            {
+                if (HeartbeatHelper.isDeviceEligibleForHeartbeat(applicationContext)) {
+                    HeartbeatHelper.sendHeartbeat(applicationContext, deviceId, apiKey)
+                }
+            },
+            0,
+            HEARTBEAT_INTERVAL_MINUTES,
+            TimeUnit.MINUTES
+        )
     }
 
     private fun createNotification(): Notification {
@@ -67,7 +114,7 @@ class StickyNotificationService : Service() {
 
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
-                NOTIFICATION_CHANNEL_ID, NOTIFICATION_CHANNEL_ID, NotificationManager.IMPORTANCE_HIGH
+                NOTIFICATION_CHANNEL_ID, "Gateway Reliability", NotificationManager.IMPORTANCE_LOW
             ).apply {
                 enableVibration(false)
                 setShowBadge(false)
