@@ -23,6 +23,7 @@ public class SMSGatewayApplication extends Application implements Configuration.
             // This is fine, we can continue
             Log.d(TAG, "WorkManager already initialized or will be initialized automatically");
         }
+        TextBeeUtils.startStickyNotificationService(this);
     }
     
     @Override
@@ -31,4 +32,4 @@ public class SMSGatewayApplication extends Application implements Configuration.
             .setMinimumLoggingLevel(android.util.Log.INFO)
             .build();
     }
-} 
+}

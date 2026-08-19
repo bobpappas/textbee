@@ -29,6 +29,7 @@ import {
   HeartbeatInputDTO,
   HeartbeatResponseDTO,
   MessagingEligibilityInputDTO,
+  ClaimSMSDispatchInputDTO,
 } from './gateway.dto'
 import { GatewayService } from './gateway.service'
 import { CanModifyDevice } from './guards/can-modify-device.guard'
@@ -190,6 +191,18 @@ export class GatewayController {
   ) {
     const data = await this.gatewayService.updateSMSStatus(deviceId, dto);
     return { data };
+  }
+
+  @ApiOperation({ summary: 'Claim a short-lived SMS dispatch command' })
+  @UseGuards(AuthGuard, CanModifyDevice)
+  @Post('/devices/:id/sms/:smsId/claim')
+  @HttpCode(HttpStatus.OK)
+  async claimSMSDispatch(
+    @Param('id') deviceId: string,
+    @Param('smsId') smsId: string,
+    @Body() input: ClaimSMSDispatchInputDTO,
+  ) {
+    return this.gatewayService.claimSMSDispatch(deviceId, smsId, input)
   }
 
   @ApiOperation({ summary: 'Get a single SMS by ID' })

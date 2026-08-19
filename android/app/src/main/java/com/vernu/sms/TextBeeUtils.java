@@ -40,27 +40,26 @@ public class TextBeeUtils {
     }
 
     public static void startStickyNotificationService(Context context) {
-        if(!isPermissionGranted(context, Manifest.permission.RECEIVE_SMS)){
+        if(!isPermissionGranted(context, Manifest.permission.SEND_SMS)){
             return;
         }
-        
-        // Only start service if user has enabled sticky notification
-        boolean stickyNotificationEnabled = SharedPreferenceHelper.getSharedPreferenceBoolean(
+
+        boolean gatewayEnabled = SharedPreferenceHelper.getSharedPreferenceBoolean(
                 context,
-                AppConstants.SHARED_PREFS_STICKY_NOTIFICATION_ENABLED_KEY,
+                AppConstants.SHARED_PREFS_GATEWAY_ENABLED_KEY,
                 false
         );
-        
-        if (stickyNotificationEnabled) {
+
+        if (gatewayEnabled) {
             Intent notificationIntent = new Intent(context, StickyNotificationService.class);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(notificationIntent);
             } else {
                 context.startService(notificationIntent);
             }
-            Log.i(TAG, "Starting sticky notification service");
+            Log.i(TAG, "Starting required gateway reliability service");
         } else {
-            Log.i(TAG, "Sticky notification disabled by user, not starting service");
+            Log.i(TAG, "Gateway disabled, not starting reliability service");
         }
     }
 

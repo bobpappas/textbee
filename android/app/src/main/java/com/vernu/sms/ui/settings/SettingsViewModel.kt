@@ -27,7 +27,6 @@ data class SettingsState(
     val deviceName: String = "",
     val isGatewayEnabled: Boolean = false,
     val isReceiveSmsEnabled: Boolean = false,
-    val isStickyNotificationEnabled: Boolean = false,
     val smsSendDelaySeconds: Int = AppConstants.DEFAULT_SMS_SEND_DELAY_SECONDS,
     val preferredSimSubscriptionId: Int = -1,
     val availableSims: List<SimOption> = emptyList(),
@@ -64,9 +63,6 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
         val isReceiveSms = SharedPreferenceHelper.getSharedPreferenceBoolean(
             context, AppConstants.SHARED_PREFS_RECEIVE_SMS_ENABLED_KEY, false
         )
-        val isSticky = SharedPreferenceHelper.getSharedPreferenceBoolean(
-            context, AppConstants.SHARED_PREFS_STICKY_NOTIFICATION_ENABLED_KEY, false
-        )
         val smsDelay = SharedPreferenceHelper.getSharedPreferenceInt(
             context, AppConstants.SHARED_PREFS_SMS_SEND_DELAY_SECONDS_KEY,
             AppConstants.DEFAULT_SMS_SEND_DELAY_SECONDS
@@ -93,7 +89,6 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
                 deviceName = deviceName.ifEmpty { "${Build.BRAND} ${Build.MODEL}" },
                 isGatewayEnabled = isGatewayEnabled,
                 isReceiveSmsEnabled = isReceiveSms,
-                isStickyNotificationEnabled = isSticky,
                 smsSendDelaySeconds = smsDelay,
                 preferredSimSubscriptionId = preferredSim,
                 availableSims = sims
@@ -137,20 +132,6 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
             context, AppConstants.SHARED_PREFS_RECEIVE_SMS_ENABLED_KEY, enabled
         )
         _state.update { it.copy(isReceiveSmsEnabled = enabled) }
-    }
-
-    fun setStickyNotification(enabled: Boolean) {
-        SharedPreferenceHelper.setSharedPreferenceBoolean(
-            context, AppConstants.SHARED_PREFS_STICKY_NOTIFICATION_ENABLED_KEY, enabled
-        )
-        try {
-            if (enabled) TextBeeUtils.startStickyNotificationService(context)
-            else TextBeeUtils.stopStickyNotificationService(context)
-        } catch (e: Exception) {
-            TextBeeUtils.logException(e, "Sticky notification toggle failed")
-            _state.update { it.copy(snackbarMessage = "Could not start notification service") }
-        }
-        _state.update { it.copy(isStickyNotificationEnabled = enabled) }
     }
 
     fun setSmsSendDelay(seconds: Int) {

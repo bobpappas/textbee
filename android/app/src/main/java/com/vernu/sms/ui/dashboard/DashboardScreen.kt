@@ -44,11 +44,14 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
 
-private val REQUIRED_PERMISSIONS = listOf(
-    Manifest.permission.SEND_SMS,
-    Manifest.permission.RECEIVE_SMS,
-    Manifest.permission.READ_PHONE_STATE
-)
+private fun requiredPermissions() = buildList {
+    add(Manifest.permission.SEND_SMS)
+    add(Manifest.permission.RECEIVE_SMS)
+    add(Manifest.permission.READ_PHONE_STATE)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        add(Manifest.permission.POST_NOTIFICATIONS)
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -65,7 +68,7 @@ fun DashboardScreen(
         }
     }
 
-    fun checkMissingPermissions() = REQUIRED_PERMISSIONS.filter {
+    fun checkMissingPermissions() = requiredPermissions().filter {
         ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
     }
 

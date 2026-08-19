@@ -82,6 +82,31 @@ export class Device {
 
   @Prop({
     type: {
+      modeActive: Boolean,
+      smsPermissionGranted: Boolean,
+      notificationPermissionGranted: Boolean,
+      networkConnected: Boolean,
+      backgroundRestricted: Boolean,
+      batteryOptimizationRestricted: Boolean,
+      reasonCode: String,
+      bootSessionId: String,
+      lastUpdated: Date,
+    },
+  })
+  reliability?: {
+    modeActive?: boolean
+    smsPermissionGranted?: boolean
+    notificationPermissionGranted?: boolean
+    networkConnected?: boolean
+    backgroundRestricted?: boolean
+    batteryOptimizationRestricted?: boolean
+    reasonCode?: string
+    bootSessionId?: string
+    lastUpdated?: Date
+  }
+
+  @Prop({
+    type: {
       percentage: Number,
       isCharging: Boolean,
       lastUpdated: Date,

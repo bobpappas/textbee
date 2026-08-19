@@ -7,6 +7,9 @@ import com.vernu.sms.AppConstants
 import com.vernu.sms.TextBeeUtils
 import com.vernu.sms.helpers.SMSHelper
 import com.vernu.sms.helpers.SharedPreferenceHelper
+import com.vernu.sms.ApiManager
+import com.vernu.sms.dtos.ClaimSMSDispatchInputDTO
+import java.io.IOException
 
 class SmsSendWorker(context: Context, workerParams: WorkerParameters) : Worker(context, workerParams) {
     companion object {
@@ -18,10 +21,13 @@ class SmsSendWorker(context: Context, workerParams: WorkerParameters) : Worker(c
         const val KEY_SMS_ID = "sms_id"
         const val KEY_SMS_BATCH_ID = "sms_batch_id"
         const val KEY_SIM_SUBSCRIPTION_ID = "sim_subscription_id"
+        const val KEY_ATTEMPT_ID = "attempt_id"
+        const val KEY_EXPIRES_AT = "expires_at"
 
         fun enqueue(
             context: Context, phone: String, message: String,
-            smsId: String?, smsBatchId: String?, simSubscriptionId: Int?
+            smsId: String?, smsBatchId: String?, simSubscriptionId: Int?,
+            attemptId: String?, expiresAt: String?
         ) {
             val inputData = Data.Builder()
                 .putString(KEY_PHONE, phone)
@@ -29,6 +35,8 @@ class SmsSendWorker(context: Context, workerParams: WorkerParameters) : Worker(c
                 .putString(KEY_SMS_ID, smsId)
                 .putString(KEY_SMS_BATCH_ID, smsBatchId)
                 .putInt(KEY_SIM_SUBSCRIPTION_ID, simSubscriptionId ?: -1)
+                .putString(KEY_ATTEMPT_ID, attemptId)
+                .putString(KEY_EXPIRES_AT, expiresAt)
                 .build()
 
             val workRequest = OneTimeWorkRequest.Builder(SmsSendWorker::class.java)
@@ -39,7 +47,7 @@ class SmsSendWorker(context: Context, workerParams: WorkerParameters) : Worker(c
                 .beginUniqueWork(QUEUE_NAME, ExistingWorkPolicy.APPEND_OR_REPLACE, workRequest)
                 .enqueue()
 
-            Log.d(TAG, "SMS enqueued for sending - ID: $smsId, Phone: $phone")
+            Log.d(TAG, "SMS dispatch work enqueued")
         }
     }
 
@@ -49,13 +57,43 @@ class SmsSendWorker(context: Context, workerParams: WorkerParameters) : Worker(c
         val smsId = inputData.getString(KEY_SMS_ID)
         val smsBatchId = inputData.getString(KEY_SMS_BATCH_ID)
         val simSubscriptionId = inputData.getInt(KEY_SIM_SUBSCRIPTION_ID, -1)
+        val attemptId = inputData.getString(KEY_ATTEMPT_ID)
+        val expiresAt = inputData.getString(KEY_EXPIRES_AT)
 
-        if (phone == null || message == null || smsId == null) {
+        if (phone == null || message == null || smsId == null || attemptId == null || expiresAt == null) {
             Log.e(TAG, "Missing required parameters")
+            return Result.failure()
+        }
+        val expiresAtMillis = expiresAt.toLongOrNull() ?: 0L
+        if (expiresAtMillis <= System.currentTimeMillis()) {
+            Log.w(TAG, "Discarding expired SMS dispatch attempt")
             return Result.failure()
         }
 
         val context = applicationContext
+        val deviceId = SharedPreferenceHelper.getSharedPreferenceString(
+            context, AppConstants.SHARED_PREFS_DEVICE_ID_KEY, ""
+        ) ?: ""
+        val apiKey = SharedPreferenceHelper.getSharedPreferenceString(
+            context, AppConstants.SHARED_PREFS_API_KEY_KEY, ""
+        ) ?: ""
+        val claim = ClaimSMSDispatchInputDTO().apply {
+            this.attemptId = attemptId
+            this.expiresAt = expiresAt
+        }
+        try {
+            val response = ApiManager.getApiService()
+                .claimSMSDispatch(deviceId, smsId, apiKey, claim)
+                .execute()
+            if (!response.isSuccessful) {
+                Log.w(TAG, "Dispatch attempt was not claimable")
+                return Result.failure()
+            }
+        } catch (e: IOException) {
+            Log.w(TAG, "Could not claim dispatch attempt")
+            return if (expiresAtMillis > System.currentTimeMillis()) Result.retry() else Result.failure()
+        }
+
         val resolvedSim = resolveSim(context, simSubscriptionId)
 
         if (resolvedSim != null) {

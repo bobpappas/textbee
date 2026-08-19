@@ -167,12 +167,7 @@ class DashboardViewModel(app: Application) : AndroidViewModel(app) {
                     _state.update { it.copy(isGatewayEnabled = enabled) }
                     try {
                         if (enabled) {
-                            if (SharedPreferenceHelper.getSharedPreferenceBoolean(
-                                    context, AppConstants.SHARED_PREFS_STICKY_NOTIFICATION_ENABLED_KEY, false
-                                )
-                            ) {
-                                TextBeeUtils.startStickyNotificationService(context)
-                            }
+                            TextBeeUtils.startStickyNotificationService(context)
                             HeartbeatManager.scheduleHeartbeat(context)
                         } else {
                             TextBeeUtils.stopStickyNotificationService(context)

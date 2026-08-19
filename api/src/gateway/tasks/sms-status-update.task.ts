@@ -19,30 +19,56 @@ export class SmsStatusUpdateTask {
    * Cron job that runs every 5 minutes to update the status of SMS messages
    * that have been pending or dispatched for more than 20 minutes without any status updates.
    */
-  @Cron(CronExpression.EVERY_5_MINUTES)
+  @Cron(CronExpression.EVERY_MINUTE)
   async handlePendingSmsTimeout() {
     this.logger.log('Running cron job to update stale pending and dispatched SMS messages');
 
+    const twoMinutesAgo = new Date();
+    twoMinutesAgo.setMinutes(twoMinutesAgo.getMinutes() - 2);
     const twentyMinutesAgo = new Date();
     twentyMinutesAgo.setMinutes(twentyMinutesAgo.getMinutes() - 20);
 
     try {
+      const timedOutSms = await this.smsModel
+        .find({
+          status: 'pending',
+          requestedAt: { $lt: twoMinutesAgo },
+        })
+        .select('smsBatch')
+        .lean()
       const pendingResult = await this.smsModel.updateMany(
         {
           status: 'pending',
-          requestedAt: { $lt: twentyMinutesAgo },
+          requestedAt: { $lt: twoMinutesAgo },
         },
         {
           $set: {
-            status: 'unknown',
+            status: 'failed',
+            failedAt: new Date(),
+            errorCode: 'GATEWAY_UNAVAILABLE',
             errorMessage:
-              'Status update timeout - no response received after 20 minutes',
+              'Gateway unavailable - the phone did not claim this command within 2 minutes',
           },
         },
       );
       this.logger.log(
-        `Updated ${pendingResult.modifiedCount} SMS messages from 'pending' to 'unknown' status`,
+        `Updated ${pendingResult.modifiedCount} unclaimed SMS messages from 'pending' to 'failed' status`,
       );
+
+      const timedOutBatchIds = [
+        ...new Set(timedOutSms.map((sms) => sms.smsBatch?.toString()).filter(Boolean)),
+      ]
+      if (timedOutBatchIds.length > 0) {
+        await this.smsBatchModel.updateMany(
+          { _id: { $in: timedOutBatchIds } },
+          {
+            $set: {
+              status: 'failed',
+              error: 'Gateway unavailable - a dispatch command was not claimed within 2 minutes',
+            },
+          },
+        )
+      }
 
       const dispatchedResult = await this.smsModel.updateMany(
         {
@@ -81,4 +107,4 @@ export class SmsStatusUpdateTask {
       this.logger.error('Error updating stale pending SMS messages', error);
     }
   }
-} 
+}

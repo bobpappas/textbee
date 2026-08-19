@@ -486,6 +486,30 @@ export class HeartbeatInputDTO {
 
   @ApiProperty({ type: SimInfoCollectionDTO, required: false })
   simInfo?: SimInfoCollectionDTO
+
+  @ApiProperty({ type: Boolean, required: false })
+  reliabilityModeActive?: boolean
+
+  @ApiProperty({ type: Boolean, required: false })
+  smsPermissionGranted?: boolean
+
+  @ApiProperty({ type: Boolean, required: false })
+  notificationPermissionGranted?: boolean
+
+  @ApiProperty({ type: Boolean, required: false })
+  networkConnected?: boolean
+
+  @ApiProperty({ type: Boolean, required: false })
+  backgroundRestricted?: boolean
+
+  @ApiProperty({ type: Boolean, required: false })
+  batteryOptimizationRestricted?: boolean
+
+  @ApiProperty({ type: String, required: false })
+  reliabilityReasonCode?: string
+
+  @ApiProperty({ type: String, required: false })
+  bootSessionId?: string
 }
 
 export class HeartbeatResponseDTO {
@@ -516,4 +540,12 @@ export class HeartbeatResponseDTO {
     description: 'Device name (if updated)',
   })
   name?: string
+}
+
+export class ClaimSMSDispatchInputDTO {
+  @ApiProperty({ type: String, required: true })
+  attemptId: string
+
+  @ApiProperty({ type: String, required: true })
+  expiresAt: string
 }

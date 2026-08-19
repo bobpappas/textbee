@@ -94,7 +94,7 @@ export class HeartbeatCheckTask {
           },
           token: device.fcmToken,
           android: {
-            priority: 'high',
+            priority: 'normal',
           },
         }
 

@@ -16,7 +16,7 @@ object HeartbeatManager {
     fun scheduleHeartbeat(context: Context) {
         val appContext = context.applicationContext
         var intervalMinutes = SharedPreferenceHelper.getSharedPreferenceInt(
-            appContext, AppConstants.SHARED_PREFS_HEARTBEAT_INTERVAL_MINUTES_KEY, 30
+            appContext, AppConstants.SHARED_PREFS_HEARTBEAT_INTERVAL_MINUTES_KEY, MIN_INTERVAL_MINUTES
         )
         if (intervalMinutes < MIN_INTERVAL_MINUTES) {
             Log.w(TAG, "Interval $intervalMinutes minutes is less than minimum $MIN_INTERVAL_MINUTES minutes, using minimum")

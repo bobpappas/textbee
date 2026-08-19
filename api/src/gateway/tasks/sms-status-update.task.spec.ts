@@ -18,6 +18,11 @@ describe('SmsStatusUpdateTask', () => {
           provide: getModelToken(SMS.name),
           useValue: {
             updateMany: jest.fn().mockResolvedValue({ modifiedCount: 5 }),
+            find: jest.fn().mockReturnValue({
+              select: jest.fn().mockReturnValue({
+                lean: jest.fn().mockResolvedValue([{ smsBatch: 'batch-1' }]),
+              }),
+            }),
           },
         },
         {
@@ -39,7 +44,7 @@ describe('SmsStatusUpdateTask', () => {
   });
 
   describe('handlePendingSmsTimeout', () => {
-    it('should update stale pending SMS messages to unknown status', async () => {
+    it('should fail SMS messages not claimed within two minutes', async () => {
       jest.spyOn(smsModel, 'updateMany');
       jest.spyOn(smsBatchModel, 'updateMany');
 
@@ -53,13 +58,25 @@ describe('SmsStatusUpdateTask', () => {
         }),
         {
           $set: {
-            status: 'unknown',
-            errorMessage: 'Status update timeout - no response received after 20 minutes',
+            status: 'failed',
+            failedAt: expect.any(Date),
+            errorCode: 'GATEWAY_UNAVAILABLE',
+            errorMessage: 'Gateway unavailable - the phone did not claim this command within 2 minutes',
           },
         },
       );
 
       // Check that SMSBatch model was updated with correct query
+      expect(smsBatchModel.updateMany).toHaveBeenCalledWith(
+        { _id: { $in: ['batch-1'] } },
+        {
+          $set: {
+            status: 'failed',
+            error: 'Gateway unavailable - a dispatch command was not claimed within 2 minutes',
+          },
+        },
+      );
+
       expect(smsBatchModel.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
           status: 'pending',
@@ -74,4 +91,4 @@ describe('SmsStatusUpdateTask', () => {
       );
     });
   });
-}); 
+});

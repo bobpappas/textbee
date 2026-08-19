@@ -124,12 +124,11 @@ public class MainActivity extends AppCompatActivity {
         crashlytics.setCustomKey("app_version", versionName);
         crashlytics.setCustomKey("app_version_code", BuildConfig.VERSION_CODE);
 
-        // Start sticky notification service if enabled
+        // Reliability Mode is required whenever the gateway is enabled.
         boolean gatewayEnabled = SharedPreferenceHelper.getSharedPreferenceBoolean(mContext, AppConstants.SHARED_PREFS_GATEWAY_ENABLED_KEY, false);
-        boolean stickyNotificationEnabled = SharedPreferenceHelper.getSharedPreferenceBoolean(mContext, AppConstants.SHARED_PREFS_STICKY_NOTIFICATION_ENABLED_KEY, false);
-        if (gatewayEnabled && stickyNotificationEnabled) {
+        if (gatewayEnabled) {
             TextBeeUtils.startStickyNotificationService(mContext);
-            Log.d(TAG, "Starting sticky notification service on app start");
+            Log.d(TAG, "Starting gateway reliability service on app start");
         }
 
         // Schedule heartbeat if device is enabled and registered
@@ -197,10 +196,7 @@ public class MainActivity extends AppCompatActivity {
                     boolean enabled = Boolean.TRUE.equals(Objects.requireNonNull(response.body()).data.get("enabled"));
                     compoundButton.setChecked(enabled);
                     if (enabled) {
-                        // Check if sticky notification is enabled
-                        if (SharedPreferenceHelper.getSharedPreferenceBoolean(mContext, AppConstants.SHARED_PREFS_STICKY_NOTIFICATION_ENABLED_KEY, false)) {
-                            TextBeeUtils.startStickyNotificationService(mContext);
-                        }
+                        TextBeeUtils.startStickyNotificationService(mContext);
                         // Schedule heartbeat
                         HeartbeatManager.scheduleHeartbeat(mContext);
                     } else {
@@ -229,20 +225,8 @@ public class MainActivity extends AppCompatActivity {
             Snackbar.make(view, "Receive SMS " + (isCheked ? "enabled" : "disabled"), Snackbar.LENGTH_LONG).show();
         });
 
-        // Setup sticky notification switch
-        stickyNotificationSwitch.setChecked(SharedPreferenceHelper.getSharedPreferenceBoolean(mContext, AppConstants.SHARED_PREFS_STICKY_NOTIFICATION_ENABLED_KEY, false));
-        stickyNotificationSwitch.setOnCheckedChangeListener((compoundButton, isChecked) -> {
-            View view = compoundButton.getRootView();
-            SharedPreferenceHelper.setSharedPreferenceBoolean(mContext, AppConstants.SHARED_PREFS_STICKY_NOTIFICATION_ENABLED_KEY, isChecked);
-            
-            if (isChecked) {
-                TextBeeUtils.startStickyNotificationService(mContext);
-                Snackbar.make(view, "Background service enabled - app will be more reliable", Snackbar.LENGTH_LONG).show();
-            } else {
-                TextBeeUtils.stopStickyNotificationService(mContext);
-                Snackbar.make(view, "Background service disabled - app may be killed when in background", Snackbar.LENGTH_LONG).show();
-            }
-        });
+        stickyNotificationSwitch.setChecked(true);
+        stickyNotificationSwitch.setEnabled(false);
 
         // TODO: check gateway status/api key/device validity and update UI accordingly
         registerDeviceBtn.setOnClickListener(view -> {

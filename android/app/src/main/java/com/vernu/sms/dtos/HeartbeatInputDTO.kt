@@ -18,4 +18,12 @@ class HeartbeatInputDTO {
     var receiveSMSEnabled: Boolean? = null
     var smsSendDelaySeconds: Int? = null
     var simInfo: SimInfoCollectionDTO? = null
+    var reliabilityModeActive: Boolean? = null
+    var smsPermissionGranted: Boolean? = null
+    var notificationPermissionGranted: Boolean? = null
+    var networkConnected: Boolean? = null
+    var backgroundRestricted: Boolean? = null
+    var batteryOptimizationRestricted: Boolean? = null
+    var reliabilityReasonCode: String? = null
+    var bootSessionId: String? = null
 }

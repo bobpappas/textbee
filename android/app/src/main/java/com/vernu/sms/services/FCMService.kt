@@ -20,6 +20,7 @@ import com.vernu.sms.dtos.RegisterDeviceInputDTO
 import com.vernu.sms.dtos.RegisterDeviceResponseDTO
 import com.vernu.sms.helpers.HeartbeatHelper
 import com.vernu.sms.helpers.HeartbeatManager
+import com.vernu.sms.helpers.DispatchAttemptValidator
 import com.vernu.sms.helpers.SharedPreferenceHelper
 import com.vernu.sms.models.SMSPayload
 import com.vernu.sms.workers.SmsSendWorker
@@ -34,7 +35,7 @@ class FCMService : FirebaseMessagingService() {
     }
 
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
-        Log.d(TAG, remoteMessage.data.toString())
+        Log.d(TAG, "Received FCM data command")
 
         try {
             val messageType = remoteMessage.data["type"]
@@ -46,11 +47,35 @@ class FCMService : FirebaseMessagingService() {
             val smsPayload = Gson().fromJson(remoteMessage.data["smsData"], SMSPayload::class.java)
 
             if (remoteMessage.data.isNotEmpty()) {
+                if (!isDispatchAttemptAccepted(smsPayload)) return
+                sendNotification("TextBee gateway", "Gateway command received")
                 sendSMS(smsPayload)
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error processing FCM message: ${e.message}")
         }
+    }
+
+    private fun isDispatchAttemptAccepted(payload: SMSPayload?): Boolean {
+        val attemptId = payload?.attemptId
+        val expiresAt = payload?.expiresAt
+        if (attemptId.isNullOrBlank() || expiresAt.isNullOrBlank()) {
+            Log.w(TAG, "Rejected gateway command without attempt identity")
+            return false
+        }
+        if (!DispatchAttemptValidator.isFresh(attemptId, expiresAt, System.currentTimeMillis())) {
+            Log.w(TAG, "Rejected expired gateway command")
+            return false
+        }
+        val preferences = getSharedPreferences("dispatch_attempts", Context.MODE_PRIVATE)
+        synchronized(FCMService::class.java) {
+            if (preferences.getBoolean(attemptId, false)) {
+                Log.i(TAG, "Ignored duplicate gateway command")
+                return false
+            }
+            preferences.edit().putBoolean(attemptId, true).apply()
+        }
+        return true
     }
 
     private fun handleHeartbeatCheck() {
@@ -92,7 +117,8 @@ class FCMService : FirebaseMessagingService() {
         for (recipient in recipients) {
             SmsSendWorker.enqueue(
                 this, recipient, smsPayload.message ?: "",
-                smsPayload.smsId, smsPayload.smsBatchId, smsPayload.simSubscriptionId
+                smsPayload.smsId, smsPayload.smsBatchId, smsPayload.simSubscriptionId,
+                smsPayload.attemptId, smsPayload.expiresAt
             )
         }
 

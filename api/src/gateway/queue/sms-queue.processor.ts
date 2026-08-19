@@ -12,6 +12,8 @@ import { Logger } from '@nestjs/common'
 import { ConsentService } from '../../consent/consent.service'
 import { SelfHostedPolicyService } from '../../billing/self-hosted-policy.service'
 import { ELIGIBILITY_CHANGED_MESSAGE } from '../messaging-eligibility'
+import { withFreshDispatchAttempt } from '../dispatch-attempt'
+import { getGatewayAvailability } from '../device-availability'
 
 function getFcmErrorCode(
   error: { code?: string; message?: string } | null,
@@ -81,11 +83,27 @@ export class SmsQueueProcessor {
     const fcmMessages = []
     for (const fcmMessage of queuedFcmMessages) {
       const smsData = JSON.parse(fcmMessage.data.smsData)
+      const policyContext = smsData.policyContext || { kind: 'ORDINARY' }
+      const availability = device && getGatewayAvailability(device as any)
+      if (policyContext.kind === 'ORDINARY' && !availability?.available) {
+        await this.smsModel.updateOne(
+          { _id: smsData.smsId as any, status: 'pending' },
+          {
+            $set: {
+              status: 'failed',
+              failedAt: new Date(),
+              errorCode: availability?.reasonCode || 'GATEWAY_UNAVAILABLE',
+              errorMessage: 'Gateway unavailable at dispatch time',
+            },
+          },
+        )
+        continue
+      }
       const [decision] = device?.user
         ? await this.consentService.authorizeRecipients(
             String((device.user as any)._id || device.user),
             smsData.recipients,
-            smsData.policyContext || { kind: 'ORDINARY' },
+            policyContext,
           )
         : []
       if (decision?.eligible) {
@@ -151,7 +169,10 @@ export class SmsQueueProcessor {
           throw error
         })
 
-      const response = await firebaseAdmin.messaging().sendEach(fcmMessages)
+      const dispatchMessages = fcmMessages.map((message) =>
+        withFreshDispatchAttempt(message),
+      )
+      const response = await firebaseAdmin.messaging().sendEach(dispatchMessages)
 
       // this.logger.debug(
       //   `SMS Job ${job.id}( smsBatchId: ${smsBatchId}) completed, success: ${response.successCount}, failures: ${response.failureCount}`,
@@ -167,7 +188,7 @@ export class SmsQueueProcessor {
       for (let i = 0; i < response.responses.length; i++) {
         if (!response.responses[i].success) {
           try {
-            const smsData = JSON.parse(fcmMessages[i].data.smsData)
+            const smsData = JSON.parse(dispatchMessages[i].data.smsData)
             const fcmError = response.responses[i].error
             failedSmsIds.push(String(smsData.smsId))
             failedUpdates.push({
@@ -178,23 +199,6 @@ export class SmsQueueProcessor {
           } catch (parseError) {
             this.logger.error(
               `Failed to mark SMS as failed for FCM message index ${i}`,
-              parseError,
-            )
-          }
-        }
-      }
-
-      // Mark individual SMS records as dispatched when FCM push succeeded
-      const now = new Date()
-      const dispatchedSmsIds: string[] = []
-      for (let i = 0; i < response.responses.length; i++) {
-        if (response.responses[i].success) {
-          try {
-            const smsData = JSON.parse(fcmMessages[i].data.smsData)
-            dispatchedSmsIds.push(String(smsData.smsId))
-          } catch (parseError) {
-            this.logger.error(
-              `Failed to mark SMS as dispatched for FCM message index ${i}`,
               parseError,
             )
           }
@@ -218,14 +222,9 @@ export class SmsQueueProcessor {
         }
       }
 
-      if (dispatchedSmsIds.length > 0) {
-        await this.smsModel.updateMany(
-          { _id: { $in: dispatchedSmsIds } as any },
-          {
-            $set: { status: 'dispatched', dispatchedAt: now },
-          },
-        )
-      }
+      // FCM acceptance is not a device claim. Keep successful pushes pending;
+      // the Android status callback advances them only after the command is
+      // accepted on-device. The timeout task closes unclaimed attempts.
 
       if (device?.user && failedSmsIds.length > 0) {
         const failedSmsDocuments = await this.smsModel.find({
@@ -255,7 +254,7 @@ export class SmsQueueProcessor {
         .exec()
 
       // Update batch status
-      const smsBatch = await this.smsBatchModel.findByIdAndUpdate(
+      await this.smsBatchModel.findByIdAndUpdate(
         smsBatchId,
         {
           $inc: {
@@ -267,11 +266,7 @@ export class SmsQueueProcessor {
       )
 
       const batchStatus =
-        smsBatch.failureCount === smsBatch.recipientCount
-          ? 'failed'
-          : smsBatch.successCount === smsBatch.recipientCount
-            ? 'completed'
-            : 'partial_success'
+        response.failureCount === fcmMessages.length ? 'failed' : 'processing'
       await this.smsBatchModel.findByIdAndUpdate(smsBatchId, {
         $set: { status: batchStatus },
       })

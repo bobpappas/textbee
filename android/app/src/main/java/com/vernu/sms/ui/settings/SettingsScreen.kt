@@ -2,6 +2,7 @@ package com.vernu.sms.ui.settings
 
 import android.content.Intent
 import android.net.Uri
+import android.provider.Settings
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -187,12 +188,17 @@ fun SettingsScreen(
 
             SettingsSectionHeader("System")
 
-            SettingsSwitchRow(
+            SettingsRow(
                 icon = Icons.Default.NotificationsActive,
-                title = "Sticky Notification",
-                subtitle = "Keeps the gateway alive in the background",
-                checked = state.isStickyNotificationEnabled,
-                onCheckedChange = { viewModel.setStickyNotification(it) }
+                title = "Reliability Mode",
+                subtitle = if (state.isGatewayEnabled) "Required while enabled. Review Android battery settings." else "Starts automatically when the gateway is enabled",
+                onClick = {
+                    context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+                },
+                trailing = {
+                    Icon(Icons.Default.ChevronRight, contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             )
 
             SettingsRow(

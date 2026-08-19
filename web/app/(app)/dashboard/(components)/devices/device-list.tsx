@@ -42,10 +42,21 @@ import {
   isDeviceOutdated,
   latestAppVersionCode,
 } from './update-app-helpers'
+import {
+  getAvailabilityBadgeVariant,
+  getAvailabilityLabel,
+} from './device-availability'
 
 type DeviceRow = DeviceVersionCandidate & {
   createdAt: string
   enabled?: boolean
+  lastHeartbeat?: string | null
+  availability?: {
+    status: 'ONLINE' | 'STALE' | 'NEEDS_ATTENTION' | 'OFFLINE' | 'DISABLED'
+    available: boolean
+    reasonCode: string
+    nextAction: string
+  }
 }
 
 export default function DeviceList() {
@@ -219,15 +230,14 @@ export default function DeviceList() {
                             Update available
                           </Badge>
                         )}
-                        {/* Colour and text now come from the same field. The
-                            variant used to key off device.status, which the
-                            API never sends, so an enabled device was styled
-                            identically to a disabled one. */}
                         <Badge
-                          variant={device.enabled ? 'default' : 'secondary'}
+                          variant={getAvailabilityBadgeVariant(device.availability?.status)}
                           className='text-xs'
                         >
-                          {device.enabled ? 'Enabled' : 'Disabled'}
+                          {getAvailabilityLabel(
+                            device.availability?.status,
+                            device.enabled
+                          ).replace('_', ' ')}
                         </Badge>
                       </div>
                     </div>
@@ -258,7 +268,20 @@ export default function DeviceList() {
                       <div>
                         Registered <RelativeTime value={device.createdAt} />
                       </div>
+                      <div>
+                        Last heartbeat:{' '}
+                        {device.lastHeartbeat ? (
+                          <RelativeTime value={device.lastHeartbeat} />
+                        ) : (
+                          'never'
+                        )}
+                      </div>
                     </div>
+                    {device.availability && !device.availability.available && (
+                      <p className='mt-2 text-xs text-amber-700 dark:text-amber-300'>
+                        {device.availability.nextAction}
+                      </p>
+                    )}
                     {isDeviceOutdated(device as DeviceVersionCandidate) && (
                       <div className='mt-3 flex items-center justify-between gap-2 rounded-lg border border-brand-100 bg-brand-50/60 px-3 py-2 dark:border-brand-900/50 dark:bg-brand-950/20'>
                         <p className='text-xs text-muted-foreground'>
