@@ -143,8 +143,18 @@ export class GatewayController {
 
   @ApiOperation({ summary: 'Get received SMS from a device' })
   @ApiResponse({ status: 200, type: RetrieveSMSResponseDTO })
-  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number (default: 1)' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Number of items per page (default: 50, max: 100)' })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Page number (default: 1)',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of items per page (default: 50, max: 100)',
+  })
   @UseGuards(AuthGuard, CanModifyDevice)
   // deprecate getReceivedSMS route in favor of get-received-sms
   @Get(['/devices/:id/getReceivedSMS', '/devices/:id/get-received-sms'])
@@ -153,18 +163,42 @@ export class GatewayController {
     @Request() req,
   ): Promise<RetrieveSMSResponseDTO> {
     // Extract page and limit from query params, with defaults and max values
-    const page = req.query.page ? parseInt(req.query.page, 10) : 1;
-    const limit = req.query.limit ? Math.min(parseInt(req.query.limit, 10), 100) : 50;
-    
-    const result = await this.gatewayService.getReceivedSMS(deviceId, page, limit)
-    return result;
+    const page = req.query.page ? parseInt(req.query.page, 10) : 1
+    const limit = req.query.limit
+      ? Math.min(parseInt(req.query.limit, 10), 100)
+      : 50
+
+    const result = await this.gatewayService.getReceivedSMS(
+      deviceId,
+      page,
+      limit,
+    )
+    return result
   }
 
-  @ApiOperation({ summary: 'Get message history (sent and received) from a device' })
+  @ApiOperation({
+    summary: 'Get message history (sent and received) from a device',
+  })
   @ApiResponse({ status: 200, type: RetrieveSMSResponseDTO })
-  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number (default: 1)' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Number of items per page (default: 50, max: 100)' })
-  @ApiQuery({ name: 'type', required: false, type: String, description: 'Filter by message type: all, sent, or received (default: all)' })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Page number (default: 1)',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of items per page (default: 50, max: 100)',
+  })
+  @ApiQuery({
+    name: 'type',
+    required: false,
+    type: String,
+    description:
+      'Filter by message type: all, sent, or received (default: all)',
+  })
   @UseGuards(AuthGuard, CanModifyDevice)
   @Get('/devices/:id/messages')
   async getMessages(
@@ -172,13 +206,21 @@ export class GatewayController {
     @Request() req,
   ): Promise<RetrieveSMSResponseDTO> {
     // Extract page and limit from query params, with defaults and max values
-    const page = req.query.page ? parseInt(req.query.page, 10) : 1;
-    const limit = req.query.limit ? Math.min(parseInt(req.query.limit, 10), 100) : 50;
-    const type = req.query.type || '';
-    const search = req.query.search || '';
+    const page = req.query.page ? parseInt(req.query.page, 10) : 1
+    const limit = req.query.limit
+      ? Math.min(parseInt(req.query.limit, 10), 100)
+      : 50
+    const type = req.query.type || ''
+    const search = req.query.search || ''
 
-    const result = await this.gatewayService.getMessages(deviceId, type, page, limit, search);
-    return result;
+    const result = await this.gatewayService.getMessages(
+      deviceId,
+      type,
+      page,
+      limit,
+      search,
+    )
+    return result
   }
 
   @ApiOperation({ summary: 'Update SMS status' })
@@ -189,8 +231,8 @@ export class GatewayController {
     @Param('id') deviceId: string,
     @Body() dto: UpdateSMSStatusDTO,
   ) {
-    const data = await this.gatewayService.updateSMSStatus(deviceId, dto);
-    return { data };
+    const data = await this.gatewayService.updateSMSStatus(deviceId, dto)
+    return { data }
   }
 
   @ApiOperation({ summary: 'Claim a short-lived SMS dispatch command' })
@@ -212,8 +254,8 @@ export class GatewayController {
     @Param('id') deviceId: string,
     @Param('smsId') smsId: string,
   ) {
-    const data = await this.gatewayService.getSMSById(smsId);
-    return { data };
+    const data = await this.gatewayService.getSMSById(smsId)
+    return { data }
   }
 
   @ApiOperation({ summary: 'Get an SMS batch by ID with all its SMS messages' })
@@ -223,7 +265,7 @@ export class GatewayController {
     @Param('id') deviceId: string,
     @Param('smsBatchId') smsBatchId: string,
   ) {
-    const data = await this.gatewayService.getSmsBatchById(smsBatchId);
-    return { data };
+    const data = await this.gatewayService.getSmsBatchById(smsBatchId)
+    return { data }
   }
 }

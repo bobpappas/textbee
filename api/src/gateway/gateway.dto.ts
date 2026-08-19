@@ -28,7 +28,11 @@ export class SimInfoDTO {
   @ApiProperty({ type: String, required: false })
   countryIso?: string
 
-  @ApiProperty({ type: String, required: false, enum: ['PHYSICAL_SIM', 'ESIM'] })
+  @ApiProperty({
+    type: String,
+    required: false,
+    enum: ['PHYSICAL_SIM', 'ESIM'],
+  })
   subscriptionType?: string
 }
 
@@ -107,7 +111,8 @@ export class SMSData {
   @ApiProperty({
     type: String,
     required: false,
-    description: 'Optional ISO 8601 date string to schedule SMS for future delivery (e.g., "2024-01-15T10:30:00Z"). Must be a future date.',
+    description:
+      'Optional ISO 8601 date string to schedule SMS for future delivery (e.g., "2024-01-15T10:30:00Z"). Must be a future date.',
     example: '2024-01-15T10:30:00Z',
   })
   scheduledAt?: string
@@ -271,28 +276,28 @@ export class PaginationMetaDTO {
     required: true,
     description: 'Current page number',
   })
-  page: number;
+  page: number
 
   @ApiProperty({
     type: Number,
     required: true,
     description: 'Number of items per page',
   })
-  limit: number;
+  limit: number
 
   @ApiProperty({
     type: Number,
     required: true,
     description: 'Total number of items',
   })
-  total: number;
+  total: number
 
   @ApiProperty({
     type: Number,
     required: true,
     description: 'Total number of pages',
   })
-  totalPages: number;
+  totalPages: number
 }
 
 export class RetrieveSMSResponseDTO {

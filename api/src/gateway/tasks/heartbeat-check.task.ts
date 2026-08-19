@@ -103,7 +103,9 @@ export class HeartbeatCheckTask {
       }
 
       if (fcmMessages.length === 0) {
-        this.logger.warn('No valid FCM tokens found for devices with stale heartbeats')
+        this.logger.warn(
+          'No valid FCM tokens found for devices with stale heartbeats',
+        )
         return
       }
 
