@@ -50,6 +50,15 @@ export class AuthorizationAuditEvent {
   @Prop({ type: String, immutable: true })
   newDisplayValue?: string
 
+  @Prop({ type: String, immutable: true })
+  oldState?: string
+
+  @Prop({ type: String, immutable: true })
+  newState?: string
+
+  @Prop({ type: String, maxlength: 500, immutable: true })
+  reason?: string
+
   @Prop({ type: String, required: true, immutable: true })
   correlationId: string
 

@@ -40,6 +40,25 @@ export class OperatorMembership {
   @Prop({ type: Date, required: true })
   activatedAt: Date
 
+  @Prop({ type: Date })
+  suspendedAt?: Date
+
+  @Prop({ type: Date })
+  revokedAt?: Date
+
+  @Prop({ type: Date, required: true, default: Date.now })
+  changedAt: Date
+
+  @Prop({
+    type: mongoose.Schema.Types.ObjectId,
+    ref: User.name,
+    required: true,
+  })
+  changedBy: Types.ObjectId
+
+  @Prop({ type: String, maxlength: 500 })
+  reason?: string
+
   createdAt?: Date
 }
 
@@ -49,3 +68,4 @@ OperatorMembershipSchema.index(
   { organizationId: 1, userId: 1 },
   { unique: true },
 )
+OperatorMembershipSchema.index({ organizationId: 1, status: 1, changedAt: -1 })

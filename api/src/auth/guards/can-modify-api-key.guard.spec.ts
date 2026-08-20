@@ -14,10 +14,15 @@ const contextFor = (request: any): ExecutionContext =>
 describe('CanModifyApiKey', () => {
   let guard: CanModifyApiKey
   let authService: { findApiKeyById: jest.Mock }
+  let policy: { activeAdminMembership: jest.Mock }
 
   beforeEach(() => {
     authService = { findApiKeyById: jest.fn() }
-    guard = new CanModifyApiKey(authService as unknown as AuthService)
+    policy = { activeAdminMembership: jest.fn() }
+    guard = new CanModifyApiKey(
+      authService as unknown as AuthService,
+      policy as any,
+    )
   })
 
   it('allows the owner of the api key', async () => {
@@ -36,18 +41,58 @@ describe('CanModifyApiKey', () => {
     )
   })
 
-  it('allows an admin regardless of ownership', async () => {
+  it('does not treat the legacy ADMIN role as organization authority', async () => {
     authService.findApiKeyById.mockResolvedValue({ user: 'owner' })
     const request = {
       params: { id: VALID_ID },
       user: { id: 'someone-else', role: UserRole.ADMIN },
     }
 
+    await expect(guard.canActivate(contextFor(request))).rejects.toMatchObject({
+      status: 404,
+    })
+  })
+
+  it('uses an active organization grant for a migrated API key', async () => {
+    authService.findApiKeyById.mockResolvedValue({
+      organizationId: VALID_ID,
+      user: 'legacy-owner',
+    })
+    policy.activeAdminMembership.mockResolvedValue({ _id: 'membership' })
+    const request = {
+      params: { id: VALID_ID },
+      user: { id: '507f191e810c19729de860ea' },
+    }
+
     await expect(guard.canActivate(contextFor(request))).resolves.toBe(true)
+    expect(request).toHaveProperty('organizationId', VALID_ID)
+  })
+
+  it('does not let an API key administer organization API keys', async () => {
+    authService.findApiKeyById.mockResolvedValue({
+      organizationId: VALID_ID,
+      user: 'legacy-owner',
+    })
+    const request = {
+      params: { id: VALID_ID },
+      user: { id: 'legacy-owner' },
+      apiKey: {
+        organizationId: VALID_ID,
+        purpose: 'GATEWAY',
+        scopes: ['gateway:operate'],
+      },
+    }
+
+    await expect(guard.canActivate(contextFor(request))).rejects.toMatchObject({
+      status: 404,
+    })
   })
 
   it('throws 400 for an invalid id', async () => {
-    const request = { params: { id: 'not-an-objectid' }, user: { id: 'user_1' } }
+    const request = {
+      params: { id: 'not-an-objectid' },
+      user: { id: 'user_1' },
+    }
 
     await expect(guard.canActivate(contextFor(request))).rejects.toThrow(
       HttpException,

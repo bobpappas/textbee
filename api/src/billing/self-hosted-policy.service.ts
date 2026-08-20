@@ -40,6 +40,7 @@ export class SelfHostedPolicyService {
 
   async reserve(input: {
     deviceId: string | Types.ObjectId
+    organizationId?: string | Types.ObjectId
     kind: SafetyKind
     messages: Array<{ message: string; recipientCount: number }>
     effectiveAt?: Date
@@ -60,6 +61,9 @@ export class SelfHostedPolicyService {
     )
     const at = input.effectiveAt || new Date()
     const deviceId = new Types.ObjectId(String(input.deviceId))
+    const organizationId = input.organizationId
+      ? new Types.ObjectId(String(input.organizationId))
+      : undefined
     const reservationId = randomUUID()
     const event = {
       reservationId,
@@ -70,7 +74,14 @@ export class SelfHostedPolicyService {
     }
     await this.usage.updateOne(
       { deviceId },
-      { $setOnInsert: { deviceId, ordinaryEvents: [], complianceEvents: [] } },
+      {
+        $setOnInsert: {
+          deviceId,
+          ...(organizationId ? { organizationId } : {}),
+          ordinaryEvents: [],
+          complianceEvents: [],
+        },
+      },
       { upsert: true },
     )
     const eventsField =

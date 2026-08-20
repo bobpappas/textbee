@@ -15,6 +15,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger'
 import { AuthGuard } from '../auth/guards/auth.guard'
 import { GroupsService } from './groups.service'
 import { GroupMessagingService } from './group-messaging.service'
+import { OperatorAccessService } from '../organizations/operator-access.service'
 
 @ApiTags('organization groups')
 @ApiBearerAuth()
@@ -24,6 +25,7 @@ export class GroupsController {
   constructor(
     private readonly groups: GroupsService,
     private readonly messaging: GroupMessagingService,
+    private readonly operatorAccess?: OperatorAccessService,
   ) {}
 
   @Get('receiving-numbers')
@@ -38,8 +40,17 @@ export class GroupsController {
   operators(
     @Param('organizationId') organizationId: string,
     @Request() request,
+    @Query('status') status?: string,
+    @Query('organizationAdmin') organizationAdmin?: string,
   ) {
-    return this.data(this.groups.operators(organizationId, request.user))
+    return this.data(
+      this.operatorAccess!.list(
+        organizationId,
+        request.user,
+        status,
+        organizationAdmin,
+      ),
+    )
   }
 
   @Get('groups')
@@ -239,6 +250,46 @@ export class GroupsController {
   ) {
     return this.data(
       this.groups.revokeOwner(
+        organizationId,
+        groupId,
+        membershipId,
+        request.user,
+        input,
+        requestId,
+      ),
+    )
+  }
+
+  @Post('groups/:groupId/senders/:membershipId')
+  assignSender(
+    @Param('organizationId') organizationId: string,
+    @Param('groupId') groupId: string,
+    @Param('membershipId') membershipId: string,
+    @Request() request,
+    @Headers('x-request-id') requestId?: string,
+  ) {
+    return this.data(
+      this.groups.assignSender(
+        organizationId,
+        groupId,
+        membershipId,
+        request.user,
+        requestId,
+      ),
+    )
+  }
+
+  @Delete('groups/:groupId/senders/:membershipId')
+  revokeSender(
+    @Param('organizationId') organizationId: string,
+    @Param('groupId') groupId: string,
+    @Param('membershipId') membershipId: string,
+    @Request() request,
+    @Body() input: unknown,
+    @Headers('x-request-id') requestId?: string,
+  ) {
+    return this.data(
+      this.groups.revokeSender(
         organizationId,
         groupId,
         membershipId,

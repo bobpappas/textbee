@@ -11,11 +11,12 @@ export default function OrganizationContextState({
   onRefresh,
   isRefreshing = false,
 }: {
-  state: 'NO_ACCESS' | 'SELECTION_REQUIRED'
+  state: 'NO_ACCESS' | 'SELECTION_REQUIRED' | 'NO_PERMISSIONS'
   onRefresh: () => void
   isRefreshing?: boolean
 }) {
   const noAccess = state === 'NO_ACCESS'
+  const noPermissions = state === 'NO_PERMISSIONS'
   return (
     <section className="container mx-auto px-4 py-10 sm:px-6">
       <Card className="mx-auto max-w-xl">
@@ -27,12 +28,16 @@ export default function OrganizationContextState({
             <h1 className="text-2xl font-semibold tracking-tight">
               {noAccess
                 ? 'No organization access'
-                : 'Organization selection required'}
+                : noPermissions
+                  ? 'No permissions assigned'
+                  : 'Organization selection required'}
             </h1>
             <p className="text-sm text-muted-foreground">
               {noAccess
                 ? 'Your account does not have active access to an organization. Ask an administrator to grant access, then refresh this page.'
-                : 'Your account belongs to more than one organization. Organization switching is not available in this version. Ask a platform administrator for assistance.'}
+                : noPermissions
+                  ? 'Your membership is active, but an administrator has not assigned an organization or group role. Refresh after a role is granted.'
+                  : 'Your account belongs to more than one organization. Organization switching is not available in this version. Ask a platform administrator for assistance.'}
             </p>
           </div>
           <div className="flex flex-wrap justify-center gap-2">

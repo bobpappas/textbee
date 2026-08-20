@@ -1,0 +1,110 @@
+{
+  "schema_version" : 1,
+  "feature_name" : "B014 organization operators and resource ownership",
+  "summary" : {
+    "step_occurrences" : 49,
+    "unique_steps" : 49,
+    "findings" : 4
+  },
+  "findings" : [ {
+    "kind" : "possible-synonym",
+    "confidence" : "medium",
+    "members" : [ {
+      "text" : "the operator requests an alpha device",
+      "locations" : [ {
+        "section" : "scenario",
+        "scenario_index" : 0,
+        "scenario_name" : "Organization administrator accesses an organization resource",
+        "step_index" : 1,
+        "keyword" : "When"
+      } ]
+    }, {
+      "text" : "the operator requests an alpha message",
+      "locations" : [ {
+        "section" : "scenario",
+        "scenario_index" : 1,
+        "scenario_name" : "Membership status controls organization access",
+        "step_index" : 1,
+        "keyword" : "When"
+      } ]
+    } ],
+    "reason" : "step texts share many non-placeholder tokens and may describe the same concept",
+    "suggested_action" : "Review manually before editing; normalize the Gherkin only when the different wording is accidental drift.",
+    "score" : 0.6
+  }, {
+    "kind" : "possible-synonym",
+    "confidence" : "medium",
+    "members" : [ {
+      "text" : "an active alpha operator requests a resource in <resource_organization>",
+      "locations" : [ {
+        "section" : "scenario",
+        "scenario_index" : 2,
+        "scenario_name" : "Organization predicates isolate resources",
+        "step_index" : 0,
+        "keyword" : "Given"
+      } ]
+    }, {
+      "text" : "the operator requests an alpha device",
+      "locations" : [ {
+        "section" : "scenario",
+        "scenario_index" : 0,
+        "scenario_name" : "Organization administrator accesses an organization resource",
+        "step_index" : 1,
+        "keyword" : "When"
+      } ]
+    } ],
+    "reason" : "step texts share many non-placeholder tokens and may describe the same concept",
+    "suggested_action" : "Review manually before editing; normalize the Gherkin only when the different wording is accidental drift.",
+    "score" : 0.5
+  }, {
+    "kind" : "possible-synonym",
+    "confidence" : "medium",
+    "members" : [ {
+      "text" : "an active alpha operator requests a resource in <resource_organization>",
+      "locations" : [ {
+        "section" : "scenario",
+        "scenario_index" : 2,
+        "scenario_name" : "Organization predicates isolate resources",
+        "step_index" : 0,
+        "keyword" : "Given"
+      } ]
+    }, {
+      "text" : "the operator requests an alpha message",
+      "locations" : [ {
+        "section" : "scenario",
+        "scenario_index" : 1,
+        "scenario_name" : "Membership status controls organization access",
+        "step_index" : 1,
+        "keyword" : "When"
+      } ]
+    } ],
+    "reason" : "step texts share many non-placeholder tokens and may describe the same concept",
+    "suggested_action" : "Review manually before editing; normalize the Gherkin only when the different wording is accidental drift.",
+    "score" : 0.5
+  }, {
+    "kind" : "possible-synonym",
+    "confidence" : "medium",
+    "members" : [ {
+      "text" : "the operator opens the dashboard",
+      "locations" : [ {
+        "section" : "scenario",
+        "scenario_index" : 10,
+        "scenario_name" : "Organization context controls dashboard navigation",
+        "step_index" : 1,
+        "keyword" : "When"
+      } ]
+    }, {
+      "text" : "the user opens the dashboard",
+      "locations" : [ {
+        "section" : "scenario",
+        "scenario_index" : 11,
+        "scenario_name" : "No membership shows no organization access",
+        "step_index" : 1,
+        "keyword" : "When"
+      } ]
+    } ],
+    "reason" : "step texts share many non-placeholder tokens and may describe the same concept",
+    "suggested_action" : "Review manually before editing; normalize the Gherkin only when the different wording is accidental drift.",
+    "score" : 0.5
+  } ]
+}

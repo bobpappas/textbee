@@ -1,6 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose'
 import { Document, Types } from 'mongoose'
 import { User } from '../../users/schemas/user.schema'
+import { Organization } from '../../organizations/schemas/organization.schema'
 
 export type DeviceDocument = Device & Document
 
@@ -13,6 +14,15 @@ export class Device {
 
   @Prop({ type: Types.ObjectId, ref: User.name })
   user: User | Types.ObjectId
+
+  @Prop({ type: Types.ObjectId, ref: Organization.name, index: true })
+  organizationId?: Types.ObjectId
+
+  @Prop({ type: Types.ObjectId, ref: User.name })
+  registeredBy?: Types.ObjectId
+
+  @Prop({ type: Types.ObjectId, ref: User.name })
+  lastModifiedBy?: Types.ObjectId
 
   @Prop({ type: Boolean, default: false })
   enabled: boolean
@@ -231,3 +241,4 @@ export class Device {
 }
 
 export const DeviceSchema = SchemaFactory.createForClass(Device)
+DeviceSchema.index({ organizationId: 1, enabled: 1, createdAt: -1 })

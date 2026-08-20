@@ -1,6 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose'
 import mongoose, { HydratedDocument, Types } from 'mongoose'
 import { Device } from '../gateway/schemas/device.schema'
+import { Organization } from '../organizations/schemas/organization.schema'
 
 export type SmsSafetyUsageDocument = HydratedDocument<SmsSafetyUsage>
 
@@ -17,6 +18,13 @@ export class SmsSafetyUsage {
   })
   deviceId: Types.ObjectId
 
+  @Prop({
+    type: mongoose.Schema.Types.ObjectId,
+    ref: Organization.name,
+    index: true,
+  })
+  organizationId?: Types.ObjectId
+
   @Prop({ type: [mongoose.Schema.Types.Mixed], default: [] })
   ordinaryEvents: Array<Record<string, unknown>>
 
@@ -25,3 +33,4 @@ export class SmsSafetyUsage {
 }
 
 export const SmsSafetyUsageSchema = SchemaFactory.createForClass(SmsSafetyUsage)
+SmsSafetyUsageSchema.index({ organizationId: 1, updatedAt: -1 })

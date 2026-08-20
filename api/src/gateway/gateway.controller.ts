@@ -33,6 +33,8 @@ import {
 } from './gateway.dto'
 import { GatewayService } from './gateway.service'
 import { CanModifyDevice } from './guards/can-modify-device.guard'
+import { OrganizationOperationalGuard } from '../organizations/organization-operational.guard'
+import { CanRegisterDevice } from './guards/can-register-device.guard'
 
 @ApiTags('gateway')
 @ApiBearerAuth()
@@ -40,26 +42,34 @@ import { CanModifyDevice } from './guards/can-modify-device.guard'
 export class GatewayController {
   constructor(private readonly gatewayService: GatewayService) {}
 
-  @UseGuards(AuthGuard)
+  @UseGuards(AuthGuard, OrganizationOperationalGuard)
   @Get('/stats')
   async getStats(@Request() req) {
-    const data = await this.gatewayService.getStatsForUser(req.user)
+    const data = await this.gatewayService.getStatsForOrganization(
+      req.organizationId,
+    )
     return { data }
   }
 
-  @UseGuards(AuthGuard)
+  @UseGuards(AuthGuard, CanRegisterDevice)
   @ApiOperation({ summary: 'Register device' })
   @Post('/devices')
   async registerDevice(@Body() input: RegisterDeviceInputDTO, @Request() req) {
-    const data = await this.gatewayService.registerDevice(input, req.user)
+    const data = await this.gatewayService.registerDevice(
+      input,
+      req.user,
+      req.organizationId,
+    )
     return { data }
   }
 
-  @UseGuards(AuthGuard)
+  @UseGuards(AuthGuard, OrganizationOperationalGuard)
   @ApiOperation({ summary: 'List of registered devices' })
   @Get('/devices')
   async getDevices(@Request() req) {
-    const data = await this.gatewayService.getDevicesForUser(req.user)
+    const data = await this.gatewayService.getDevicesForOrganization(
+      req.organizationId,
+    )
     return { data }
   }
 
@@ -254,7 +264,11 @@ export class GatewayController {
     @Param('id') deviceId: string,
     @Param('smsId') smsId: string,
   ) {
-    const data = await this.gatewayService.getSMSById(smsId)
+    const data = await this.gatewayService.getSMSById(
+      smsId,
+      deviceId,
+      undefined,
+    )
     return { data }
   }
 
@@ -265,7 +279,11 @@ export class GatewayController {
     @Param('id') deviceId: string,
     @Param('smsBatchId') smsBatchId: string,
   ) {
-    const data = await this.gatewayService.getSmsBatchById(smsBatchId)
+    const data = await this.gatewayService.getSmsBatchById(
+      smsBatchId,
+      deviceId,
+      undefined,
+    )
     return { data }
   }
 }

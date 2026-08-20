@@ -24,6 +24,7 @@ import {
   freshOrganizationContext,
   useOrganizationContext,
 } from '@/components/organizations/organization-context-provider'
+import OrganizationContextState from '@/components/organizations/organization-context-state'
 
 export default function DashboardLayout({
   children,
@@ -40,6 +41,18 @@ export default function DashboardLayout({
   // Owned here, not inside the palette, so both the sidebar trigger (desktop)
   // and the floating trigger (mobile) open the same dialog.
   const [searchOpen, setSearchOpen] = useState(false)
+  const noPermissions =
+    freshContext?.state === 'ACTIVE' && freshContext.capabilities.length === 0
+  const noAccess = freshContext?.state === 'NO_ACCESS'
+  const selectionRequired = freshContext?.state === 'SELECTION_REQUIRED'
+  const contextPending = !freshContext
+  const platformRegistryRoute = pathname.startsWith(
+    '/dashboard/admin/organizations',
+  )
+  const organizationContextBlocked =
+    (noAccess || selectionRequired) && !platformRegistryRoute
+  const hasUsableContext =
+    freshContext?.state === 'ACTIVE' && freshContext.capabilities.length > 0
 
   return (
     <div className="min-h-[calc(100vh-3.5rem)] overflow-x-clip">
@@ -96,13 +109,34 @@ export default function DashboardLayout({
           <SearchTrigger onOpen={() => setSearchOpen(true)} />
         </div>
 
-        <div className="space-y-2 p-4 pb-0">
-          <UpdateAppNotificationBar />
-          <VerifyEmailAlert />
-          <AccountDeletionAlert />
-        </div>
+        {hasUsableContext ? (
+          <div className="space-y-2 p-4 pb-0">
+            <UpdateAppNotificationBar />
+            <VerifyEmailAlert />
+            <AccountDeletionAlert />
+          </div>
+        ) : null}
         <main id="main-content" tabIndex={-1}>
-          {children}
+          {contextPending ? (
+            <div
+              className="container mx-auto animate-pulse px-4 py-10 text-sm text-muted-foreground"
+              aria-label="Loading organization context"
+            >
+              Loading organization access…
+            </div>
+          ) : organizationContextBlocked || noPermissions ? (
+            <OrganizationContextState
+              state={
+                noAccess && !platformRegistryRoute
+                  ? 'NO_ACCESS'
+                  : selectionRequired && !platformRegistryRoute
+                    ? 'SELECTION_REQUIRED'
+                    : 'NO_PERMISSIONS'
+              }
+              onRefresh={() => organizationContext.refetch()}
+              isRefreshing={organizationContext.isFetching}
+            />
+          ) : children}
         </main>
         {/* Inside the sidebar-offset column so the fixed sidebar cannot paint
             over it, and padded clear of the fixed mobile tab bar. */}

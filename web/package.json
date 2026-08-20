@@ -13,7 +13,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "acceptance:generate": "node acceptance/generate-entrypoints.mjs acceptance/generated/organization-registry.json e2e/generated && node acceptance/generate-entrypoints.mjs acceptance/generated/organization-context.json e2e/generated && node acceptance/generate-entrypoints.mjs acceptance/generated/organization-group-roster.json e2e/generated && node acceptance/generate-entrypoints.mjs acceptance/generated/sms-consent-text-to-join.json e2e/generated && node acceptance/generate-entrypoints.mjs acceptance/generated/contact-profile-bulk-add.json e2e/generated",
+    "acceptance:generate": "node acceptance/generate-entrypoints.mjs acceptance/generated/organization-registry.json e2e/generated && node acceptance/generate-entrypoints.mjs acceptance/generated/organization-context.json e2e/generated && node acceptance/generate-entrypoints.mjs acceptance/generated/organization-group-roster.json e2e/generated && node acceptance/generate-entrypoints.mjs acceptance/generated/sms-consent-text-to-join.json e2e/generated && node acceptance/generate-entrypoints.mjs acceptance/generated/contact-profile-bulk-add.json e2e/generated && node acceptance/generate-entrypoints.mjs acceptance/generated/organization-operator-roles.json e2e/generated",
     "acceptance:test": "playwright test e2e/generated",
     "coverage": "vitest run --coverage"
   },

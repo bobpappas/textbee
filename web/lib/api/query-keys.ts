@@ -38,5 +38,5 @@ export const queryKeys = {
   receivingNumbers: (organizationId: string) =>
     ['groups', organizationId, 'receiving-numbers'] as const,
   organizationOperators: (organizationId: string) =>
-    ['groups', organizationId, 'operators'] as const,
+    ['organizations', organizationId, 'operators'] as const,
 }

@@ -25,6 +25,10 @@ import {
   GroupOwnerAssignment,
   GroupOwnerAssignmentSchema,
 } from './schemas/group-owner-assignment.schema'
+import {
+  GroupSenderAssignment,
+  GroupSenderAssignmentSchema,
+} from './schemas/group-sender-assignment.schema'
 import { Group, GroupSchema } from './schemas/group.schema'
 import {
   RosterMembership,
@@ -59,6 +63,7 @@ import {
       { name: Group.name, schema: GroupSchema },
       { name: Contact.name, schema: ContactSchema },
       { name: GroupOwnerAssignment.name, schema: GroupOwnerAssignmentSchema },
+      { name: GroupSenderAssignment.name, schema: GroupSenderAssignmentSchema },
       { name: RosterMembership.name, schema: RosterMembershipSchema },
       { name: RosterBulkImport.name, schema: RosterBulkImportSchema },
       { name: GroupAuditEvent.name, schema: GroupAuditEventSchema },

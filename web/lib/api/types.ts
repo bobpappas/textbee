@@ -179,19 +179,43 @@ export interface OrganizationCreationResult {
 
 export const ORGANIZATION_PROFILE_MANAGE =
   'organization:profile:manage' as const
+export const OPERATORS_READ = 'operators:read' as const
+export const OPERATORS_MANAGE = 'operators:manage' as const
+export const GATEWAYS_READ = 'gateways:read' as const
+export const GATEWAYS_MANAGE = 'gateways:manage' as const
+export const API_KEYS_READ = 'api-keys:read' as const
+export const API_KEYS_MANAGE = 'api-keys:manage' as const
+export const MESSAGES_READ = 'messages:read' as const
+export const MESSAGES_SEND = 'messages:send' as const
+export const WEBHOOKS_READ = 'webhooks:read' as const
+export const WEBHOOKS_MANAGE = 'webhooks:manage' as const
+export const USAGE_READ = 'usage:read' as const
 export const GROUPS_READ = 'groups:read' as const
 export const GROUPS_MANAGE = 'groups:manage' as const
 export const GROUP_OWNERS_MANAGE = 'group-owners:manage' as const
 export const GROUP_ROSTER_MANAGE = 'group-roster:manage' as const
 export const GROUP_JOIN_SETTINGS_MANAGE = 'group-join-settings:manage' as const
+export const GROUP_MESSAGES_SEND = 'group-messages:send' as const
 
 export type OrganizationCapability =
   | typeof ORGANIZATION_PROFILE_MANAGE
+  | typeof OPERATORS_READ
+  | typeof OPERATORS_MANAGE
+  | typeof GATEWAYS_READ
+  | typeof GATEWAYS_MANAGE
+  | typeof API_KEYS_READ
+  | typeof API_KEYS_MANAGE
+  | typeof MESSAGES_READ
+  | typeof MESSAGES_SEND
+  | typeof WEBHOOKS_READ
+  | typeof WEBHOOKS_MANAGE
+  | typeof USAGE_READ
   | typeof GROUPS_READ
   | typeof GROUPS_MANAGE
   | typeof GROUP_OWNERS_MANAGE
   | typeof GROUP_ROSTER_MANAGE
   | typeof GROUP_JOIN_SETTINGS_MANAGE
+  | typeof GROUP_MESSAGES_SEND
 
 export type GroupOwner = { membershipId: string; displayName: string }
 export type OrganizationGroup = {
@@ -206,11 +230,20 @@ export type OrganizationGroup = {
   joinCommand: string
   rosterCount: number
   owners: GroupOwner[]
+  senders: GroupOwner[]
   createdAt?: string
   updatedAt?: string
 }
 export type ReceivingNumber = { id: string; number: string; displayNumber: string }
-export type OrganizationOperator = GroupOwner
+export type OrganizationOperator = GroupOwner & {
+  email?: string
+  status?: 'ACTIVE' | 'SUSPENDED' | 'REVOKED'
+  organizationAdmin?: boolean
+  groupOwners?: string[]
+  groupSenders?: string[]
+  changedAt?: string
+  reason?: string | null
+}
 export type RosterMember = {
   id: string
   contactId: string

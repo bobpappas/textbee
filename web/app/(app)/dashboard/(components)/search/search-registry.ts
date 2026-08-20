@@ -19,7 +19,13 @@ import {
 } from 'lucide-react'
 import { Routes } from '@/config/routes'
 import type { OrganizationContext } from '@/lib/api'
-import { GROUPS_MANAGE, GROUPS_READ, ORGANIZATION_PROFILE_MANAGE, type OrganizationCapability } from '@/lib/api'
+import {
+  GROUPS_MANAGE,
+  GROUPS_READ,
+  OPERATORS_MANAGE,
+  ORGANIZATION_PROFILE_MANAGE,
+  type OrganizationCapability,
+} from '@/lib/api'
 
 export type SearchGroup =
   | 'Overview'
@@ -47,6 +53,15 @@ export type SearchEntry = {
 }
 
 export const searchEntries: SearchEntry[] = [
+  {
+    href: '/dashboard/operators',
+    label: 'Operator Access',
+    group: 'Administration',
+    icon: Shield,
+    description: 'Manage operator membership and organization administrators',
+    keywords: ['operators', 'access', 'membership', 'administrators'],
+    requiredCapability: OPERATORS_MANAGE,
+  },
   {
     href: '/dashboard/groups',
     label: 'My Groups',

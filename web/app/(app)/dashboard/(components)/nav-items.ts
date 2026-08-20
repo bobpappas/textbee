@@ -6,10 +6,17 @@ import {
   UserCircle,
   Building2,
   UsersRound,
+  ShieldCheck,
   type LucideIcon,
 } from 'lucide-react'
-import type { OrganizationContext } from '@/lib/api'
-import { GROUPS_READ, ORGANIZATION_PROFILE_MANAGE } from '@/lib/api'
+import type { OrganizationCapability, OrganizationContext } from '@/lib/api'
+import {
+  GROUPS_READ,
+  MESSAGES_READ,
+  OPERATORS_MANAGE,
+  ORGANIZATION_PROFILE_MANAGE,
+  WEBHOOKS_READ,
+} from '@/lib/api'
 
 export type NavItem = {
   href: string
@@ -23,19 +30,25 @@ export type NavItem = {
   // mobileHidden appear only in the desktop sidebar and the command palette.
   mobileHidden?: boolean
   requiredRole?: 'ADMIN'
-  requiredCapability?: typeof ORGANIZATION_PROFILE_MANAGE | typeof GROUPS_READ
+  requiredCapability?: OrganizationCapability
 }
 
 // Primary dashboard navigation, shared by the desktop sidebar, the mobile tab
 // bar, and the command palette so they never drift out of sync.
 export const navItems: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/dashboard/messaging', label: 'Messaging', icon: MessageSquareText },
+  {
+    href: '/dashboard/messaging',
+    label: 'Messaging',
+    icon: MessageSquareText,
+    requiredCapability: MESSAGES_READ,
+  },
   {
     href: '/dashboard/webhooks',
     label: 'Webhooks',
     icon: Webhook,
     mobileHidden: true,
+    requiredCapability: WEBHOOKS_READ,
   },
   { href: '/dashboard/community', label: 'Community', icon: Users },
   {
@@ -54,6 +67,8 @@ export const navItems: NavItem[] = [
 ]
 
 export function visibleNavItems(role?: string, context?: OrganizationContext) {
+  if (context?.state !== 'ACTIVE' && role !== 'ADMIN') return []
+  if (context?.state === 'ACTIVE' && context.capabilities.length === 0) return []
   const groupNavigation: NavItem[] =
     context?.state === 'ACTIVE' && context.capabilities.includes(GROUPS_READ)
       ? [
@@ -78,7 +93,17 @@ export function visibleNavItems(role?: string, context?: OrganizationContext) {
           },
         ]
       : []
-  return [...navItems, ...groupNavigation, ...organizationProfile].filter(
+  const operatorAccess: NavItem[] =
+    context?.state === 'ACTIVE' && context.capabilities.includes(OPERATORS_MANAGE)
+      ? [{
+          href: '/dashboard/operators',
+          label: 'Operator Access',
+          icon: ShieldCheck,
+          mobileHidden: true,
+          requiredCapability: OPERATORS_MANAGE,
+        }]
+      : []
+  return [...navItems, ...groupNavigation, ...organizationProfile, ...operatorAccess].filter(
     (item) =>
       (!item.requiredRole || item.requiredRole === role) &&
       (!item.requiredCapability ||

@@ -3,6 +3,8 @@ import { Document, Types } from 'mongoose'
 import { Device } from './device.schema'
 import { SMSBatch } from './sms-batch.schema'
 import { User } from '../../users/schemas/user.schema'
+import { Organization } from '../../organizations/schemas/organization.schema'
+import { ApiKey } from '../../auth/schemas/api-key.schema'
 
 export type SMSDocument = SMS & Document
 
@@ -12,6 +14,15 @@ export class SMS {
 
   @Prop({ type: Types.ObjectId, ref: User.name, required: true, index: true })
   user: User | Types.ObjectId
+
+  @Prop({ type: Types.ObjectId, ref: Organization.name, index: true })
+  organizationId?: Types.ObjectId
+
+  @Prop({ type: Types.ObjectId, ref: User.name })
+  requestedByUserId?: Types.ObjectId
+
+  @Prop({ type: Types.ObjectId, ref: ApiKey.name })
+  requestedByApiKeyId?: Types.ObjectId
 
   @Prop({ type: Types.ObjectId, ref: Device.name, required: true })
   device: Device | Types.ObjectId
@@ -98,3 +109,5 @@ export const SMSSchema = SchemaFactory.createForClass(SMS)
 SMSSchema.index({ device: 1, type: 1, receivedAt: -1 })
 SMSSchema.index({ user: 1, createdAt: -1, type: 1 })
 SMSSchema.index({ status: 1, dispatchExpiresAt: 1 })
+SMSSchema.index({ organizationId: 1, createdAt: -1, type: 1 })
+SMSSchema.index({ organizationId: 1, status: 1, dispatchExpiresAt: 1 })

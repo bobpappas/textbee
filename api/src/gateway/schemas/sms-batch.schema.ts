@@ -2,6 +2,8 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose'
 import { Document, Types } from 'mongoose'
 import { Device } from './device.schema'
 import { User } from '../../users/schemas/user.schema'
+import { Organization } from '../../organizations/schemas/organization.schema'
+import { ApiKey } from '../../auth/schemas/api-key.schema'
 
 export type SMSBatchDocument = SMSBatch & Document
 
@@ -11,6 +13,15 @@ export class SMSBatch {
 
   @Prop({ type: Types.ObjectId, ref: User.name, required: true, index: true })
   user: User | Types.ObjectId
+
+  @Prop({ type: Types.ObjectId, ref: Organization.name, index: true })
+  organizationId?: Types.ObjectId
+
+  @Prop({ type: Types.ObjectId, ref: User.name })
+  requestedByUserId?: Types.ObjectId
+
+  @Prop({ type: Types.ObjectId, ref: ApiKey.name })
+  requestedByApiKeyId?: Types.ObjectId
 
   @Prop({ type: Types.ObjectId, ref: Device.name })
   device: Device
@@ -59,3 +70,4 @@ export class SMSBatch {
 export const SMSBatchSchema = SchemaFactory.createForClass(SMSBatch)
 
 SMSBatchSchema.index({ user: 1, createdAt: -1 })
+SMSBatchSchema.index({ organizationId: 1, createdAt: -1 })

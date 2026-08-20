@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common'
+import { forwardRef, Module } from '@nestjs/common'
 import { JwtModule } from '@nestjs/jwt'
 import { MongooseModule } from '@nestjs/mongoose'
 import { PassportModule } from '@nestjs/passport'
@@ -14,9 +14,13 @@ import {
   PasswordResetSchema,
 } from './schemas/password-reset.schema'
 import { AccessLog, AccessLogSchema } from './schemas/access-log.schema'
-import { EmailVerification, EmailVerificationSchema } from './schemas/email-verification.schema'
+import {
+  EmailVerification,
+  EmailVerificationSchema,
+} from './schemas/email-verification.schema'
 import { AuthGuard } from './guards/auth.guard'
 import { OptionalAuthGuard } from './guards/optional-auth.guard'
+import { OrganizationsModule } from '../organizations/organizations.module'
 
 @Module({
   imports: [
@@ -42,12 +46,13 @@ import { OptionalAuthGuard } from './guards/optional-auth.guard'
     PassportModule,
     JwtModule.register({
       secret: process.env.JWT_SECRET,
-      signOptions: { 
-        expiresIn: process.env.JWT_EXPIRATION || '60d' as any 
+      signOptions: {
+        expiresIn: process.env.JWT_EXPIRATION || ('60d' as any),
       },
     }),
     MailModule,
     CommonModule,
+    forwardRef(() => OrganizationsModule),
   ],
   controllers: [AuthController],
   providers: [

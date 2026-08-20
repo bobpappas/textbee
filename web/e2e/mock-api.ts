@@ -41,8 +41,34 @@ export type MockApiOverrides = {
 
 export async function mockApi(page: Page, overrides: MockApiOverrides = {}) {
   const organizations: any[] = []
-  const groups: any[] = structuredClone(overrides.groups ?? mockOrganizationGroups)
-  const rosterMembers: any[] = structuredClone(overrides.rosterMembers ?? mockRosterMembers)
+  const groups: any[] = structuredClone(
+    overrides.groups ?? mockOrganizationGroups,
+  )
+  const rosterMembers: any[] = structuredClone(
+    overrides.rosterMembers ?? mockRosterMembers,
+  )
+  const operators: any[] = [
+    {
+      membershipId: '64b7c42f18f0c31f8c9fd301',
+      displayName: 'Alex Rivera',
+      email: 'alex@example.test',
+      status: 'ACTIVE',
+      organizationAdmin: true,
+      groupOwners: ['Unified Young Adults'],
+      groupSenders: [],
+      changedAt: '2026-08-20T12:00:00Z',
+    },
+    {
+      membershipId: '64b7c42f18f0c31f8c9fd302',
+      displayName: 'Morgan Chen',
+      email: 'morgan@example.test',
+      status: 'ACTIVE',
+      organizationAdmin: false,
+      groupOwners: [],
+      groupSenders: [],
+      changedAt: '2026-08-20T12:00:00Z',
+    },
+  ]
   let contextRequestCount = 0
   let bulkPreview: any = null
   await page.route('**/api/v1/**', async (route) => {
@@ -81,26 +107,45 @@ export async function mockApi(page: Page, overrides: MockApiOverrides = {}) {
       return json(route, { data: context })
     }
 
-    const receivingNumbersMatch = path.match(/^\/organizations\/([^/]+)\/receiving-numbers$/)
+    const receivingNumbersMatch = path.match(
+      /^\/organizations\/([^/]+)\/receiving-numbers$/,
+    )
     if (receivingNumbersMatch) {
       return json(route, {
-        data: [{ id: 'deployment-default', number: '+12085550100', displayNumber: '(208) 555-0100' }],
+        data: [
+          {
+            id: 'deployment-default',
+            number: '+12085550100',
+            displayNumber: '(208) 555-0100',
+          },
+        ],
       })
     }
 
     const operatorsMatch = path.match(/^\/organizations\/([^/]+)\/operators$/)
     if (operatorsMatch) {
-      return json(route, {
-        data: [
-          { membershipId: '64b7c42f18f0c31f8c9fd301', displayName: 'Alex Rivera' },
-          { membershipId: '64b7c42f18f0c31f8c9fd302', displayName: 'Morgan Chen' },
-        ],
-      })
+      if (method === 'POST') {
+        const input = route.request().postDataJSON()
+        const operator = {
+          membershipId: `64b7c42f18f0c31f8c9fd30${operators.length + 1}`,
+          displayName: input.email.split('@')[0],
+          email: input.email.trim().toLowerCase(),
+          status: 'ACTIVE',
+          organizationAdmin: false,
+          groupOwners: [],
+          groupSenders: [],
+          changedAt: new Date().toISOString(),
+        }
+        operators.push(operator)
+        return json(route, { data: operator })
+      }
+      return json(route, { data: operators })
     }
 
     const groupListMatch = path.match(/^\/organizations\/([^/]+)\/groups$/)
     if (groupListMatch) {
-      if (overrides.groupAccessDenied) return json(route, { error: 'Group not found' }, 404)
+      if (overrides.groupAccessDenied)
+        return json(route, { error: 'Group not found' }, 404)
       if (method === 'POST') {
         const input = route.request().postDataJSON()
         const group = {
@@ -115,18 +160,29 @@ export async function mockApi(page: Page, overrides: MockApiOverrides = {}) {
           joinCommand: `JOIN ${input.joinCode.trim().toUpperCase()}`,
           rosterCount: 0,
           owners: [],
+          senders: [],
         }
         groups.push(group)
         return json(route, { data: group })
       }
-      const includeArchived = new URL(route.request().url()).searchParams.get('includeArchived') === 'true'
-      return json(route, { data: includeArchived ? groups : groups.filter((group) => group.status === 'ACTIVE') })
+      const includeArchived =
+        new URL(route.request().url()).searchParams.get('includeArchived') ===
+        'true'
+      return json(route, {
+        data: includeArchived
+          ? groups
+          : groups.filter((group) => group.status === 'ACTIVE'),
+      })
     }
 
-    const availabilityMatch = path.match(/^\/organizations\/([^/]+)\/groups\/join-code-availability$/)
+    const availabilityMatch = path.match(
+      /^\/organizations\/([^/]+)\/groups\/join-code-availability$/,
+    )
     if (availabilityMatch) return json(route, { data: { available: true } })
 
-    const rosterMatch = path.match(/^\/organizations\/([^/]+)\/groups\/([^/]+)\/roster$/)
+    const rosterMatch = path.match(
+      /^\/organizations\/([^/]+)\/groups\/([^/]+)\/roster$/,
+    )
     if (rosterMatch) {
       if (method === 'POST') {
         const input = route.request().postDataJSON()
@@ -145,22 +201,32 @@ export async function mockApi(page: Page, overrides: MockApiOverrides = {}) {
       return json(route, { data: rosterMembers })
     }
 
-    const rosterMemberMatch = path.match(/^\/organizations\/([^/]+)\/groups\/([^/]+)\/roster\/([^/]+)$/)
+    const rosterMemberMatch = path.match(
+      /^\/organizations\/([^/]+)\/groups\/([^/]+)\/roster\/([^/]+)$/,
+    )
     if (rosterMemberMatch && method === 'DELETE') {
-      const index = rosterMembers.findIndex((item) => item.id === rosterMemberMatch[3])
+      const index = rosterMembers.findIndex(
+        (item) => item.id === rosterMemberMatch[3],
+      )
       if (index >= 0) rosterMembers.splice(index, 1)
       return json(route, { data: { removed: true } })
     }
 
-    const contactNameMatch = path.match(/^\/organizations\/([^/]+)\/groups\/([^/]+)\/contacts\/([^/]+)\/name$/)
+    const contactNameMatch = path.match(
+      /^\/organizations\/([^/]+)\/groups\/([^/]+)\/contacts\/([^/]+)\/name$/,
+    )
     if (contactNameMatch && method === 'PATCH') {
-      const contact = rosterMembers.find((item) => item.contactId === contactNameMatch[3])
+      const contact = rosterMembers.find(
+        (item) => item.contactId === contactNameMatch[3],
+      )
       if (!contact) return json(route, { error: 'Group not found' }, 404)
       contact.displayName = route.request().postDataJSON().displayName.trim()
       return json(route, { data: contact })
     }
 
-    const bulkPreviewMatch = path.match(/^\/organizations\/([^/]+)\/groups\/([^/]+)\/roster-bulk\/preview$/)
+    const bulkPreviewMatch = path.match(
+      /^\/organizations\/([^/]+)\/groups\/([^/]+)\/roster-bulk\/preview$/,
+    )
     if (bulkPreviewMatch && method === 'POST') {
       bulkPreview = {
         id: '64b7c42f18f0c31f8c9fd601',
@@ -169,15 +235,34 @@ export async function mockApi(page: Page, overrides: MockApiOverrides = {}) {
         totalRows: 3,
         counts: { READY_NEW_CONTACT: 1, INVALID: 1, DUPLICATE_IN_FILE: 1 },
         rows: [
-          { rowNumber: 2, displayName: 'Synthetic Person', displayNumber: '(208) 555-0124', classification: 'READY_NEW_CONTACT', reason: 'A new organization contact will be created' },
-          { rowNumber: 3, displayName: 'Invalid Person', classification: 'INVALID', reason: 'Required data, phone number, or consent note is invalid' },
-          { rowNumber: 4, displayName: 'Duplicate Person', displayNumber: '(208) 555-0124', classification: 'DUPLICATE_IN_FILE', reason: 'An earlier valid row uses this number' },
+          {
+            rowNumber: 2,
+            displayName: 'Synthetic Person',
+            displayNumber: '(208) 555-0124',
+            classification: 'READY_NEW_CONTACT',
+            reason: 'A new organization contact will be created',
+          },
+          {
+            rowNumber: 3,
+            displayName: 'Invalid Person',
+            classification: 'INVALID',
+            reason: 'Required data, phone number, or consent note is invalid',
+          },
+          {
+            rowNumber: 4,
+            displayName: 'Duplicate Person',
+            displayNumber: '(208) 555-0124',
+            classification: 'DUPLICATE_IN_FILE',
+            reason: 'An earlier valid row uses this number',
+          },
         ],
       }
       return json(route, { data: bulkPreview })
     }
 
-    const bulkApplyMatch = path.match(/^\/organizations\/([^/]+)\/groups\/([^/]+)\/roster-bulk\/([^/]+)\/apply$/)
+    const bulkApplyMatch = path.match(
+      /^\/organizations\/([^/]+)\/groups\/([^/]+)\/roster-bulk\/([^/]+)\/apply$/,
+    )
     if (bulkApplyMatch && method === 'POST' && bulkPreview) {
       bulkPreview = {
         ...bulkPreview,
@@ -185,36 +270,70 @@ export async function mockApi(page: Page, overrides: MockApiOverrides = {}) {
         appliedAt: new Date().toISOString(),
         counts: { ADDED: 1, INVALID: 1, DUPLICATE_IN_FILE: 1 },
         rows: [
-          { rowNumber: 2, redactedNumber: '***0124', outcome: 'ADDED', reason: 'A new organization contact will be created' },
-          { rowNumber: 3, outcome: 'INVALID', reason: 'Required data, phone number, or consent note is invalid' },
-          { rowNumber: 4, redactedNumber: '***0124', outcome: 'DUPLICATE_IN_FILE', reason: 'An earlier valid row uses this number' },
+          {
+            rowNumber: 2,
+            redactedNumber: '***0124',
+            outcome: 'ADDED',
+            reason: 'A new organization contact will be created',
+          },
+          {
+            rowNumber: 3,
+            outcome: 'INVALID',
+            reason: 'Required data, phone number, or consent note is invalid',
+          },
+          {
+            rowNumber: 4,
+            redactedNumber: '***0124',
+            outcome: 'DUPLICATE_IN_FILE',
+            reason: 'An earlier valid row uses this number',
+          },
         ],
       }
       return json(route, { data: bulkPreview })
     }
 
-    const bulkResultMatch = path.match(/^\/organizations\/([^/]+)\/groups\/([^/]+)\/roster-bulk\/([^/]+)$/)
-    if (bulkResultMatch && bulkPreview) return json(route, { data: bulkPreview })
+    const bulkResultMatch = path.match(
+      /^\/organizations\/([^/]+)\/groups\/([^/]+)\/roster-bulk\/([^/]+)$/,
+    )
+    if (bulkResultMatch && bulkPreview)
+      return json(route, { data: bulkPreview })
 
-    const ownerMatch = path.match(/^\/organizations\/([^/]+)\/groups\/([^/]+)\/owners\/([^/]+)$/)
+    const ownerMatch = path.match(
+      /^\/organizations\/([^/]+)\/groups\/([^/]+)\/owners\/([^/]+)$/,
+    )
     if (ownerMatch) {
       const group = groups.find((item) => item.id === ownerMatch[2])
       if (!group) return json(route, { error: 'Group not found' }, 404)
-      if (method === 'POST' && !group.owners.some((owner: any) => owner.membershipId === ownerMatch[3])) {
-        group.owners.push({ membershipId: ownerMatch[3], displayName: ownerMatch[3].endsWith('2') ? 'Morgan Chen' : 'Alex Rivera' })
+      if (
+        method === 'POST' &&
+        !group.owners.some((owner: any) => owner.membershipId === ownerMatch[3])
+      ) {
+        group.owners.push({
+          membershipId: ownerMatch[3],
+          displayName: ownerMatch[3].endsWith('2')
+            ? 'Morgan Chen'
+            : 'Alex Rivera',
+        })
       }
-      if (method === 'DELETE') group.owners = group.owners.filter((owner: any) => owner.membershipId !== ownerMatch[3])
+      if (method === 'DELETE')
+        group.owners = group.owners.filter(
+          (owner: any) => owner.membershipId !== ownerMatch[3],
+        )
       return json(route, { data: group })
     }
 
-    const groupActionMatch = path.match(/^\/organizations\/([^/]+)\/groups\/([^/]+)(?:\/(name|join-settings|archive|reactivate))?$/)
+    const groupActionMatch = path.match(
+      /^\/organizations\/([^/]+)\/groups\/([^/]+)(?:\/(name|join-settings|archive|reactivate))?$/,
+    )
     if (groupActionMatch) {
-      if (overrides.groupAccessDenied) return json(route, { error: 'Group not found' }, 404)
+      if (overrides.groupAccessDenied)
+        return json(route, { error: 'Group not found' }, 404)
       const group = groups.find((item) => item.id === groupActionMatch[2])
       if (!group) return json(route, { error: 'Group not found' }, 404)
       const action = groupActionMatch[3]
       const input = route.request().postDataJSON?.() ?? {}
-      if (action === 'name' && method === 'PATCH') group.displayName = input.displayName.trim()
+      if (action === 'name' && method === 'PATCH')
+        group.displayName = input.displayName.trim()
       if (action === 'join-settings' && method === 'PATCH') {
         group.joinCode = input.joinCode.trim().toUpperCase()
         group.joinCommand = `JOIN ${group.joinCode}`

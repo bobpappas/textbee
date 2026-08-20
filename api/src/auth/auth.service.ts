@@ -5,7 +5,7 @@ import * as bcrypt from 'bcryptjs'
 import { v4 as uuidv4 } from 'uuid'
 import { InjectModel } from '@nestjs/mongoose'
 import { ApiKey, ApiKeyDocument } from './schemas/api-key.schema'
-import { Model } from 'mongoose'
+import { Model, Types } from 'mongoose'
 import { User, UserDocument } from '../users/schemas/user.schema'
 import axios from 'axios'
 import {
@@ -173,13 +173,13 @@ export class AuthService {
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
     const resetCount = await this.passwordResetModel.countDocuments({
       user: user._id,
-      createdAt: { $gte: twentyFourHoursAgo }
+      createdAt: { $gte: twentyFourHoursAgo },
     })
 
     if (resetCount >= 5) {
       throw new HttpException(
         { error: 'Too many password reset requests. Please try again later.' },
-        HttpStatus.TOO_MANY_REQUESTS
+        HttpStatus.TOO_MANY_REQUESTS,
       )
     }
 
@@ -297,13 +297,16 @@ export class AuthService {
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
     const verificationCount = await this.emailVerificationModel.countDocuments({
       user: user._id,
-      createdAt: { $gte: twentyFourHoursAgo }
+      createdAt: { $gte: twentyFourHoursAgo },
     })
 
     if (verificationCount >= 5) {
       throw new HttpException(
-        { error: 'Too many email verification requests. Please try again later.' },
-        HttpStatus.TOO_MANY_REQUESTS
+        {
+          error:
+            'Too many email verification requests. Please try again later.',
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
       )
     }
 
@@ -367,7 +370,7 @@ export class AuthService {
     return { message: 'Email verified successfully' }
   }
 
-  async generateApiKey(currentUser: User) {
+  async generateApiKey(currentUser: User, organizationId?: string) {
     const apiKey = uuidv4()
     const hashedApiKey = await bcrypt.hash(apiKey, 10)
 
@@ -375,6 +378,14 @@ export class AuthService {
       apiKey: apiKey.substr(0, 17) + '*'.repeat(18),
       hashedApiKey,
       user: currentUser._id,
+      ...(organizationId
+        ? {
+            organizationId: new Types.ObjectId(organizationId),
+            purpose: 'GATEWAY',
+            scopes: ['gateway:operate'],
+            createdBy: currentUser._id,
+          }
+        : {}),
     })
 
     await newApiKey.save()
@@ -382,10 +393,7 @@ export class AuthService {
     return { apiKey, message: 'Save this key, it wont be shown again ;)' }
   }
 
-  async getUserApiKeys(
-    currentUser: User,
-    statusParam?: string,
-  ) {
+  async getUserApiKeys(currentUser: User, statusParam?: string) {
     const normalized =
       statusParam === undefined || statusParam === '' ? 'active' : statusParam
     if (!['active', 'revoked', 'all'].includes(normalized)) {
@@ -414,6 +422,24 @@ export class AuthService {
     return this.apiKeyModel.find(filter, null, {
       sort: { createdAt: -1 },
     })
+  }
+
+  async getOrganizationApiKeys(organizationId: string, statusParam?: string) {
+    const normalized = statusParam || 'active'
+    if (!['active', 'revoked', 'all'].includes(normalized)) {
+      throw new HttpException(
+        { error: 'Invalid status. Use active, revoked, or all.' },
+        HttpStatus.BAD_REQUEST,
+      )
+    }
+    const filter: Record<string, unknown> = {
+      organizationId: new Types.ObjectId(organizationId),
+    }
+    if (normalized === 'active')
+      filter.$or = [{ revokedAt: { $exists: false } }, { revokedAt: null }]
+    if (normalized === 'revoked')
+      filter.revokedAt = { $exists: true, $ne: null }
+    return this.apiKeyModel.find(filter, null, { sort: { createdAt: -1 } })
   }
 
   async findApiKey(params) {
@@ -465,7 +491,7 @@ export class AuthService {
     await this.apiKeyModel.deleteOne({ _id: apiKeyId })
   }
 
-  async revokeApiKey(apiKeyId: string) {
+  async revokeApiKey(apiKeyId: string, actorId?: Types.ObjectId) {
     const apiKey = await this.apiKeyModel.findById(apiKeyId)
     if (!apiKey) {
       throw new HttpException(
@@ -474,6 +500,7 @@ export class AuthService {
       )
     }
     apiKey.revokedAt = new Date()
+    if (actorId) apiKey.revokedBy = actorId
     await apiKey.save()
   }
 

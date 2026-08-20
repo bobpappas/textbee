@@ -522,6 +522,55 @@ export function useOrganizationOperators(
   })
 }
 
+const invalidateOperators = (
+  queryClient: ReturnType<typeof useQueryClient>,
+  organizationId: string,
+) => {
+  void queryClient.invalidateQueries({
+    queryKey: queryKeys.organizationOperators(organizationId),
+  })
+  void queryClient.invalidateQueries({ queryKey: queryKeys.organizationContext })
+}
+
+export function useAddOrganizationOperator(organizationId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { email: string; reason: string }) =>
+      httpBrowserClient.post(ApiEndpoints.organizations.operators(organizationId), input),
+    onSuccess: () => invalidateOperators(queryClient, organizationId),
+  })
+}
+
+export function useChangeOrganizationOperatorStatus(organizationId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ membershipId, status, reason }: {
+      membershipId: string
+      status: 'ACTIVE' | 'SUSPENDED' | 'REVOKED'
+      reason: string
+    }) => httpBrowserClient.patch(
+      ApiEndpoints.organizations.operatorStatus(organizationId, membershipId),
+      { status, reason },
+    ),
+    onSuccess: () => invalidateOperators(queryClient, organizationId),
+  })
+}
+
+export function useChangeOrganizationAdmin(organizationId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ membershipId, enabled, reason }: {
+      membershipId: string
+      enabled: boolean
+      reason: string
+    }) => httpBrowserClient.patch(
+      ApiEndpoints.organizations.operatorAdmin(organizationId, membershipId),
+      { enabled, reason },
+    ),
+    onSuccess: () => invalidateOperators(queryClient, organizationId),
+  })
+}
+
 export type GroupInput = {
   displayName: string
   joinCode: string
@@ -622,6 +671,31 @@ export function useRevokeGroupOwner(organizationId: string, groupId: string) {
             groupId,
             membershipId,
           ),
+          { data: { reason } },
+        )
+        .then(unwrapData<OrganizationGroup>),
+    onSuccess: () => invalidateGroupData(queryClient, organizationId, groupId),
+  })
+}
+
+export function useAssignGroupSender(organizationId: string, groupId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (membershipId: string) =>
+      httpBrowserClient
+        .post(ApiEndpoints.organizations.groupSender(organizationId, groupId, membershipId))
+        .then(unwrapData<OrganizationGroup>),
+    onSuccess: () => invalidateGroupData(queryClient, organizationId, groupId),
+  })
+}
+
+export function useRevokeGroupSender(organizationId: string, groupId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ membershipId, reason }: { membershipId: string; reason: string }) =>
+      httpBrowserClient
+        .delete(
+          ApiEndpoints.organizations.groupSender(organizationId, groupId, membershipId),
           { data: { reason } },
         )
         .then(unwrapData<OrganizationGroup>),

@@ -20,6 +20,7 @@ import { OrganizationPolicyService } from '../organizations/organization-policy.
 import { OperatorMembership } from '../organizations/schemas/operator-membership.schema'
 import {
   GroupOwnerStatus,
+  GroupSenderStatus,
   GroupStatus,
   RosterMembershipStatus,
 } from './group.enums'
@@ -35,6 +36,7 @@ import {
   GroupMessageSendDocument,
 } from './schemas/group-message-send.schema'
 import { GroupOwnerAssignment } from './schemas/group-owner-assignment.schema'
+import { GroupSenderAssignment } from './schemas/group-sender-assignment.schema'
 import { Group } from './schemas/group.schema'
 import { RosterMembership } from './schemas/roster-membership.schema'
 
@@ -76,6 +78,8 @@ export class GroupMessagingService {
     private readonly consent: ConsentService,
     private readonly gateway: GatewayService,
     private readonly selfHostedPolicy: SelfHostedPolicyService,
+    @InjectModel(GroupSenderAssignment.name)
+    private readonly senders?: Model<GroupSenderAssignment>,
   ) {}
 
   async preview(
@@ -87,7 +91,7 @@ export class GroupMessagingService {
     const access = await this.requireActiveGroup(organizationId, groupId, actor)
     const body = this.body(input)
     const message = `${access.group.joinCode}: ${body}`
-    const device = await this.soleEnabledDevice()
+    const device = await this.soleEnabledDevice(access.group.organizationId)
     const candidates = await this.candidates(
       access.group.organizationId,
       access.group._id,
@@ -137,6 +141,7 @@ export class GroupMessagingService {
       availability,
       segmentsPerRecipient,
       eligibleCount,
+      access.senderOnly,
     )
   }
 
@@ -159,7 +164,7 @@ export class GroupMessagingService {
       groupId: access.group._id,
       $or: [{ previewId: new Types.ObjectId(previewId) }, { requestId }],
     })
-    if (prior) return this.sendView(prior)
+    if (prior) return this.sendView(prior, access.senderOnly)
     const preview = await this.previews.findOne({
       _id: new Types.ObjectId(previewId),
       organizationId: access.group.organizationId,
@@ -169,7 +174,7 @@ export class GroupMessagingService {
     })
     if (!preview || preview.joinCode !== access.group.joinCode)
       throw this.previewExpired()
-    const device = await this.soleEnabledDevice()
+    const device = await this.soleEnabledDevice(access.group.organizationId)
     if (String(device._id) !== String(preview.deviceId))
       throw this.previewExpired()
 
@@ -226,7 +231,7 @@ export class GroupMessagingService {
           groupId: access.group._id,
           $or: [{ previewId: preview._id }, { requestId }],
         })
-        if (existing) return this.sendView(existing)
+        if (existing) return this.sendView(existing, access.senderOnly)
       }
       throw error
     }
@@ -280,7 +285,7 @@ export class GroupMessagingService {
         }),
         correlationId: requestId,
       })
-      return this.sendView(send)
+      return this.sendView(send, access.senderOnly)
     } catch (error: any) {
       send.status = 'FAILED'
       send.failure = this.safeFailure(error)
@@ -308,7 +313,7 @@ export class GroupMessagingService {
       groupId: access.group._id,
     })
     if (!send) throw new NotFoundException(UNAVAILABLE)
-    return this.sendView(send)
+    return this.sendView(send, access.senderOnly)
   }
 
   private async currentEligibleRecipients(
@@ -423,20 +428,29 @@ export class GroupMessagingService {
       organizationId,
       String(userId),
     )
-    if (!admin) {
-      const owner = await this.owners.findOne({
+    if (admin) return { group, userId, senderOnly: false }
+    const [owner, sender] = await Promise.all([
+      this.owners.findOne({
         organizationId: organizationObjectId,
         groupId: group._id,
         membershipId: membership._id,
         status: GroupOwnerStatus.ACTIVE,
-      })
-      if (!owner) throw new NotFoundException(UNAVAILABLE)
-    }
-    return { group, userId }
+      }),
+      this.senders?.findOne({
+        organizationId: organizationObjectId,
+        groupId: group._id,
+        membershipId: membership._id,
+        status: GroupSenderStatus.ACTIVE,
+      }) ?? null,
+    ])
+    if (!owner && !sender) throw new NotFoundException(UNAVAILABLE)
+    return { group, userId, senderOnly: !owner }
   }
 
-  private async soleEnabledDevice() {
-    const devices = await this.devices.find({ enabled: true }).limit(2)
+  private async soleEnabledDevice(organizationId: Types.ObjectId) {
+    const devices = await this.devices
+      .find({ organizationId, enabled: true })
+      .limit(2)
     if (devices.length !== 1)
       throw new ServiceUnavailableException({
         error: devices.length
@@ -452,6 +466,7 @@ export class GroupMessagingService {
     availability: Record<string, number>,
     segmentsPerRecipient: number,
     eligibleCount: number,
+    senderOnly = false,
   ) {
     const recipients = preview.recipients as PreviewRecipient[]
     const excluded = recipients.filter((item) => !item.eligible)
@@ -476,12 +491,14 @@ export class GroupMessagingService {
       eligibleCount,
       excludedCount: excluded.length,
       reasonCounts,
-      excluded: excluded.map((item) => ({
-        displayName: item.displayName,
-        maskedNumber: this.mask(item.mobileNumber),
-        reason: item.reason,
-        explanation: this.explanation(item.reason),
-      })),
+      excluded: senderOnly
+        ? []
+        : excluded.map((item) => ({
+            displayName: item.displayName,
+            maskedNumber: this.mask(item.mobileNumber),
+            reason: item.reason,
+            explanation: this.explanation(item.reason),
+          })),
       segmentsPerRecipient,
       totalSegments,
       remainingCapacity: availability,
@@ -491,7 +508,7 @@ export class GroupMessagingService {
     }
   }
 
-  private async sendView(send: GroupMessageSendDocument) {
+  private async sendView(send: GroupMessageSendDocument, senderOnly = false) {
     const deliveries = await this.deliveries
       .find({ groupSendId: send._id })
       .sort({ _id: 1 })
@@ -529,7 +546,7 @@ export class GroupMessagingService {
       message: send.message,
       candidateCount: send.candidateCount,
       counts,
-      recipients: recipientResults,
+      recipients: senderOnly ? [] : recipientResults,
       createdAt: send.createdAt,
     }
   }
