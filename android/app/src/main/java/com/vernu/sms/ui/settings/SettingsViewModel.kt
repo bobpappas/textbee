@@ -10,6 +10,7 @@ import com.vernu.sms.AppConstants
 import com.vernu.sms.BuildConfig
 import com.vernu.sms.TextBeeUtils
 import com.vernu.sms.dtos.RegisterDeviceInputDTO
+import com.vernu.sms.helpers.BackgroundRestrictionHelper
 import com.vernu.sms.helpers.SharedPreferenceHelper
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -27,6 +28,7 @@ data class SettingsState(
     val deviceName: String = "",
     val isGatewayEnabled: Boolean = false,
     val isReceiveSmsEnabled: Boolean = false,
+    val isBackgroundRestricted: Boolean = false,
     val smsSendDelaySeconds: Int = AppConstants.DEFAULT_SMS_SEND_DELAY_SECONDS,
     val preferredSimSubscriptionId: Int = -1,
     val availableSims: List<SimOption> = emptyList(),
@@ -89,6 +91,7 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
                 deviceName = deviceName.ifEmpty { "${Build.BRAND} ${Build.MODEL}" },
                 isGatewayEnabled = isGatewayEnabled,
                 isReceiveSmsEnabled = isReceiveSms,
+                isBackgroundRestricted = BackgroundRestrictionHelper.isRestricted(context),
                 smsSendDelaySeconds = smsDelay,
                 preferredSimSubscriptionId = preferredSim,
                 availableSims = sims

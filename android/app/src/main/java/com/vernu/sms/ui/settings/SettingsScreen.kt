@@ -191,14 +191,27 @@ fun SettingsScreen(
             SettingsRow(
                 icon = Icons.Default.NotificationsActive,
                 title = "Reliability Mode",
-                subtitle = if (state.isGatewayEnabled) "Required while enabled. Review Android battery settings." else "Starts automatically when the gateway is enabled",
-                onClick = {
-                    context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+                subtitle = when {
+                    state.isBackgroundRestricted -> "Android is restricting background operation. Review app settings."
+                    state.isGatewayEnabled -> "Required and active while the gateway is enabled"
+                    else -> "Starts automatically when the gateway is enabled"
                 },
-                trailing = {
-                    Icon(Icons.Default.ChevronRight, contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+                onClick = if (state.isBackgroundRestricted) {
+                    {
+                        context.startActivity(
+                            Intent(
+                                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                Uri.parse("package:${context.packageName}")
+                            )
+                        )
+                    }
+                } else null,
+                trailing = if (state.isBackgroundRestricted) {
+                    {
+                        Icon(Icons.Default.ChevronRight, contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                } else null
             )
 
             SettingsRow(

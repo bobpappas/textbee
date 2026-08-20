@@ -23,6 +23,38 @@ describe('getGatewayAvailability', () => {
     })
   })
 
+  it('does not require a blanket Doze exemption when background work is allowed', () => {
+    expect(
+      getGatewayAvailability(
+        {
+          ...ready,
+          reliability: {
+            ...ready.reliability,
+            batteryOptimizationRestricted: true,
+            reasonCode: 'BATTERY_OPTIMIZATION_ACTIVE',
+          },
+        },
+        now,
+      ),
+    ).toMatchObject({ status: 'ONLINE', available: true })
+  })
+
+  it('requires attention when Android actually restricts background work', () => {
+    expect(
+      getGatewayAvailability(
+        {
+          ...ready,
+          reliability: { ...ready.reliability, backgroundRestricted: true },
+        },
+        now,
+      ),
+    ).toMatchObject({
+      status: 'NEEDS_ATTENTION',
+      available: false,
+      reasonCode: 'BACKGROUND_RESTRICTED',
+    })
+  })
+
   it.each([
     ['DISABLED', { ...ready, enabled: false }],
     [

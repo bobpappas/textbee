@@ -106,19 +106,17 @@ export function getGatewayAvailability(
   if (reliability.backgroundRestricted)
     return attention(
       'BACKGROUND_RESTRICTED',
-      'Allow unrestricted background battery use for TextBee.',
-    )
-  if (reliability.batteryOptimizationRestricted)
-    return attention(
-      'BATTERY_OPTIMIZATION_ACTIVE',
-      'Set TextBee battery use to unrestricted on the gateway phone.',
+      'Allow background usage for TextBee in Android app settings.',
     )
   if (!reliability.networkConnected)
     return attention(
       'NETWORK_UNAVAILABLE',
       'Connect the gateway phone to the internet.',
     )
-  if (reliability.reasonCode)
+  if (
+    reliability.reasonCode &&
+    reliability.reasonCode !== 'BATTERY_OPTIMIZATION_ACTIVE'
+  )
     return attention(
       reliability.reasonCode,
       'Open the TextBee app and review Gateway Readiness.',
