@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common'
+import { BadRequestException, ConflictException } from '@nestjs/common'
 import { Types } from 'mongoose'
 import { FirstOrganizationMigrationService } from './first-organization-migration.service'
 
@@ -13,18 +13,23 @@ describe('FirstOrganizationMigrationService', () => {
   let service: FirstOrganizationMigrationService
   let resources: ReturnType<typeof resource>[]
   let audits: any
+  let connection: any
+  let organizations: any
 
   beforeEach(() => {
     resources = Array.from({ length: 7 }, resource)
     audits = { updateOne: jest.fn().mockResolvedValue({ upsertedCount: 1 }) }
+    connection = {
+      transaction: jest.fn(async (callback) => callback({ id: 'session' })),
+    }
+    organizations = {
+      findOne: jest.fn().mockResolvedValue({ _id: organizationId }),
+      countDocuments: jest.fn().mockResolvedValue(1),
+      updateOne: jest.fn(),
+    }
     service = new FirstOrganizationMigrationService(
-      {
-        transaction: jest.fn(async (callback) => callback({ id: 'session' })),
-      } as any,
-      {
-        findOne: jest.fn().mockResolvedValue({ _id: organizationId }),
-        updateOne: jest.fn(),
-      } as any,
+      connection,
+      organizations,
       {
         find: jest.fn().mockResolvedValue([{ _id: membershipId }]),
       } as any,
@@ -65,6 +70,19 @@ describe('FirstOrganizationMigrationService', () => {
     ).toBe(true)
   })
 
+  it('rejects ambiguous active first-organization state', async () => {
+    organizations.countDocuments.mockResolvedValue(2)
+
+    await expect(
+      service.run({
+        organizationId: String(organizationId),
+        administratorEmails: ['admin@example.test'],
+        apply: false,
+      }),
+    ).rejects.toBeInstanceOf(ConflictException)
+    expect(connection.transaction).not.toHaveBeenCalled()
+  })
+
   it('requires backup and rollback evidence before apply', async () => {
     await expect(
       service.run({
@@ -75,16 +93,42 @@ describe('FirstOrganizationMigrationService', () => {
     ).rejects.toBeInstanceOf(BadRequestException)
   })
 
-  it('applies idempotent scoped updates and one stable audit operation', async () => {
+  it('repeats validation inside apply transaction', async () => {
+    organizations.countDocuments
+      .mockResolvedValueOnce(1)
+      .mockResolvedValueOnce(2)
+
     await expect(
       service.run({
         organizationId: String(organizationId),
         administratorEmails: ['admin@example.test'],
         apply: true,
         backupConfirmed: true,
-        rollbackPath: 'restore the verified pre-migration snapshot',
+        rollbackPath: 'credential-free verified restore runbook',
       }),
-    ).resolves.toMatchObject({ mode: 'APPLY', backupConfirmed: true })
+    ).rejects.toBeInstanceOf(ConflictException)
+
+    expect(connection.transaction).toHaveBeenCalledTimes(1)
+    expect(
+      resources.every((model) => model.updateMany.mock.calls.length === 0),
+    ).toBe(true)
+  })
+
+  it('applies idempotent scoped updates and one stable audit operation', async () => {
+    const result = await service.run({
+      organizationId: String(organizationId),
+      administratorEmails: ['admin@example.test'],
+      apply: true,
+      backupConfirmed: true,
+      rollbackPath: 'credential-free verified restore runbook',
+    })
+
+    expect(result).toMatchObject({
+      mode: 'APPLY',
+      backupConfirmed: true,
+      rollbackAcknowledged: true,
+    })
+    expect(result).not.toHaveProperty('rollbackPath')
 
     expect(
       resources.every((model) => model.updateMany.mock.calls.length === 1),
@@ -96,5 +140,30 @@ describe('FirstOrganizationMigrationService', () => {
       expect.objectContaining({ $setOnInsert: expect.any(Object) }),
       expect.objectContaining({ upsert: true }),
     )
+  })
+
+  it('checks unassigned-resource postconditions inside the transaction', async () => {
+    resources[0].countDocuments.mockImplementation(
+      (filter: Record<string, any>, options?: Record<string, any>) =>
+        Promise.resolve(
+          options?.session &&
+            !('user' in filter) &&
+            filter.organizationId?.$exists === false
+            ? 1
+            : 0,
+        ),
+    )
+
+    await expect(
+      service.run({
+        organizationId: String(organizationId),
+        administratorEmails: ['admin@example.test'],
+        apply: true,
+        backupConfirmed: true,
+        rollbackPath: 'credential-free verified restore runbook',
+      }),
+    ).rejects.toBeInstanceOf(ConflictException)
+
+    expect(connection.transaction).toHaveBeenCalledTimes(1)
   })
 })

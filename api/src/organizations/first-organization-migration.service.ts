@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common'
 import { InjectConnection, InjectModel } from '@nestjs/mongoose'
-import { Connection, Model, Types } from 'mongoose'
+import { ClientSession, Connection, Model, Types } from 'mongoose'
 import { ApiKey } from '../auth/schemas/api-key.schema'
 import { SmsSafetyUsage } from '../billing/sms-safety-usage.schema'
 import { Device } from '../gateway/schemas/device.schema'
@@ -76,23 +76,27 @@ export class FirstOrganizationMigrationService {
       })
     }
 
-    await this.connection.transaction(async (session) => {
+    const after = await this.connection.transaction(async (session) => {
+      const transactionValidated = await this.validate(input, session)
       await this.organizations.updateOne(
-        { _id: validated.organizationId, status: OrganizationStatus.ACTIVE },
+        {
+          _id: transactionValidated.organizationId,
+          status: OrganizationStatus.ACTIVE,
+        },
         { $inc: { authorizationRevision: 1 } },
         { session },
       )
       const options = { session }
       await this.devices.updateMany(
         { organizationId: { $exists: false } },
-        { $set: { organizationId: validated.organizationId } },
+        { $set: { organizationId: transactionValidated.organizationId } },
         options,
       )
       await this.apiKeys.updateMany(
         { organizationId: { $exists: false } },
         {
           $set: {
-            organizationId: validated.organizationId,
+            organizationId: transactionValidated.organizationId,
             purpose: 'GATEWAY',
             scopes: ['gateway:operate'],
           },
@@ -108,62 +112,86 @@ export class FirstOrganizationMigrationService {
       ] as Array<Model<any>>) {
         await model.updateMany(
           { organizationId: { $exists: false } },
-          { $set: { organizationId: validated.organizationId } },
+          { $set: { organizationId: transactionValidated.organizationId } },
           options,
         )
       }
       await this.audits.updateOne(
         {
-          organizationId: validated.organizationId,
+          organizationId: transactionValidated.organizationId,
           action: OrganizationAuditAction.FIRST_ORGANIZATION_RESOURCES_MIGRATED,
-          operationKey: `b014-first-organization:${validated.organizationId}`,
+          operationKey: `b014-first-organization:${transactionValidated.organizationId}`,
         },
         {
           $setOnInsert: {
-            organizationId: validated.organizationId,
-            actorUserId: validated.actorUserId,
+            organizationId: transactionValidated.organizationId,
+            actorUserId: transactionValidated.actorUserId,
             action:
               OrganizationAuditAction.FIRST_ORGANIZATION_RESOURCES_MIGRATED,
             outcome: AuditOutcome.SUCCESS,
             targetType: Organization.name,
-            targetId: String(validated.organizationId),
+            targetId: String(transactionValidated.organizationId),
             oldState: 'LEGACY_USER_OWNERSHIP',
             newState: 'ORGANIZATION_SCOPED',
             reason: 'Approved B014 first-organization resource migration',
-            correlationId: `b014-first-organization:${validated.organizationId}`,
-            operationKey: `b014-first-organization:${validated.organizationId}`,
+            correlationId: `b014-first-organization:${transactionValidated.organizationId}`,
+            operationKey: `b014-first-organization:${transactionValidated.organizationId}`,
           },
         },
         { upsert: true, session },
       )
+
+      const transactionSummary = await this.summary(
+        transactionValidated.organizationId,
+        session,
+      )
+      if (
+        Object.values(transactionSummary.unassigned).some(
+          (count) => count !== 0,
+        )
+      )
+        throw new ConflictException({
+          error: 'Migration postcondition failed; transaction rolled back',
+        })
+      return transactionSummary
     })
 
-    const after = await this.summary(validated.organizationId)
-    if (Object.values(after.unassigned).some((count) => count !== 0)) {
-      throw new ConflictException({
-        error: 'Migration postcondition failed; rerun with identical inputs',
-      })
-    }
     return {
       mode: 'APPLY',
       organizationId: input.organizationId,
       backupConfirmed: true,
-      rollbackPath: input.rollbackPath,
+      rollbackAcknowledged: true,
       before,
       after,
     }
   }
 
-  private async validate(input: FirstOrganizationMigrationInput) {
+  private async validate(
+    input: FirstOrganizationMigrationInput,
+    session?: ClientSession,
+  ) {
     if (!Types.ObjectId.isValid(input.organizationId))
       throw new NotFoundException({ error: 'Organization not found' })
     const organizationId = new Types.ObjectId(input.organizationId)
-    const organization = await this.organizations.findOne({
-      _id: organizationId,
-      status: OrganizationStatus.ACTIVE,
-    })
+    const options = session ? { session } : {}
+    const organization = await this.organizations.findOne(
+      {
+        _id: organizationId,
+        status: OrganizationStatus.ACTIVE,
+      },
+      null,
+      options,
+    )
     if (!organization)
       throw new NotFoundException({ error: 'Organization not found' })
+    const activeOrganizationCount = await this.organizations.countDocuments(
+      { status: OrganizationStatus.ACTIVE },
+      options,
+    )
+    if (activeOrganizationCount !== 1)
+      throw new ConflictException({
+        error: 'Migration requires exactly one active first organization',
+      })
     const emails = [
       ...new Set(
         input.administratorEmails
@@ -175,51 +203,63 @@ export class FirstOrganizationMigrationService {
       throw new BadRequestException({
         error: 'At least one exact administrator email is required',
       })
-    const users = await this.users.find({
-      email: { $in: emails },
-      isBanned: { $ne: true },
-    })
+    const users = await this.users.find(
+      {
+        email: { $in: emails },
+        isBanned: { $ne: true },
+      },
+      null,
+      options,
+    )
     if (users.length !== emails.length)
       throw new ConflictException({
         error: 'Expected administrator identities are missing or ambiguous',
       })
-    const memberships = await this.memberships.find({
-      organizationId,
-      userId: { $in: users.map((user) => user._id) },
-      status: MembershipStatus.ACTIVE,
-    })
-    const grants = await this.grants.find({
-      organizationId,
-      membershipId: { $in: memberships.map((membership) => membership._id) },
-      role: OrganizationRole.ORGANIZATION_ADMIN,
-      status: GrantStatus.ACTIVE,
-    })
+    const memberships = await this.memberships.find(
+      {
+        organizationId,
+        userId: { $in: users.map((user) => user._id) },
+        status: MembershipStatus.ACTIVE,
+      },
+      null,
+      options,
+    )
+    const grants = await this.grants.find(
+      {
+        organizationId,
+        membershipId: { $in: memberships.map((membership) => membership._id) },
+        role: OrganizationRole.ORGANIZATION_ADMIN,
+        status: GrantStatus.ACTIVE,
+      },
+      null,
+      options,
+    )
     if (memberships.length !== emails.length || grants.length !== emails.length)
       throw new ConflictException({
         error: 'Every expected administrator must have an active usable grant',
       })
 
     const unowned = await Promise.all([
-      this.devices.countDocuments({
-        user: { $exists: false },
-        organizationId: { $exists: false },
-      }),
-      this.apiKeys.countDocuments({
-        user: { $exists: false },
-        organizationId: { $exists: false },
-      }),
-      this.messages.countDocuments({
-        user: { $exists: false },
-        organizationId: { $exists: false },
-      }),
-      this.batches.countDocuments({
-        user: { $exists: false },
-        organizationId: { $exists: false },
-      }),
-      this.webhooks.countDocuments({
-        user: { $exists: false },
-        organizationId: { $exists: false },
-      }),
+      this.devices.countDocuments(
+        { user: { $exists: false }, organizationId: { $exists: false } },
+        options,
+      ),
+      this.apiKeys.countDocuments(
+        { user: { $exists: false }, organizationId: { $exists: false } },
+        options,
+      ),
+      this.messages.countDocuments(
+        { user: { $exists: false }, organizationId: { $exists: false } },
+        options,
+      ),
+      this.batches.countDocuments(
+        { user: { $exists: false }, organizationId: { $exists: false } },
+        options,
+      ),
+      this.webhooks.countDocuments(
+        { user: { $exists: false }, organizationId: { $exists: false } },
+        options,
+      ),
     ])
     if (unowned.some(Boolean))
       throw new ConflictException({
@@ -228,7 +268,10 @@ export class FirstOrganizationMigrationService {
     return { organizationId, actorUserId: users[0]._id! }
   }
 
-  private async summary(organizationId: Types.ObjectId) {
+  private async summary(
+    organizationId: Types.ObjectId,
+    session?: ClientSession,
+  ) {
     const entries = [
       ['devices', this.devices],
       ['apiKeys', this.apiKeys],
@@ -241,10 +284,12 @@ export class FirstOrganizationMigrationService {
     const assigned: Record<string, number> = {}
     const unassigned: Record<string, number> = {}
     for (const [name, model] of entries) {
-      assigned[name] = await model.countDocuments({ organizationId })
-      unassigned[name] = await model.countDocuments({
-        organizationId: { $exists: false },
-      })
+      const options = session ? { session } : {}
+      assigned[name] = await model.countDocuments({ organizationId }, options)
+      unassigned[name] = await model.countDocuments(
+        { organizationId: { $exists: false } },
+        options,
+      )
     }
     return { assigned, unassigned }
   }
