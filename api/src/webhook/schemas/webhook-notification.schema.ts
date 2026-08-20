@@ -2,6 +2,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose'
 import { Document, Types } from 'mongoose'
 import { WebhookSubscription } from './webhook-subscription.schema'
 import { SMS } from '../../gateway/schemas/sms.schema'
+import { Organization } from '../../organizations/schemas/organization.schema'
 
 export type WebhookNotificationDocument = WebhookNotification & Document
 
@@ -11,6 +12,9 @@ export class WebhookNotification {
 
   @Prop({ type: Types.ObjectId, ref: WebhookSubscription.name, required: true })
   webhookSubscription: Types.ObjectId | WebhookSubscription
+
+  @Prop({ type: Types.ObjectId, ref: Organization.name, index: true })
+  organizationId?: Types.ObjectId
 
   @Prop({ type: String, required: true })
   event: string
@@ -54,3 +58,4 @@ export class WebhookNotification {
 
 export const WebhookNotificationSchema =
   SchemaFactory.createForClass(WebhookNotification)
+WebhookNotificationSchema.index({ organizationId: 1, createdAt: -1 })

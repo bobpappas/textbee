@@ -24,6 +24,7 @@ import { AuthGuard } from './guards/auth.guard'
 import { AuthService } from './auth.service'
 import { UsersService } from '../users/users.service'
 import { CanModifyApiKey } from './guards/can-modify-api-key.guard'
+import { OrganizationOperationalGuard } from '../organizations/organization-operational.guard'
 
 @ApiTags('auth')
 @Controller('auth')
@@ -58,7 +59,7 @@ export class AuthController {
 
   @ApiOperation({ summary: 'Get current logged in user' })
   @ApiBearerAuth()
-  @UseGuards(AuthGuard)
+  @UseGuards(AuthGuard, OrganizationOperationalGuard)
   @Get('/who-am-i')
   async whoAmI(@Request() req) {
     return { data: req.user }
@@ -93,11 +94,14 @@ export class AuthController {
   @ApiBearerAuth()
   @Post('/api-keys')
   async generateApiKey(@Request() req) {
-    const { apiKey, message } = await this.authService.generateApiKey(req.user)
+    const { apiKey, message } = await this.authService.generateApiKey(
+      req.user,
+      req.organizationId,
+    )
     return { data: apiKey, message }
   }
 
-  @UseGuards(AuthGuard)
+  @UseGuards(AuthGuard, OrganizationOperationalGuard)
   @ApiOperation({ summary: 'Get Api Key List (masked***)' })
   @ApiQuery({
     name: 'status',
@@ -108,11 +112,11 @@ export class AuthController {
   })
   @ApiBearerAuth()
   @Get('/api-keys')
-  async getApiKey(
-    @Request() req,
-    @Query('status') status?: string,
-  ) {
-    const data = await this.authService.getUserApiKeys(req.user, status)
+  async getApiKey(@Request() req, @Query('status') status?: string) {
+    const data = await this.authService.getOrganizationApiKeys(
+      req.organizationId,
+      status,
+    )
     return { data }
   }
 
@@ -131,8 +135,8 @@ export class AuthController {
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   @Post('/api-keys/:id/revoke')
-  async revokeApiKey(@Param() params) {
-    await this.authService.revokeApiKey(params.id)
+  async revokeApiKey(@Param() params, @Request() req) {
+    await this.authService.revokeApiKey(params.id, req.user?._id)
     return { message: 'API Key Revoked' }
   }
 
@@ -150,10 +154,7 @@ export class AuthController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard)
   @Patch('/onboarding')
-  async updateOnboarding(
-    @Body() input: UpdateOnboardingDTO,
-    @Request() req,
-  ) {
+  async updateOnboarding(@Body() input: UpdateOnboardingDTO, @Request() req) {
     const user = await this.usersService.updateOnboarding(input, req.user)
     return { data: user }
   }
@@ -186,7 +187,9 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
   @Post('/verify-email')
-  async verifyEmail(@Body() input: { userId: string; verificationCode: string }) {
+  async verifyEmail(
+    @Body() input: { userId: string; verificationCode: string },
+  ) {
     return await this.authService.verifyEmail(input)
   }
 }

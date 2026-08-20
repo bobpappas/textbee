@@ -15,12 +15,14 @@ import { OperatorMembership } from '../organizations/schemas/operator-membership
 import { User } from '../users/schemas/user.schema'
 import {
   GroupOwnerStatus,
+  GroupSenderStatus,
   GroupStatus,
   RosterMembershipStatus,
 } from './group.enums'
 import { Contact } from './schemas/contact.schema'
 import { GroupAuditEvent } from './schemas/group-audit-event.schema'
 import { GroupOwnerAssignment } from './schemas/group-owner-assignment.schema'
+import { GroupSenderAssignment } from './schemas/group-sender-assignment.schema'
 import { Group, GroupDocument } from './schemas/group.schema'
 import { RosterMembership } from './schemas/roster-membership.schema'
 import {
@@ -66,6 +68,8 @@ export class GroupsService {
     @InjectModel(User.name) private readonly users: Model<User>,
     private readonly policy: OrganizationPolicyService,
     private readonly consent: ConsentService,
+    @InjectModel(GroupSenderAssignment.name)
+    private readonly senders?: Model<GroupSenderAssignment>,
   ) {}
 
   async receivingNumbers(organizationId: string, actor: Actor) {
@@ -116,28 +120,48 @@ export class GroupsService {
         : GroupStatus.ACTIVE,
     }
     if (!admin) {
-      const assignments = await this.owners.find({
-        organizationId: organizationObjectId,
-        membershipId: access.membership._id,
-        status: GroupOwnerStatus.ACTIVE,
-      })
-      filter._id = { $in: assignments.map((item) => item.groupId) }
+      const [owners, senders] = await Promise.all([
+        this.owners.find({
+          organizationId: organizationObjectId,
+          membershipId: access.membership._id,
+          status: GroupOwnerStatus.ACTIVE,
+        }),
+        this.senders?.find({
+          organizationId: organizationObjectId,
+          membershipId: access.membership._id,
+          status: GroupSenderStatus.ACTIVE,
+        }) ?? [],
+      ])
+      filter._id = {
+        $in: [...owners, ...senders].map((item) => item.groupId),
+      }
     }
     const groups = await this.groups
       .find(filter)
       .sort({ displayName: 1, _id: 1 })
-    return Promise.all(groups.map((group) => this.groupView(group)))
+    if (admin) return Promise.all(groups.map((group) => this.groupView(group)))
+    const owned = await this.owners.find({
+      organizationId: organizationObjectId,
+      membershipId: access.membership._id,
+      groupId: { $in: groups.map((group) => group._id) },
+      status: GroupOwnerStatus.ACTIVE,
+    })
+    const ownedIds = new Set(owned.map((item) => String(item.groupId)))
+    return Promise.all(
+      groups.map((group) =>
+        this.groupView(group, !ownedIds.has(String(group._id))),
+      ),
+    )
   }
 
   async read(organizationId: string, groupId: string, actor: Actor) {
-    const { group, admin } = await this.requireGroup(
+    const { group, admin, senderOnly } = await this.requireReadableGroup(
       organizationId,
       groupId,
       actor,
-      true,
     )
     if (group.status === GroupStatus.ARCHIVED && !admin) throw this.notFound()
-    return this.groupView(group)
+    return this.groupView(group, senderOnly)
   }
 
   async codeAvailability(
@@ -489,6 +513,96 @@ export class GroupsService {
       correlationId,
       GroupOwnerStatus.ACTIVE,
       GroupOwnerStatus.REVOKED,
+      reason,
+    )
+    return this.groupView(group)
+  }
+
+  async assignSender(
+    organizationId: string,
+    groupId: string,
+    membershipId: string,
+    actor: Actor,
+    correlationId: string = randomUUID(),
+  ) {
+    const actorId = this.actorId(actor)
+    const { group } = await this.requireAdminGroup(
+      organizationId,
+      groupId,
+      actor,
+    )
+    this.requireActive(group)
+    const senderId = this.objectId(membershipId)
+    await this.validateOwnerMemberships(group.organizationId, [
+      String(senderId),
+    ])
+    await this.senders!.updateOne(
+      {
+        organizationId: group.organizationId,
+        groupId: group._id,
+        membershipId: senderId,
+      },
+      {
+        $set: {
+          status: GroupSenderStatus.ACTIVE,
+          changedBy: this.objectId(actorId),
+          changedAt: new Date(),
+        },
+        $unset: { reason: 1 },
+      },
+      { upsert: true },
+    )
+    await this.record(
+      group.organizationId,
+      actorId,
+      'GROUP_SENDER_ASSIGNED',
+      'OperatorMembership',
+      membershipId,
+      correlationId,
+    )
+    return this.groupView(group)
+  }
+
+  async revokeSender(
+    organizationId: string,
+    groupId: string,
+    membershipId: string,
+    actor: Actor,
+    inputValue: unknown,
+    correlationId: string = randomUUID(),
+  ) {
+    const actorId = this.actorId(actor)
+    const { group } = await this.requireAdminGroup(
+      organizationId,
+      groupId,
+      actor,
+    )
+    const reason = this.normalizeReason(this.input(inputValue).reason)
+    await this.senders!.updateOne(
+      {
+        organizationId: group.organizationId,
+        groupId: group._id,
+        membershipId: this.objectId(membershipId),
+        status: GroupSenderStatus.ACTIVE,
+      },
+      {
+        $set: {
+          status: GroupSenderStatus.REVOKED,
+          changedBy: this.objectId(actorId),
+          changedAt: new Date(),
+          reason,
+        },
+      },
+    )
+    await this.record(
+      group.organizationId,
+      actorId,
+      'GROUP_SENDER_REVOKED',
+      'OperatorMembership',
+      membershipId,
+      correlationId,
+      GroupSenderStatus.ACTIVE,
+      GroupSenderStatus.REVOKED,
       reason,
     )
     return this.groupView(group)
@@ -1308,13 +1422,18 @@ export class GroupsService {
     }
   }
 
-  private async groupView(group: GroupDocument | Group) {
-    const [owners, rosterCount] = await Promise.all([
+  private async groupView(group: GroupDocument | Group, senderOnly = false) {
+    const [owners, senders, rosterCount] = await Promise.all([
       this.owners.find({
         organizationId: group.organizationId,
         groupId: group._id,
         status: GroupOwnerStatus.ACTIVE,
       }),
+      this.senders?.find({
+        organizationId: group.organizationId,
+        groupId: group._id,
+        status: GroupSenderStatus.ACTIVE,
+      }) ?? [],
       this.memberships.countDocuments({
         organizationId: group.organizationId,
         groupId: group._id,
@@ -1323,7 +1442,9 @@ export class GroupsService {
     ])
     const operatorMemberships = await this.operatorsModel.find({
       organizationId: group.organizationId,
-      _id: { $in: owners.map((item) => item.membershipId) },
+      _id: {
+        $in: [...owners, ...senders].map((item) => item.membershipId),
+      },
       status: MembershipStatus.ACTIVE,
     })
     const users = await this.users.find({
@@ -1341,10 +1462,32 @@ export class GroupsService {
       joinCode: group.joinCode,
       joinCommand: `JOIN ${group.joinCode}`,
       rosterCount,
-      owners: operatorMemberships.map((item) => ({
-        membershipId: String(item._id),
-        displayName: byId.get(String(item.userId))?.name || 'Approved operator',
-      })),
+      owners: senderOnly
+        ? []
+        : operatorMemberships
+            .filter((item) =>
+              owners.some(
+                (owner) => String(owner.membershipId) === String(item._id),
+              ),
+            )
+            .map((item) => ({
+              membershipId: String(item._id),
+              displayName:
+                byId.get(String(item.userId))?.name || 'Approved operator',
+            })),
+      senders: senderOnly
+        ? []
+        : operatorMemberships
+            .filter((item) =>
+              senders.some(
+                (sender) => String(sender.membershipId) === String(item._id),
+              ),
+            )
+            .map((item) => ({
+              membershipId: String(item._id),
+              displayName:
+                byId.get(String(item.userId))?.name || 'Approved operator',
+            })),
       createdAt: group.createdAt,
       updatedAt: group.updatedAt,
     }
@@ -1358,6 +1501,34 @@ export class GroupsService {
     await this.requireAdmin(organizationId, actor)
     const group = await this.findScopedGroup(organizationId, groupId)
     return { group, admin: true }
+  }
+
+  private async requireReadableGroup(
+    organizationId: string,
+    groupId: string,
+    actor: Actor,
+  ) {
+    const access = await this.requireMembership(organizationId, actor)
+    const group = await this.findScopedGroup(organizationId, groupId)
+    const admin = await this.isAdmin(organizationId, access.userId)
+    if (admin) return { ...access, group, admin, senderOnly: false }
+    if (group.status !== GroupStatus.ACTIVE) throw this.notFound()
+    const [owner, sender] = await Promise.all([
+      this.owners.findOne({
+        organizationId: group.organizationId,
+        groupId: group._id,
+        membershipId: access.membership._id,
+        status: GroupOwnerStatus.ACTIVE,
+      }),
+      this.senders?.findOne({
+        organizationId: group.organizationId,
+        groupId: group._id,
+        membershipId: access.membership._id,
+        status: GroupSenderStatus.ACTIVE,
+      }) ?? null,
+    ])
+    if (!owner && !sender) throw this.notFound()
+    return { ...access, group, admin: false, senderOnly: !owner }
   }
 
   private async requireGroup(

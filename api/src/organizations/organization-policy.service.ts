@@ -71,4 +71,32 @@ export class OrganizationPolicyService {
         .map((membership) => String(membership.organizationId)),
     )
   }
+
+  async soleAdminOrganizationId(userId: string) {
+    if (!Types.ObjectId.isValid(userId)) return null
+    const memberships = await this.memberships.find({
+      userId: new Types.ObjectId(userId),
+      status: MembershipStatus.ACTIVE,
+    })
+    if (!memberships.length) return null
+    const grants = await this.grants.find({
+      organizationId: {
+        $in: memberships.map((membership) => membership.organizationId),
+      },
+      membershipId: { $in: memberships.map((membership) => membership._id) },
+      role: OrganizationRole.ORGANIZATION_ADMIN,
+      status: GrantStatus.ACTIVE,
+    })
+    const grantedIds = new Set(
+      grants.map((grant) => String(grant.membershipId)),
+    )
+    const organizationIds = [
+      ...new Set(
+        memberships
+          .filter((membership) => grantedIds.has(String(membership._id)))
+          .map((membership) => String(membership.organizationId)),
+      ),
+    ]
+    return organizationIds.length === 1 ? organizationIds[0] : null
+  }
 }

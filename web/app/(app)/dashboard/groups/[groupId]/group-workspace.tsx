@@ -23,6 +23,7 @@ import {
   useApplyRosterBulkAdd,
   useArchiveGroup,
   useAssignGroupOwner,
+  useAssignGroupSender,
   useChangeGroupJoinSettings,
   useContactDetails,
   useGroup,
@@ -37,6 +38,7 @@ import {
   useRenameContact,
   usePreviewRosterBulkAdd,
   useRevokeGroupOwner,
+  useRevokeGroupSender,
   useRoster,
   type RosterMember,
   type RosterBulkImport,
@@ -56,7 +58,7 @@ export default function GroupWorkspace({ groupId }: { groupId: string }) {
   const group = useGroup(organizationId, groupId, { enabled: Boolean(active), retry: false })
   const refreshedAfterDenial = useRef(false)
   const [search, setSearch] = useState('')
-  const roster = useRoster(organizationId, groupId, search, Boolean(active && group.data))
+  const roster = useRoster(organizationId, groupId, search, Boolean(active && group.data && canRoster))
 
   useEffect(() => {
     const status = (group.error as any)?.response?.status
@@ -80,16 +82,17 @@ export default function GroupWorkspace({ groupId }: { groupId: string }) {
       <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)]">
         <div className="min-w-0 space-y-5">
           <Card className="min-w-0"><CardHeader><div className="flex flex-wrap items-center justify-between gap-2"><CardTitle>Join this group</CardTitle><Badge variant={archived ? 'secondary' : 'outline'}>{archived ? 'Archived' : 'Active'}</Badge></div></CardHeader><CardContent><GroupCommand group={group.data} />{!archived && <p className="mt-3 text-xs text-muted-foreground">Advertising must say: Message frequency varies. Message and data rates may apply. Reply STOP to stop all Boise Church of Christ texts; HELP for help. Include an administrator-controlled privacy or support contact.</p>}</CardContent></Card>
-          <Card className="min-w-0">
+          {canRoster ? <Card className="min-w-0">
             <CardHeader><div className="flex flex-wrap items-center justify-between gap-3"><div><CardTitle>Roster</CardTitle><p className="mt-1 text-sm text-muted-foreground">{group.data.rosterCount} active people. Contacts do not receive application accounts.</p></div>{!archived && canRoster && <div className="flex flex-wrap gap-2"><BulkAddDialog organizationId={organizationId} groupId={groupId} /><AddPersonDialog organizationId={organizationId} groupId={groupId} /></div>}</div></CardHeader>
             <CardContent className="min-w-0 space-y-4">
               <Label className="relative block"><span className="sr-only">Search roster</span><Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" /><Input className="pl-9" placeholder="Search this roster" value={search} onChange={(event) => setSearch(event.target.value)} /></Label>
               {roster.isPending ? <Skeleton className="h-32 w-full" /> : roster.isError ? <ErrorState title="Roster could not be loaded" error={roster.error} onRetry={() => roster.refetch()} /> : roster.data.length === 0 ? <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">{search ? 'No people match this search.' : 'No one has been added to this roster.'}</p> : <div className="grid min-w-0 gap-3">{roster.data.map((member) => <div key={member.id} className="flex min-w-0 flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><p className="break-words font-medium">{member.displayName}</p><p className="break-words text-sm text-muted-foreground">{member.displayNumber}</p><p className="mt-1 text-xs text-muted-foreground">{member.consentSource === 'TEXT_TO_JOIN' ? 'Consent: Text-to-Join' : member.consentSource === 'OPERATOR_AFFIRMATION' ? 'Consent: operator affirmation' : 'No active group consent'}</p></div>{!archived && canRoster && <div className="flex flex-wrap gap-2"><ContactDetailsDialog organizationId={organizationId} groupId={groupId} member={member} /><RemoveMemberDialog organizationId={organizationId} groupId={groupId} member={member} /></div>}</div>)}</div>}
             </CardContent>
-          </Card>
+          </Card> : <Card><CardHeader><CardTitle>Audience preview</CardTitle></CardHeader><CardContent><p className="text-sm">{group.data.rosterCount} active contacts are in this group. Sender access does not expose roster or contact details.</p></CardContent></Card>}
         </div>
         <div className="min-w-0 space-y-5">
           <Card><CardHeader><CardTitle>Owners</CardTitle></CardHeader><CardContent className="space-y-3"><p className="break-words text-sm">{group.data.owners.map((owner) => owner.displayName).join(', ') || 'No assigned owners'}</p>{canManage && !archived && <OwnerEditor organizationId={organizationId} groupId={groupId} currentOwnerIds={group.data.owners.map((owner) => owner.membershipId)} />}</CardContent></Card>
+          {canManage && <Card><CardHeader><CardTitle>Senders</CardTitle></CardHeader><CardContent className="space-y-3"><p className="break-words text-sm">{(group.data.senders ?? []).map((sender) => sender.displayName).join(', ') || 'No assigned senders'}</p>{!archived && <SenderEditor organizationId={organizationId} groupId={groupId} currentSenderIds={(group.data.senders ?? []).map((sender) => sender.membershipId)} />}</CardContent></Card>}
           {canManage && <AdminSettings organizationId={organizationId} groupId={groupId} groupName={group.data.displayName} joinCode={group.data.joinCode} receivingNumberId={group.data.receivingNumberId} archived={archived} />}
         </div>
       </div>
@@ -211,6 +214,14 @@ function OwnerEditor({ organizationId, groupId, currentOwnerIds }: { organizatio
   const revoke = useRevokeGroupOwner(organizationId, groupId)
   const [reason, setReason] = useState('Owner assignment changed by administrator')
   return <div className="space-y-3 border-t pt-3"><p className="text-sm font-medium">Manage owners</p>{operators.data?.map((operator) => { const assigned = currentOwnerIds.includes(operator.membershipId); return <div key={operator.membershipId} className="flex flex-wrap items-center justify-between gap-2 text-sm"><span className="break-words">{operator.displayName}</span><Button size="sm" variant="outline" onClick={() => assigned ? revoke.mutate({ membershipId: operator.membershipId, reason }) : assign.mutate(operator.membershipId)}>{assigned ? 'Revoke' : 'Assign'}</Button></div> })}<Label htmlFor="owner-change-reason" className="text-xs">Revocation reason</Label><Input id="owner-change-reason" value={reason} maxLength={200} onChange={(event) => setReason(event.target.value)} /></div>
+}
+
+function SenderEditor({ organizationId, groupId, currentSenderIds }: { organizationId: string; groupId: string; currentSenderIds: string[] }) {
+  const operators = useOrganizationOperators(organizationId)
+  const assign = useAssignGroupSender(organizationId, groupId)
+  const revoke = useRevokeGroupSender(organizationId, groupId)
+  const [reason, setReason] = useState('Group sender assignment changed by administrator')
+  return <div className="space-y-3 border-t pt-3"><p className="text-sm font-medium">Manage senders</p><p className="text-xs text-muted-foreground">Senders may preview counts and send to this group, but cannot view or change the roster.</p>{operators.data?.filter((operator) => operator.status === 'ACTIVE').map((operator) => { const assigned = currentSenderIds.includes(operator.membershipId); return <div key={operator.membershipId} className="flex flex-wrap items-center justify-between gap-2 text-sm"><span className="break-words">{operator.displayName}</span><Button size="sm" variant="outline" onClick={() => assigned ? revoke.mutate({ membershipId: operator.membershipId, reason }) : assign.mutate(operator.membershipId)}>{assigned ? 'Revoke' : 'Assign'}</Button></div> })}<Label htmlFor="sender-change-reason" className="text-xs">Revocation reason</Label><Input id="sender-change-reason" value={reason} maxLength={200} onChange={(event) => setReason(event.target.value)} /></div>
 }
 
 function AdminSettings({ organizationId, groupId, groupName, joinCode: initialCode, receivingNumberId: initialNumberId, archived }: { organizationId: string; groupId: string; groupName: string; joinCode: string; receivingNumberId: string; archived: boolean }) {

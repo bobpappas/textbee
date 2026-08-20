@@ -143,6 +143,7 @@ export class SmsQueueProcessor {
       ) {
         attemptReservation = await this.selfHostedPolicy.reserve({
           deviceId,
+          organizationId: device?.organizationId,
           kind: acceptedReservation?.kind || 'ORDINARY',
           messages: fcmMessages.map((message) => {
             const payload = JSON.parse(message.data.smsData)

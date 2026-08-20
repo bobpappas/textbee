@@ -19,6 +19,7 @@ describe('OrganizationContextService', () => {
   let grants: any
   let groupOwners: any
   let groups: any
+  let groupSenders: any
   let service: OrganizationContextService
 
   beforeEach(() => {
@@ -27,12 +28,14 @@ describe('OrganizationContextService', () => {
     grants = { find: jest.fn() }
     groupOwners = { find: jest.fn().mockResolvedValue([]) }
     groups = { exists: jest.fn() }
+    groupSenders = { find: jest.fn().mockResolvedValue([]) }
     service = new OrganizationContextService(
       organizations,
       memberships,
       grants,
       groupOwners,
       groups,
+      groupSenders,
     )
   })
 
@@ -66,14 +69,7 @@ describe('OrganizationContextService', () => {
         displayName: 'Boise Church of Christ',
       },
       membership: { id: String(membershipId), status: MembershipStatus.ACTIVE },
-      capabilities: [
-        OrganizationCapability.GROUP_JOIN_SETTINGS_MANAGE,
-        OrganizationCapability.GROUP_OWNERS_MANAGE,
-        OrganizationCapability.GROUP_ROSTER_MANAGE,
-        OrganizationCapability.GROUPS_MANAGE,
-        OrganizationCapability.GROUPS_READ,
-        OrganizationCapability.PROFILE_MANAGE,
-      ],
+      capabilities: Object.values(OrganizationCapability).sort(),
       roleLabel: 'Organization administrator',
     })
   })
@@ -156,10 +152,28 @@ describe('OrganizationContextService', () => {
     await expect(service.current({ _id: userId })).resolves.toMatchObject({
       capabilities: [
         OrganizationCapability.GROUP_JOIN_SETTINGS_MANAGE,
+        OrganizationCapability.GROUP_MESSAGES_SEND,
         OrganizationCapability.GROUP_ROSTER_MANAGE,
         OrganizationCapability.GROUPS_READ,
       ],
       roleLabel: 'Group owner',
+    })
+  })
+
+  it('grants a sender only group read and send capabilities', async () => {
+    const groupId = new Types.ObjectId()
+    memberships.find.mockResolvedValue([activeMembership()])
+    organizations.find.mockResolvedValue([activeOrganization()])
+    grants.find.mockResolvedValue([])
+    groupSenders.find.mockResolvedValue([{ groupId, status: 'ACTIVE' }])
+    groups.exists.mockResolvedValue({ _id: groupId })
+
+    await expect(service.current({ _id: userId })).resolves.toMatchObject({
+      capabilities: [
+        OrganizationCapability.GROUP_MESSAGES_SEND,
+        OrganizationCapability.GROUPS_READ,
+      ],
+      roleLabel: 'Group sender',
     })
   })
 

@@ -96,6 +96,12 @@ export const ApiEndpoints = {
       `/organizations/${id}/groups/${groupId}/roster-bulk/${previewId}/apply`,
     receivingNumbers: (id: string) => `/organizations/${id}/receiving-numbers`,
     operators: (id: string) => `/organizations/${id}/operators`,
+    operatorStatus: (id: string, membershipId: string) =>
+      `/organizations/${id}/operators/${membershipId}/status`,
+    operatorAdmin: (id: string, membershipId: string) =>
+      `/organizations/${id}/operators/${membershipId}/organization-admin`,
+    groupSender: (id: string, groupId: string, membershipId: string) =>
+      `/organizations/${id}/groups/${groupId}/senders/${membershipId}`,
     codeAvailability: (id: string, receivingNumberId: string, code: string, excludeGroupId?: string) =>
       `/organizations/${id}/groups/join-code-availability?receivingNumberId=${encodeURIComponent(receivingNumberId)}&code=${encodeURIComponent(code)}${excludeGroupId ? `&excludeGroupId=${encodeURIComponent(excludeGroupId)}` : ''}`,
   },

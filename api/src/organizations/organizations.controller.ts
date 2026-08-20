@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -16,6 +17,7 @@ import { OrganizationsService } from './organizations.service'
 import { PlatformAdminGuard } from './platform-admin.guard'
 import { OrganizationAdminGuard } from './organization-admin.guard'
 import { OrganizationContextService } from './organization-context.service'
+import { OperatorAccessService } from './operator-access.service'
 
 @ApiTags('organizations')
 @ApiBearerAuth()
@@ -24,6 +26,7 @@ export class OrganizationsController {
   constructor(
     private readonly organizationsService: OrganizationsService,
     private readonly organizationContext: OrganizationContextService,
+    private readonly operatorAccess?: OperatorAccessService,
   ) {}
 
   @Get('organizations/current-context')
@@ -33,6 +36,61 @@ export class OrganizationsController {
       data: await this.organizationContext.current(
         request.user,
         Boolean(request.apiKey),
+      ),
+    }
+  }
+
+  @Post('organizations/:organizationId/operators')
+  @UseGuards(AuthGuard, OrganizationAdminGuard)
+  async addOperator(
+    @Param('organizationId') organizationId: string,
+    @Request() request,
+    @Body() input: unknown,
+  ) {
+    return {
+      data: await this.operatorAccess!.add(organizationId, request.user, input),
+    }
+  }
+
+  @Patch('organizations/:organizationId/operators/:membershipId/status')
+  @UseGuards(AuthGuard, OrganizationAdminGuard)
+  async changeOperatorStatus(
+    @Param('organizationId') organizationId: string,
+    @Param('membershipId') membershipId: string,
+    @Request() request,
+    @Body() input: { status?: string },
+  ) {
+    return {
+      data: await this.operatorAccess!.changeStatus(
+        organizationId,
+        membershipId,
+        request.user,
+        input?.status ?? '',
+        input,
+      ),
+    }
+  }
+
+  @Patch(
+    'organizations/:organizationId/operators/:membershipId/organization-admin',
+  )
+  @UseGuards(AuthGuard, OrganizationAdminGuard)
+  async changeOrganizationAdmin(
+    @Param('organizationId') organizationId: string,
+    @Param('membershipId') membershipId: string,
+    @Request() request,
+    @Body() input: { enabled?: boolean },
+  ) {
+    if (typeof input?.enabled !== 'boolean') {
+      throw new BadRequestException({ error: 'enabled must be boolean' })
+    }
+    return {
+      data: await this.operatorAccess!.changeAdmin(
+        organizationId,
+        membershipId,
+        request.user,
+        input.enabled,
+        input,
       ),
     }
   }

@@ -2,6 +2,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose'
 import { Document, Types } from 'mongoose'
 import { User } from '../../users/schemas/user.schema'
 import { WebhookEvent } from '../webhook-event.enum'
+import { Organization } from '../../organizations/schemas/organization.schema'
 
 export type WebhookSubscriptionDocument = WebhookSubscription & Document
 
@@ -11,6 +12,15 @@ export class WebhookSubscription {
 
   @Prop({ type: Types.ObjectId, ref: User.name, required: true })
   user: User
+
+  @Prop({ type: Types.ObjectId, ref: Organization.name, index: true })
+  organizationId?: Types.ObjectId
+
+  @Prop({ type: Types.ObjectId, ref: User.name })
+  createdBy?: Types.ObjectId
+
+  @Prop({ type: Types.ObjectId, ref: User.name })
+  lastModifiedBy?: Types.ObjectId
 
   @Prop({ type: String, maxlength: 64, trim: true })
   name?: string
@@ -67,3 +77,4 @@ export const WebhookSubscriptionSchema =
 // per user are allowed; this compound index keeps the per-event fan-out query
 // in `deliverNotification` fast.
 WebhookSubscriptionSchema.index({ user: 1, isActive: 1, events: 1 })
+WebhookSubscriptionSchema.index({ organizationId: 1, isActive: 1, events: 1 })

@@ -8,6 +8,11 @@ export enum GroupOwnerStatus {
   REVOKED = 'REVOKED',
 }
 
+export enum GroupSenderStatus {
+  ACTIVE = 'ACTIVE',
+  REVOKED = 'REVOKED',
+}
+
 export enum RosterMembershipStatus {
   ACTIVE = 'ACTIVE',
   REMOVED = 'REMOVED',

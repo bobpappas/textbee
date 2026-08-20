@@ -38,6 +38,18 @@ export default function OrganizationContextProvider({
           query.queryKey[2] === 'profile',
       })
       queryClient.removeQueries({ queryKey: queryKeys.groupsAll })
+      const organizationScopedRoots = new Set([
+        'devices',
+        'messages',
+        'stats',
+        'apiKeys',
+        'webhooks',
+        'currentSubscription',
+      ])
+      queryClient.removeQueries({
+        predicate: (query) =>
+          organizationScopedRoots.has(String(query.queryKey[0])),
+      })
     }
     previousOrganizationId.current = organizationId
   }, [context.data, context.isSuccess, queryClient])

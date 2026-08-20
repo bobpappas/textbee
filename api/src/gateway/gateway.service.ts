@@ -100,7 +100,13 @@ export class GatewayService {
   // count toward the limit. Fails open if the limit lookup itself errors.
   private async assertDeviceLimitNotReached(
     userId: Types.ObjectId | string,
-    { excludeDeviceId }: { excludeDeviceId?: Types.ObjectId | string } = {},
+    {
+      excludeDeviceId,
+      organizationId,
+    }: {
+      excludeDeviceId?: Types.ObjectId | string
+      organizationId?: Types.ObjectId | string
+    } = {},
   ): Promise<void> {
     let deviceLimit: number
     try {
@@ -115,7 +121,12 @@ export class GatewayService {
       return
     }
 
-    const filter: any = { user: userId, enabled: true }
+    const filter: any = {
+      ...(organizationId
+        ? { organizationId: new Types.ObjectId(String(organizationId)) }
+        : { user: userId }),
+      enabled: true,
+    }
     if (excludeDeviceId) {
       filter._id = { $ne: excludeDeviceId }
     }
@@ -145,20 +156,33 @@ export class GatewayService {
   async registerDevice(
     input: RegisterDeviceInputDTO,
     user: User,
+    organizationId?: string,
   ): Promise<any> {
     // Mongoose 9.6's strict types collide on the reserved `model` field name
     // (it expects Mongoose's `Model<any>` shape, not the device's `model`
     // schema field). Cast the filter to bypass the type check; runtime
     // behavior is unchanged.
     const deviceFilter = {
-      user: user._id,
+      ...(organizationId
+        ? { organizationId: new Types.ObjectId(organizationId) }
+        : { user: user._id }),
       model: input.model,
       buildId: input.buildId,
     } as any
     const device = await this.deviceModel.findOne(deviceFilter)
 
     const now = new Date()
-    const deviceData: any = { ...input, user }
+    const deviceData: any = {
+      ...input,
+      user,
+      ...(organizationId
+        ? {
+            organizationId: new Types.ObjectId(organizationId),
+            registeredBy: user._id,
+            lastModifiedBy: user._id,
+          }
+        : {}),
+    }
 
     // Set default name to "brand model" if not provided
     if (!deviceData.name && input.brand && input.model) {
@@ -187,7 +211,7 @@ export class GatewayService {
         enabled: true,
       })
     } else {
-      await this.assertDeviceLimitNotReached(user._id)
+      await this.assertDeviceLimitNotReached(user._id, { organizationId })
       deviceData.enabled = input.enabled ?? true
       return await this.deviceModel.create(deviceData)
     }
@@ -197,6 +221,18 @@ export class GatewayService {
     // Exclude the push credential and hardware serial from the client response.
     const devices = await this.deviceModel.find(
       { user: user._id },
+      '-fcmToken -serial',
+    )
+    return devices.map((device: any) => {
+      const plain =
+        typeof device.toObject === 'function' ? device.toObject() : device
+      return { ...plain, availability: getGatewayAvailability(plain) }
+    })
+  }
+
+  async getDevicesForOrganization(organizationId: string): Promise<any> {
+    const devices = await this.deviceModel.find(
+      { organizationId: new Types.ObjectId(organizationId) },
       '-fcmToken -serial',
     )
     return devices.map((device: any) => {
@@ -248,6 +284,7 @@ export class GatewayService {
     if (!device.enabled && input.enabled) {
       await this.assertDeviceLimitNotReached(device.user as Types.ObjectId, {
         excludeDeviceId: device._id,
+        organizationId: device.organizationId,
       })
     }
 
@@ -457,6 +494,7 @@ export class GatewayService {
     const safetyReservation = this.isSelfHosted()
       ? await this.selfHostedPolicy.reserve({
           deviceId: device._id,
+          organizationId: device.organizationId,
           kind: safetyKind,
           messages: [{ message, recipientCount: recipients.length }],
           effectiveAt:
@@ -471,6 +509,8 @@ export class GatewayService {
     try {
       smsBatch = await this.smsBatchModel.create({
         user: device.user,
+        organizationId: device.organizationId,
+        requestedByUserId: device.user as Types.ObjectId,
         device: device._id,
         message,
         recipientCount: recipients.length,
@@ -505,6 +545,8 @@ export class GatewayService {
       try {
         sms = await this.smsModel.create({
           user: device.user,
+          organizationId: device.organizationId,
+          requestedByUserId: device.user as Types.ObjectId,
           device: device._id,
           smsBatch: smsBatch._id,
           message: message,
@@ -808,6 +850,7 @@ export class GatewayService {
     const safetyReservation = this.isSelfHosted()
       ? await this.selfHostedPolicy.reserve({
           deviceId: device._id,
+          organizationId: device.organizationId,
           kind: 'ORDINARY',
           messages: messages.map((item) => ({
             message: item.message,
@@ -821,6 +864,8 @@ export class GatewayService {
     try {
       smsBatch = await this.smsBatchModel.create({
         user: device.user,
+        organizationId: device.organizationId,
+        requestedByUserId: device.user as Types.ObjectId,
         device: device._id,
         message: messageTemplate,
         recipientCount: messages
@@ -871,6 +916,8 @@ export class GatewayService {
         recipient = recipient.replace(/\s+/g, '')
         smsDocumentsToInsert.push({
           user: device.user,
+          organizationId: device.organizationId,
+          requestedByUserId: device.user as Types.ObjectId,
           device: device._id,
           smsBatch: smsBatch._id,
           message: message,
@@ -1204,6 +1251,8 @@ export class GatewayService {
 
     const sms = await this.smsModel.create({
       user: device.user,
+      organizationId: device.organizationId,
+      requestedByUserId: device.user as Types.ObjectId,
       device: device._id,
       message: dto.message,
       type: SMSType.RECEIVED,
@@ -1624,6 +1673,27 @@ export class GatewayService {
     }
   }
 
+  async getStatsForOrganization(organizationId: string) {
+    const organizationObjectId = new Types.ObjectId(organizationId)
+    const devices = await this.deviceModel.find({
+      organizationId: organizationObjectId,
+    })
+    const apiKeys =
+      await this.authService.getOrganizationApiKeys(organizationId)
+    return {
+      totalSentSMSCount: devices.reduce(
+        (sum, device) => sum + (device.sentSMSCount || 0),
+        0,
+      ),
+      totalReceivedSMSCount: devices.reduce(
+        (sum, device) => sum + (device.receivedSMSCount || 0),
+        0,
+      ),
+      totalDeviceCount: devices.length,
+      totalApiKeyCount: apiKeys.length,
+    }
+  }
+
   private getRecipientsPreview(recipients: string[]): string {
     if (recipients.length === 0) {
       return null
@@ -1640,8 +1710,18 @@ export class GatewayService {
     }
   }
 
-  async getSMSById(smsId: string): Promise<any> {
-    const sms = await this.smsModel.findById(smsId)
+  async getSMSById(
+    smsId: string,
+    deviceId?: string,
+    organizationId?: string,
+  ): Promise<any> {
+    const sms = await this.smsModel.findOne({
+      _id: smsId,
+      ...(deviceId ? { device: new Types.ObjectId(deviceId) } : {}),
+      ...(organizationId
+        ? { organizationId: new Types.ObjectId(organizationId) }
+        : {}),
+    })
 
     if (!sms) {
       throw new HttpException(
@@ -1656,8 +1736,18 @@ export class GatewayService {
     return sms
   }
 
-  async getSmsBatchById(smsBatchId: string): Promise<any> {
-    const smsBatch = await this.smsBatchModel.findById(smsBatchId)
+  async getSmsBatchById(
+    smsBatchId: string,
+    deviceId?: string,
+    organizationId?: string,
+  ): Promise<any> {
+    const smsBatch = await this.smsBatchModel.findOne({
+      _id: smsBatchId,
+      ...(deviceId ? { device: new Types.ObjectId(deviceId) } : {}),
+      ...(organizationId
+        ? { organizationId: new Types.ObjectId(organizationId) }
+        : {}),
+    } as any)
 
     if (!smsBatch) {
       throw new HttpException(

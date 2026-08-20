@@ -38,6 +38,9 @@ export class Organization {
   @Prop({ type: Date })
   activatedAt?: Date
 
+  @Prop({ type: Number, default: 0, select: false })
+  authorizationRevision?: number
+
   createdAt?: Date
   updatedAt?: Date
 }

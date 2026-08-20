@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "feature_path": "acceptance/features/organization-operator-roles.feature",
+  "ir_path": "acceptance/generated/organization-operator-roles.json",
+  "implementation_hash": "sha256:452353fe201fcffc41fa679fefe16407202bea08c3e969a6f4bbe5455a68c78d",
+  "hash_scope": "generated_files",
+  "generated_files": [
+    "e2e/generated/organization-operator-roles.acceptance.spec.ts"
+  ]
+}

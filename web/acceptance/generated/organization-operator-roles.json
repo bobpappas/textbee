@@ -1,0 +1,292 @@
+{
+  "name" : "B014 organization operators and resource ownership",
+  "scenarios" : [ {
+    "name" : "Organization administrator accesses an organization resource",
+    "steps" : [ {
+      "keyword" : "Given",
+      "text" : "an active organization administrator in organization alpha"
+    }, {
+      "keyword" : "When",
+      "text" : "the operator requests an alpha device"
+    }, {
+      "keyword" : "Then",
+      "text" : "the request is authorized and attributed to that operator"
+    } ],
+    "examples" : [ ]
+  }, {
+    "name" : "Membership status controls organization access",
+    "steps" : [ {
+      "keyword" : "Given",
+      "text" : "an operator with <membership_status> membership in organization alpha",
+      "parameters" : [ "membership_status" ]
+    }, {
+      "keyword" : "When",
+      "text" : "the operator requests an alpha message"
+    }, {
+      "keyword" : "Then",
+      "text" : "organization access is <access_result>",
+      "parameters" : [ "access_result" ]
+    } ],
+    "examples" : [ {
+      "membership_status" : "active",
+      "access_result" : "authorized"
+    }, {
+      "membership_status" : "suspended",
+      "access_result" : "denied"
+    }, {
+      "membership_status" : "revoked",
+      "access_result" : "denied"
+    }, {
+      "membership_status" : "absent",
+      "access_result" : "denied"
+    } ]
+  }, {
+    "name" : "Organization predicates isolate resources",
+    "steps" : [ {
+      "keyword" : "Given",
+      "text" : "an active alpha operator requests a resource in <resource_organization>",
+      "parameters" : [ "resource_organization" ]
+    }, {
+      "keyword" : "When",
+      "text" : "the organization-scoped resource query runs"
+    }, {
+      "keyword" : "Then",
+      "text" : "the resource result is <resource_result>",
+      "parameters" : [ "resource_result" ]
+    } ],
+    "examples" : [ {
+      "resource_organization" : "alpha",
+      "resource_result" : "returned"
+    }, {
+      "resource_organization" : "beta",
+      "resource_result" : "undisclosed"
+    } ]
+  }, {
+    "name" : "Client and legacy role claims are not authority",
+    "steps" : [ {
+      "keyword" : "Given",
+      "text" : "a user without an organization grant supplies <client_claims> claims",
+      "parameters" : [ "client_claims" ]
+    }, {
+      "keyword" : "And",
+      "text" : "the legacy user role is ADMIN"
+    }, {
+      "keyword" : "When",
+      "text" : "the user requests organization data"
+    }, {
+      "keyword" : "Then",
+      "text" : "the request is denied for <client_claims> claims",
+      "parameters" : [ "client_claims" ]
+    } ],
+    "examples" : [ {
+      "client_claims" : "accurate"
+    }, {
+      "client_claims" : "missing"
+    }, {
+      "client_claims" : "forged"
+    } ]
+  }, {
+    "name" : "A contact remains separate from an application user",
+    "steps" : [ {
+      "keyword" : "Given",
+      "text" : "a contact shares identity text with an application user"
+    }, {
+      "keyword" : "When",
+      "text" : "the contact is created or changed"
+    }, {
+      "keyword" : "Then",
+      "text" : "no login allowlist membership or grant changes"
+    } ],
+    "examples" : [ ]
+  }, {
+    "name" : "Inactive membership invalidates an existing session",
+    "steps" : [ {
+      "keyword" : "Given",
+      "text" : "an operator session contains a stale role claim"
+    }, {
+      "keyword" : "When",
+      "text" : "membership becomes <membership_status>",
+      "parameters" : [ "membership_status" ]
+    }, {
+      "keyword" : "Then",
+      "text" : "the next organization request is denied and history remains attributed"
+    } ],
+    "examples" : [ {
+      "membership_status" : "suspended"
+    }, {
+      "membership_status" : "revoked"
+    } ]
+  }, {
+    "name" : "Gateway credentials are least privileged",
+    "steps" : [ {
+      "keyword" : "Given",
+      "text" : "an alpha gateway key attempts <gateway_operation>",
+      "parameters" : [ "gateway_operation" ]
+    }, {
+      "keyword" : "When",
+      "text" : "gateway scope and organization are evaluated"
+    }, {
+      "keyword" : "Then",
+      "text" : "the gateway operation is <access_result>",
+      "parameters" : [ "access_result" ]
+    } ],
+    "examples" : [ {
+      "gateway_operation" : "alpha heartbeat",
+      "access_result" : "authorized"
+    }, {
+      "gateway_operation" : "beta heartbeat",
+      "access_result" : "denied"
+    }, {
+      "gateway_operation" : "operator administration",
+      "access_result" : "denied"
+    }, {
+      "gateway_operation" : "contact export",
+      "access_result" : "denied"
+    } ]
+  }, {
+    "name" : "Last administrator protection is atomic",
+    "steps" : [ {
+      "keyword" : "Given",
+      "text" : "administrator safety state <administrator_state>",
+      "parameters" : [ "administrator_state" ]
+    }, {
+      "keyword" : "When",
+      "text" : "an administrator demotion is attempted"
+    }, {
+      "keyword" : "Then",
+      "text" : "the demotion is <change_result> with a secret-safe audit event",
+      "parameters" : [ "change_result" ]
+    } ],
+    "examples" : [ {
+      "administrator_state" : "another usable administrator",
+      "change_result" : "applied"
+    }, {
+      "administrator_state" : "last usable administrator",
+      "change_result" : "rejected"
+    } ]
+  }, {
+    "name" : "Existing gateway data survives migration",
+    "steps" : [ {
+      "keyword" : "Given",
+      "text" : "a development gateway key and message history exist"
+    }, {
+      "keyword" : "When",
+      "text" : "the records migrate to organization alpha"
+    }, {
+      "keyword" : "Then",
+      "text" : "identifiers and key hashes remain stable within alpha"
+    } ],
+    "examples" : [ ]
+  }, {
+    "name" : "First organization migration is idempotent and safe",
+    "steps" : [ {
+      "keyword" : "Given",
+      "text" : "migration state <migration_state>",
+      "parameters" : [ "migration_state" ]
+    }, {
+      "keyword" : "When",
+      "text" : "the first organization migration runs"
+    }, {
+      "keyword" : "Then",
+      "text" : "migration reports <migration_result> without secrets",
+      "parameters" : [ "migration_result" ]
+    } ],
+    "examples" : [ {
+      "migration_state" : "dry run",
+      "migration_result" : "no writes"
+    }, {
+      "migration_state" : "first apply",
+      "migration_result" : "assigned"
+    }, {
+      "migration_state" : "identical rerun",
+      "migration_result" : "already assigned"
+    }, {
+      "migration_state" : "ambiguous ownership",
+      "migration_result" : "rejected"
+    }, {
+      "migration_state" : "partial failure",
+      "migration_result" : "rolled back"
+    }, {
+      "migration_state" : "no usable administrator",
+      "migration_result" : "rejected"
+    } ]
+  }, {
+    "name" : "Organization context controls dashboard navigation",
+    "steps" : [ {
+      "keyword" : "Given",
+      "text" : "an authenticated operator with limited organization capabilities"
+    }, {
+      "keyword" : "When",
+      "text" : "the operator opens the dashboard"
+    }, {
+      "keyword" : "Then",
+      "text" : "only capability-authorized navigation is visible"
+    } ],
+    "examples" : [ ]
+  }, {
+    "name" : "No membership shows no organization access",
+    "steps" : [ {
+      "keyword" : "Given",
+      "text" : "an approved user without active organization membership"
+    }, {
+      "keyword" : "When",
+      "text" : "the user opens the dashboard"
+    }, {
+      "keyword" : "Then",
+      "text" : "the no organization access state exposes only refresh and logout"
+    } ],
+    "examples" : [ ]
+  }, {
+    "name" : "Administrator manages an operator by exact email",
+    "steps" : [ {
+      "keyword" : "Given",
+      "text" : "an organization administrator opens Operator Access"
+    }, {
+      "keyword" : "When",
+      "text" : "the administrator adds an approved exact email with a reason"
+    }, {
+      "keyword" : "Then",
+      "text" : "server-confirmed operator state is displayed"
+    } ],
+    "examples" : [ ]
+  }, {
+    "name" : "Access revocation clears a rendered dashboard",
+    "steps" : [ {
+      "keyword" : "Given",
+      "text" : "an operator has rendered organization data"
+    }, {
+      "keyword" : "When",
+      "text" : "another administrator revokes that membership"
+    }, {
+      "keyword" : "Then",
+      "text" : "the next request clears cached data and privileged navigation"
+    } ],
+    "examples" : [ ]
+  }, {
+    "name" : "Group sender has send-only authority",
+    "steps" : [ {
+      "keyword" : "Given",
+      "text" : "an operator is sender only for group alpha"
+    }, {
+      "keyword" : "When",
+      "text" : "the sender opens the assigned group"
+    }, {
+      "keyword" : "Then",
+      "text" : "minimum audience data is visible and roster controls are hidden"
+    } ],
+    "examples" : [ ]
+  }, {
+    "name" : "New operator starts without privilege",
+    "steps" : [ {
+      "keyword" : "Given",
+      "text" : "an administrator adds an approved operator by normalized email"
+    }, {
+      "keyword" : "When",
+      "text" : "no role assignment accompanies the membership"
+    }, {
+      "keyword" : "Then",
+      "text" : "the dashboard shows No permissions assigned"
+    } ],
+    "examples" : [ ]
+  } ]
+}

@@ -142,11 +142,23 @@ export const mockOrganizationContext = {
   membership: { id: 'membership_context_1', status: 'ACTIVE' as const },
   capabilities: [
     'organization:profile:manage',
+    'operators:read',
+    'operators:manage',
+    'gateways:read',
+    'gateways:manage',
+    'api-keys:read',
+    'api-keys:manage',
+    'messages:read',
+    'messages:send',
+    'webhooks:read',
+    'webhooks:manage',
+    'usage:read',
     'groups:read',
     'groups:manage',
     'group-owners:manage',
     'group-roster:manage',
     'group-join-settings:manage',
+    'group-messages:send',
   ] as const,
   roleLabel: 'Organization administrator',
 }
@@ -166,6 +178,7 @@ export const mockOrganizationGroups = [
     owners: [
       { membershipId: '64b7c42f18f0c31f8c9fd301', displayName: 'Alex Rivera' },
     ],
+    senders: [],
   },
 ]
 

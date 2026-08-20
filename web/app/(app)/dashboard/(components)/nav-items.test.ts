@@ -15,6 +15,18 @@ const activeContext = {
 }
 
 describe('isNavItemActive', () => {
+  it('removes organization navigation for a regular user without access', () => {
+    expect(
+      visibleNavItems('REGULAR', {
+        state: 'NO_ACCESS',
+        organization: null,
+        membership: null,
+        capabilities: [],
+        roleLabel: null,
+      }),
+    ).toEqual([])
+  })
+
   it('matches the dashboard home exactly', () => {
     expect(isNavItemActive({ href: '/dashboard' }, '/dashboard')).toBe(true)
     expect(
@@ -58,7 +70,7 @@ describe('isNavItemActive', () => {
     expect(
       visibleMobileNavItems('ADMIN').map((item) => item.label),
     ).not.toContain('Organizations')
-    expect(visibleMobileNavItems('ADMIN')).toHaveLength(4)
+    expect(visibleMobileNavItems('ADMIN')).toHaveLength(3)
   })
 
   it('shows the active profile only from a fresh server capability', () => {
