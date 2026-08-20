@@ -1,14 +1,12 @@
 package com.vernu.sms.helpers
 
 import android.Manifest
-import android.app.ActivityManager
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.net.ConnectivityManager
 import android.os.BatteryManager
 import android.os.Build
-import android.os.PowerManager
 import android.os.StatFs
 import android.os.SystemClock
 import android.provider.Settings
@@ -84,10 +82,7 @@ object HeartbeatHelper {
             val smsPermissionGranted = TextBeeUtils.isPermissionGranted(context, Manifest.permission.SEND_SMS)
             val notificationPermissionGranted = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
                     TextBeeUtils.isPermissionGranted(context, Manifest.permission.POST_NOTIFICATIONS)
-            val backgroundRestricted = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P &&
-                    (context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager).isBackgroundRestricted
-            val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
-            val batteryOptimizationRestricted = !powerManager.isIgnoringBatteryOptimizations(context.packageName)
+            val backgroundRestricted = BackgroundRestrictionHelper.isRestricted(context)
             val reliabilityModeActive = SharedPreferenceHelper.getSharedPreferenceBoolean(
                 context, AppConstants.SHARED_PREFS_RELIABILITY_SERVICE_ACTIVE_KEY, false
             )
@@ -96,12 +91,10 @@ object HeartbeatHelper {
             heartbeatInput.notificationPermissionGranted = notificationPermissionGranted
             heartbeatInput.networkConnected = activeNetwork?.isConnected == true
             heartbeatInput.backgroundRestricted = backgroundRestricted
-            heartbeatInput.batteryOptimizationRestricted = batteryOptimizationRestricted
             heartbeatInput.reliabilityReasonCode = when {
                 !smsPermissionGranted -> "SMS_PERMISSION_MISSING"
                 !notificationPermissionGranted -> "NOTIFICATION_PERMISSION_MISSING"
                 backgroundRestricted -> "BACKGROUND_RESTRICTED"
-                batteryOptimizationRestricted -> "BATTERY_OPTIMIZATION_ACTIVE"
                 activeNetwork?.isConnected != true -> "NETWORK_UNAVAILABLE"
                 !reliabilityModeActive -> "RELIABILITY_SERVICE_INACTIVE"
                 else -> null
