@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { QueryClient } from '@tanstack/react-query'
+import { QueryClient, useQuery } from '@tanstack/react-query'
 import { http, HttpResponse } from 'msw'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
@@ -8,6 +8,7 @@ import { API_BASE_URL, mockOrganizationContext } from '@/test/fixtures'
 import { server } from '@/test/msw/server'
 import { TestProviders } from '@/test/render'
 import { queryKeys } from '@/lib/api/query-keys'
+import { useActiveOrganizationId } from '@/lib/organization-scope'
 import OrganizationContextProvider, {
   freshOrganizationContext,
   useOrganizationContext,
@@ -63,6 +64,34 @@ function NavigationProbe() {
       </p>
       <button type="button" onClick={() => context.refetch()}>
         Refresh context
+      </button>
+    </div>
+  )
+}
+
+function DelayedOrganizationProbe({ onAbort }: { onAbort: () => void }) {
+  const context = useOrganizationContext()
+  const organizationId = useActiveOrganizationId()
+  const delayed = useQuery({
+    queryKey: ['organization', organizationId, 'future-delayed-family'],
+    enabled: Boolean(organizationId),
+    queryFn: ({ signal }) =>
+      new Promise<string>((resolve) => {
+        if (organizationId === 'organization-a') {
+          signal.addEventListener('abort', onAbort, { once: true })
+          setTimeout(() => resolve('private organization A data'), 75)
+          return
+        }
+        resolve('organization B data')
+      }),
+  })
+
+  return (
+    <div>
+      <p>{organizationId ?? 'No visible organization'}</p>
+      <p>{delayed.data ?? 'No scoped data'}</p>
+      <button type="button" onClick={() => context.refetch()}>
+        Switch organization
       </button>
     </div>
   )
@@ -126,6 +155,64 @@ describe('OrganizationContextProvider', () => {
         ),
       ).toBeUndefined(),
     )
+  })
+
+  it('aborts and removes every old-organization family before showing the new organization', async () => {
+    let activeOrganizationId = 'organization-a'
+    let requestWasAborted = false
+    server.use(
+      http.get(url(ApiEndpoints.organizations.currentContext()), () =>
+        HttpResponse.json({
+          data: {
+            ...mockOrganizationContext,
+            organization: {
+              ...mockOrganizationContext.organization,
+              id: activeOrganizationId,
+              displayName:
+                activeOrganizationId === 'organization-a'
+                  ? 'Organization A'
+                  : 'Organization B',
+            },
+          },
+        }),
+      ),
+    )
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, gcTime: Infinity },
+        mutations: { retry: false },
+      },
+    })
+
+    render(
+      <TestProviders queryClient={queryClient}>
+        <OrganizationContextProvider enabled>
+          <DelayedOrganizationProbe
+            onAbort={() => {
+              requestWasAborted = true
+            }}
+          />
+        </OrganizationContextProvider>
+      </TestProviders>,
+    )
+
+    expect(await screen.findByText('organization-a')).toBeInTheDocument()
+    activeOrganizationId = 'organization-b'
+    fireEvent.click(screen.getByRole('button', { name: 'Switch organization' }))
+
+    expect(await screen.findByText('organization-b')).toBeInTheDocument()
+    expect(await screen.findByText('organization B data')).toBeInTheDocument()
+    expect(requestWasAborted).toBe(true)
+
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    expect(screen.queryByText('private organization A data')).toBeNull()
+    expect(
+      queryClient.getQueryData([
+        'organization',
+        'organization-a',
+        'future-delayed-family',
+      ]),
+    ).toBeUndefined()
   })
 
   it('hides cached organization navigation after a failed refetch', async () => {

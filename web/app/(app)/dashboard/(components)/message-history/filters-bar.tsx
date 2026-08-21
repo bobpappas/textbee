@@ -7,27 +7,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { RefreshCw, Search, Timer, X } from 'lucide-react'
+import { RefreshCw, Search, X } from 'lucide-react'
 import { formatDeviceName, cn } from '@/lib/utils'
 import type { Device } from '@/lib/api'
-
-const AUTO_REFRESH_INTERVALS = [
-  { value: 0, label: 'Off' },
-  { value: 15, label: 'Every 15s' },
-  { value: 30, label: 'Every 30s' },
-  { value: 60, label: 'Every 60s' },
-]
 
 const TYPES = [
   { value: 'all', label: 'All' },
@@ -45,8 +30,6 @@ type FiltersBarProps = {
   onSearchChange: (value: string) => void
   onRefresh: () => void
   isRefreshing: boolean
-  autoRefreshInterval: number
-  onAutoRefreshIntervalChange: (seconds: number) => void
 }
 
 // Collapsed from a tall labelled card into one compact bar, so messages are
@@ -61,11 +44,7 @@ export default function FiltersBar({
   onSearchChange,
   onRefresh,
   isRefreshing,
-  autoRefreshInterval,
-  onAutoRefreshIntervalChange,
 }: FiltersBarProps) {
-  const autoRefreshOn = autoRefreshInterval > 0
-
   return (
     <div className='space-y-3'>
       <div className='flex flex-col gap-2 sm:flex-row sm:items-center'>
@@ -120,51 +99,13 @@ export default function FiltersBar({
             size='icon'
             className='h-9 w-9 shrink-0'
             onClick={onRefresh}
-            disabled={!currentDevice}
+            disabled={!currentDevice || isRefreshing}
             aria-label='Refresh messages'
           >
             <RefreshCw
               className={cn('h-4 w-4', isRefreshing && 'animate-spin')}
             />
           </Button>
-
-          {/* Four inline interval buttons took a whole row for a setting that
-              is changed rarely. */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                type='button'
-                variant='outline'
-                size='icon'
-                className={cn(
-                  'h-9 w-9 shrink-0',
-                  autoRefreshOn && 'text-primary'
-                )}
-                aria-label={
-                  autoRefreshOn
-                    ? `Auto refresh every ${autoRefreshInterval} seconds`
-                    : 'Auto refresh off'
-                }
-              >
-                <Timer className='h-4 w-4' />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align='end'>
-              <DropdownMenuLabel>Auto refresh</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {AUTO_REFRESH_INTERVALS.map((interval) => (
-                <DropdownMenuCheckboxItem
-                  key={interval.value}
-                  checked={autoRefreshInterval === interval.value}
-                  onCheckedChange={() =>
-                    onAutoRefreshIntervalChange(interval.value)
-                  }
-                >
-                  {interval.label}
-                </DropdownMenuCheckboxItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
         </div>
       </div>
 

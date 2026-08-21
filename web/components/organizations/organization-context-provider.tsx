@@ -5,11 +5,14 @@ import {
   useContext,
   useEffect,
   useRef,
+  useState,
   type PropsWithChildren,
 } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import { useSession } from 'next-auth/react'
 import { useOrganizationContextQuery } from '@/lib/api'
 import { queryKeys } from '@/lib/api/query-keys'
+import { OrganizationScopeProvider } from '@/lib/organization-scope'
 
 type ContextQuery = ReturnType<typeof useOrganizationContextQuery>
 
@@ -20,43 +23,57 @@ export default function OrganizationContextProvider({
   children,
 }: PropsWithChildren<{ enabled: boolean }>) {
   const queryClient = useQueryClient()
-  const context = useOrganizationContextQuery({ enabled })
+  const { data: session } = useSession()
+  const contextEnabled = enabled && Boolean(session?.user)
+  const context = useOrganizationContextQuery({ enabled: contextEnabled })
   const previousOrganizationId = useRef<string | null>(null)
+  const transitionId = useRef(0)
+  const [readyOrganizationId, setReadyOrganizationId] = useState<string | null>(
+    null,
+  )
+
+  const resolvedOrganizationId =
+    contextEnabled && context.isSuccess && context.data.state === 'ACTIVE'
+      ? context.data.organization.id
+      : null
+  const visibleOrganizationId =
+    !context.isFetching && readyOrganizationId === resolvedOrganizationId
+      ? readyOrganizationId
+      : null
 
   useEffect(() => {
-    if (!context.isSuccess) return
-    const organizationId =
-      context.data.state === 'ACTIVE' ? context.data.organization.id : null
-    if (
-      organizationId === null ||
-      (previousOrganizationId.current !== null &&
-        previousOrganizationId.current !== organizationId)
-    ) {
-      queryClient.removeQueries({
-        predicate: (query) =>
-          query.queryKey[0] === 'organizations' &&
-          query.queryKey[2] === 'profile',
-      })
-      queryClient.removeQueries({ queryKey: queryKeys.groupsAll })
-      const organizationScopedRoots = new Set([
-        'devices',
-        'messages',
-        'stats',
-        'apiKeys',
-        'webhooks',
-        'currentSubscription',
-      ])
-      queryClient.removeQueries({
-        predicate: (query) =>
-          organizationScopedRoots.has(String(query.queryKey[0])),
-      })
+    const currentTransition = ++transitionId.current
+    const previousOrganization = previousOrganizationId.current
+
+    const transition = async () => {
+      if (!contextEnabled) {
+        await queryClient.cancelQueries()
+        queryClient.clear()
+      } else if (
+        previousOrganization &&
+        previousOrganization !== resolvedOrganizationId
+      ) {
+        await queryClient.cancelQueries({
+          queryKey: queryKeys.organization(previousOrganization),
+        })
+        queryClient.removeQueries({
+          queryKey: queryKeys.organization(previousOrganization),
+        })
+      }
+
+      if (currentTransition !== transitionId.current) return
+      previousOrganizationId.current = resolvedOrganizationId
+      setReadyOrganizationId(resolvedOrganizationId)
     }
-    previousOrganizationId.current = organizationId
-  }, [context.data, context.isSuccess, queryClient])
+
+    void transition()
+  }, [contextEnabled, queryClient, resolvedOrganizationId])
 
   return (
     <OrganizationContextQueryContext.Provider value={context}>
-      {children}
+      <OrganizationScopeProvider organizationId={visibleOrganizationId}>
+        {children}
+      </OrganizationScopeProvider>
     </OrganizationContextQueryContext.Provider>
   )
 }

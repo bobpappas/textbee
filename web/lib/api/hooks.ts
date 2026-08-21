@@ -8,6 +8,11 @@ import {
 import httpBrowserClient from '@/lib/httpBrowserClient'
 import { ApiEndpoints } from '@/config/api'
 import { queryKeys } from './query-keys'
+import { useActiveOrganizationId } from '../organization-scope'
+import {
+  cacheDependencies,
+  invalidateCacheDependencies,
+} from './cache-dependencies'
 import type {
   ApiKey,
   ApiKeyStatusFilter,
@@ -50,6 +55,25 @@ type ListQueryOpts<T> = Omit<
 >
 const selectList = <T>(raw: ListEnvelope<T> | undefined): T[] => raw?.data ?? []
 
+export const HISTORY_REFRESH_INTERVAL_MS = 15_000
+const historyRefreshPolicy = {
+  staleTime: HISTORY_REFRESH_INTERVAL_MS,
+  refetchInterval: HISTORY_REFRESH_INTERVAL_MS,
+  refetchIntervalInBackground: false,
+  refetchOnWindowFocus: true,
+  refetchOnReconnect: true,
+} as const
+
+export const uniqueByServerId = <T extends { _id?: string }>(rows: T[]) => {
+  const seen = new Set<string>()
+  return rows.filter((row) => {
+    if (!row._id) return true
+    if (seen.has(row._id)) return false
+    seen.add(row._id)
+    return true
+  })
+}
+
 type MutationOpts<TData, TVars> = Omit<
   UseMutationOptions<TData, Error, TVars>,
   'mutationFn'
@@ -60,8 +84,10 @@ type MutationOpts<TData, TVars> = Omit<
 export function useCurrentUser(options?: QueryOpts<User>) {
   return useQuery({
     queryKey: queryKeys.currentUser,
-    queryFn: () =>
-      httpBrowserClient.get(ApiEndpoints.auth.whoAmI()).then(unwrapData<User>),
+    queryFn: ({ signal }) =>
+      httpBrowserClient
+        .get(ApiEndpoints.auth.whoAmI(), { signal })
+        .then(unwrapData<User>),
     ...options,
   })
 }
@@ -69,22 +95,24 @@ export function useCurrentUser(options?: QueryOpts<User>) {
 // ---------- billing ----------
 
 export function useSubscription(options?: QueryOpts<Subscription>) {
+  const organizationId = useActiveOrganizationId() ?? ''
   return useQuery({
-    queryKey: queryKeys.subscription,
-    queryFn: () =>
+    queryKey: queryKeys.subscription(organizationId),
+    queryFn: ({ signal }) =>
       httpBrowserClient
-        .get(ApiEndpoints.billing.currentSubscription())
+        .get(ApiEndpoints.billing.currentSubscription(), { signal })
         .then(unwrapBody<Subscription>),
     ...options,
+    enabled: Boolean(organizationId) && (options?.enabled ?? true),
   })
 }
 
 export function useBillingPlans(options?: ListQueryOpts<Plan>) {
   return useQuery({
     queryKey: queryKeys.billingPlans,
-    queryFn: () =>
+    queryFn: ({ signal }) =>
       httpBrowserClient
-        .get(ApiEndpoints.billing.plans())
+        .get(ApiEndpoints.billing.plans(), { signal })
         .then((r) => r.data as ListEnvelope<Plan>),
     select: selectList<Plan>,
     ...options,
@@ -94,35 +122,42 @@ export function useBillingPlans(options?: ListQueryOpts<Plan>) {
 // ---------- gateway ----------
 
 export function useGatewayStats(options?: QueryOpts<GatewayStats>) {
+  const organizationId = useActiveOrganizationId() ?? ''
   return useQuery({
-    queryKey: queryKeys.stats,
-    queryFn: () =>
+    queryKey: queryKeys.stats(organizationId),
+    queryFn: ({ signal }) =>
       httpBrowserClient
-        .get(ApiEndpoints.gateway.getStats())
+        .get(ApiEndpoints.gateway.getStats(), { signal })
         .then(unwrapData<GatewayStats>),
     ...options,
+    enabled: Boolean(organizationId) && (options?.enabled ?? true),
   })
 }
 
 export function useDevices(options?: ListQueryOpts<Device>) {
+  const organizationId = useActiveOrganizationId() ?? ''
   return useQuery({
-    queryKey: queryKeys.devices,
-    queryFn: () =>
+    queryKey: queryKeys.devices(organizationId),
+    queryFn: ({ signal }) =>
       httpBrowserClient
-        .get(ApiEndpoints.gateway.listDevices())
+        .get(ApiEndpoints.gateway.listDevices(), { signal })
         .then((r) => r.data as ListEnvelope<Device>),
     select: selectList<Device>,
     ...options,
+    enabled: Boolean(organizationId) && (options?.enabled ?? true),
   })
 }
 
 export function useDeleteDevice() {
   const queryClient = useQueryClient()
+  const organizationId = useActiveOrganizationId() ?? ''
   return useMutation({
     mutationFn: (id: string) =>
       httpBrowserClient.delete(ApiEndpoints.gateway.deleteDevice(id)),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.devices })
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.devices(organizationId),
+      })
     },
   })
 }
@@ -133,46 +168,57 @@ export function useApiKeys(
   status: ApiKeyStatusFilter = 'active',
   options?: ListQueryOpts<ApiKey>,
 ) {
+  const organizationId = useActiveOrganizationId() ?? ''
   return useQuery({
-    queryKey: queryKeys.apiKeys(status),
-    queryFn: () =>
+    queryKey: queryKeys.apiKeys(organizationId, status),
+    queryFn: ({ signal }) =>
       httpBrowserClient
-        .get(ApiEndpoints.auth.listApiKeys(status))
+        .get(ApiEndpoints.auth.listApiKeys(status), { signal })
         .then((r) => r.data as ListEnvelope<ApiKey>),
     select: selectList<ApiKey>,
     ...options,
+    enabled: Boolean(organizationId) && (options?.enabled ?? true),
   })
 }
 
 export function useRevokeApiKey() {
   const queryClient = useQueryClient()
+  const organizationId = useActiveOrganizationId() ?? ''
   return useMutation({
     mutationFn: (id: string) =>
       httpBrowserClient.post(ApiEndpoints.auth.revokeApiKey(id)),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.apiKeysAll })
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.apiKeysAll(organizationId),
+      })
     },
   })
 }
 
 export function useDeleteApiKey() {
   const queryClient = useQueryClient()
+  const organizationId = useActiveOrganizationId() ?? ''
   return useMutation({
     mutationFn: (id: string) =>
       httpBrowserClient.delete(ApiEndpoints.auth.deleteApiKey(id)),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.apiKeysAll })
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.apiKeysAll(organizationId),
+      })
     },
   })
 }
 
 export function useRenameApiKey() {
   const queryClient = useQueryClient()
+  const organizationId = useActiveOrganizationId() ?? ''
   return useMutation({
     mutationFn: ({ id, name }: { id: string; name: string }) =>
       httpBrowserClient.patch(ApiEndpoints.auth.renameApiKey(id), { name }),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.apiKeysAll })
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.apiKeysAll(organizationId),
+      })
     },
   })
 }
@@ -181,15 +227,22 @@ export function useRenameApiKey() {
 // state, so all three refresh together.
 export function useGenerateApiKey() {
   const queryClient = useQueryClient()
+  const organizationId = useActiveOrganizationId() ?? ''
   return useMutation({
     mutationFn: () =>
       httpBrowserClient
         .post(ApiEndpoints.auth.generateApiKey())
         .then((res) => res.data as { data: string }),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.apiKeysAll })
-      void queryClient.invalidateQueries({ queryKey: queryKeys.stats })
-      void queryClient.invalidateQueries({ queryKey: queryKeys.devices })
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.apiKeysAll(organizationId),
+      })
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.stats(organizationId),
+      })
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.devices(organizationId),
+      })
     },
   })
 }
@@ -257,6 +310,7 @@ export type UpdateOnboardingPayload = {
 
 export function useUpdateOnboarding() {
   const queryClient = useQueryClient()
+  const organizationId = useActiveOrganizationId() ?? ''
   return useMutation({
     mutationFn: (body: UpdateOnboardingPayload) =>
       httpBrowserClient
@@ -264,8 +318,12 @@ export function useUpdateOnboarding() {
         .then((r) => r.data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.currentUser })
-      void queryClient.invalidateQueries({ queryKey: queryKeys.stats })
-      void queryClient.invalidateQueries({ queryKey: queryKeys.subscription })
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.stats(organizationId),
+      })
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.subscription(organizationId),
+      })
     },
   })
 }
@@ -273,14 +331,16 @@ export function useUpdateOnboarding() {
 // ---------- webhooks ----------
 
 export function useWebhooks(options?: ListQueryOpts<WebhookSubscription>) {
+  const organizationId = useActiveOrganizationId() ?? ''
   return useQuery({
-    queryKey: queryKeys.webhooks,
-    queryFn: () =>
+    queryKey: queryKeys.webhooks(organizationId),
+    queryFn: ({ signal }) =>
       httpBrowserClient
-        .get(ApiEndpoints.gateway.getWebhooks())
+        .get(ApiEndpoints.gateway.getWebhooks(), { signal })
         .then((r) => r.data as ListEnvelope<WebhookSubscription>),
     select: selectList<WebhookSubscription>,
     ...options,
+    enabled: Boolean(organizationId) && (options?.enabled ?? true),
   })
 }
 
@@ -294,33 +354,41 @@ export type WebhookInput = {
 
 // All four webhook mutations invalidate the same list, so the key lives here
 // once rather than being retyped in each dialog.
-const invalidateWebhooks = (queryClient: ReturnType<typeof useQueryClient>) =>
-  void queryClient.invalidateQueries({ queryKey: queryKeys.webhooks })
+const invalidateWebhooks = (
+  queryClient: ReturnType<typeof useQueryClient>,
+  organizationId: string,
+) =>
+  void queryClient.invalidateQueries({
+    queryKey: queryKeys.webhooks(organizationId),
+  })
 
 export function useCreateWebhook() {
   const queryClient = useQueryClient()
+  const organizationId = useActiveOrganizationId() ?? ''
   return useMutation({
     mutationFn: (values: WebhookInput) =>
       httpBrowserClient.post(ApiEndpoints.gateway.createWebhook(), values),
-    onSuccess: () => invalidateWebhooks(queryClient),
+    onSuccess: () => invalidateWebhooks(queryClient, organizationId),
   })
 }
 
 export function useUpdateWebhook(id: string) {
   const queryClient = useQueryClient()
+  const organizationId = useActiveOrganizationId() ?? ''
   return useMutation({
     mutationFn: (values: Partial<WebhookInput>) =>
       httpBrowserClient.patch(ApiEndpoints.gateway.updateWebhook(id), values),
-    onSuccess: () => invalidateWebhooks(queryClient),
+    onSuccess: () => invalidateWebhooks(queryClient, organizationId),
   })
 }
 
 export function useDeleteWebhook(id: string) {
   const queryClient = useQueryClient()
+  const organizationId = useActiveOrganizationId() ?? ''
   return useMutation({
     mutationFn: () =>
       httpBrowserClient.delete(ApiEndpoints.gateway.deleteWebhook(id)),
-    onSuccess: () => invalidateWebhooks(queryClient),
+    onSuccess: () => invalidateWebhooks(queryClient, organizationId),
   })
 }
 
@@ -331,9 +399,9 @@ export function useOrganizationContextQuery(
 ) {
   return useQuery({
     queryKey: queryKeys.organizationContext,
-    queryFn: () =>
+    queryFn: ({ signal }) =>
       httpBrowserClient
-        .get(ApiEndpoints.organizations.currentContext())
+        .get(ApiEndpoints.organizations.currentContext(), { signal })
         .then(unwrapData<OrganizationContext>),
     staleTime: 0,
     refetchOnMount: 'always',
@@ -346,9 +414,9 @@ export function useOrganizations(
 ) {
   return useQuery({
     queryKey: queryKeys.organizations,
-    queryFn: () =>
+    queryFn: ({ signal }) =>
       httpBrowserClient
-        .get(ApiEndpoints.organizations.list())
+        .get(ApiEndpoints.organizations.list(), { signal })
         .then((r) => r.data as ListEnvelope<OrganizationRegistryItem>),
     select: selectList<OrganizationRegistryItem>,
     ...options,
@@ -400,9 +468,9 @@ export function useOrganizationProfile(
 ) {
   return useQuery({
     queryKey: queryKeys.organizationProfile(organizationId),
-    queryFn: () =>
+    queryFn: ({ signal }) =>
       httpBrowserClient
-        .get(ApiEndpoints.organizations.profile(organizationId))
+        .get(ApiEndpoints.organizations.profile(organizationId), { signal })
         .then(unwrapData<OrganizationProfile>),
     enabled: Boolean(organizationId),
     ...options,
@@ -423,7 +491,43 @@ export function useRenameOrganization(organizationId: string) {
         queryKeys.organizationProfile(organizationId),
         profile,
       )
-      void queryClient.invalidateQueries({ queryKey: queryKeys.organizations })
+      queryClient.setQueryData<ListEnvelope<OrganizationRegistryItem>>(
+        queryKeys.organizations,
+        (current) =>
+          current
+            ? {
+                ...current,
+                data: current.data.map((organization) =>
+                  organization.id === organizationId
+                    ? { ...organization, displayName: profile.displayName }
+                    : organization,
+                ),
+              }
+            : current,
+      )
+      queryClient.setQueryData<OrganizationContext>(
+        queryKeys.organizationContext,
+        (current) =>
+          current?.state === 'ACTIVE' &&
+          current.organization.id === organizationId
+            ? {
+                ...current,
+                organization: {
+                  ...current.organization,
+                  displayName: profile.displayName,
+                },
+              }
+            : current,
+      )
+      void invalidateCacheDependencies(
+        queryClient,
+        cacheDependencies.organizationName(organizationId),
+        // The PATCH response is already server-authoritative and has updated
+        // every mounted display surface above. Mark the dependencies stale for
+        // their next normal refresh without briefly tearing down the active
+        // organization scope and discarding the success confirmation.
+        'none',
+      )
     },
   })
 }
@@ -435,7 +539,9 @@ const invalidateGroupData = (
   organizationId: string,
   groupId?: string,
 ) => {
-  void queryClient.invalidateQueries({ queryKey: queryKeys.groupsAll })
+  void queryClient.invalidateQueries({
+    queryKey: queryKeys.groupsAll(organizationId),
+  })
   if (groupId) {
     void queryClient.invalidateQueries({
       queryKey: queryKeys.group(organizationId, groupId),
@@ -450,9 +556,11 @@ export function useGroups(
 ) {
   return useQuery({
     queryKey: queryKeys.groups(organizationId, includeArchived),
-    queryFn: () =>
+    queryFn: ({ signal }) =>
       httpBrowserClient
-        .get(ApiEndpoints.organizations.groups(organizationId, includeArchived))
+        .get(ApiEndpoints.organizations.groups(organizationId, includeArchived), {
+          signal,
+        })
         .then(unwrapData<OrganizationGroup[]>),
     enabled: Boolean(organizationId),
     ...options,
@@ -466,9 +574,11 @@ export function useGroup(
 ) {
   return useQuery({
     queryKey: queryKeys.group(organizationId, groupId),
-    queryFn: () =>
+    queryFn: ({ signal }) =>
       httpBrowserClient
-        .get(ApiEndpoints.organizations.group(organizationId, groupId))
+        .get(ApiEndpoints.organizations.group(organizationId, groupId), {
+          signal,
+        })
         .then(unwrapData<OrganizationGroup>),
     enabled: Boolean(organizationId && groupId),
     ...options,
@@ -485,6 +595,7 @@ export function usePreviewGroupMessage(organizationId: string, groupId: string) 
 }
 
 export function useConfirmGroupMessage(organizationId: string, groupId: string) {
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: ({ previewId, requestId }: { previewId: string; requestId: string }) =>
       httpBrowserClient
@@ -494,15 +605,23 @@ export function useConfirmGroupMessage(organizationId: string, groupId: string) 
           { headers: { 'X-Request-Id': requestId } },
         )
         .then(unwrapData<GroupMessageSend>),
+    onSuccess: () => {
+      void invalidateCacheDependencies(
+        queryClient,
+        cacheDependencies.acceptedSend(organizationId),
+      )
+    },
   })
 }
 
 export function useReceivingNumbers(organizationId: string) {
   return useQuery({
     queryKey: queryKeys.receivingNumbers(organizationId),
-    queryFn: () =>
+    queryFn: ({ signal }) =>
       httpBrowserClient
-        .get(ApiEndpoints.organizations.receivingNumbers(organizationId))
+        .get(ApiEndpoints.organizations.receivingNumbers(organizationId), {
+          signal,
+        })
         .then(unwrapData<ReceivingNumber[]>),
     enabled: Boolean(organizationId),
   })
@@ -514,9 +633,9 @@ export function useOrganizationOperators(
 ) {
   return useQuery({
     queryKey: queryKeys.organizationOperators(organizationId),
-    queryFn: () =>
+    queryFn: ({ signal }) =>
       httpBrowserClient
-        .get(ApiEndpoints.organizations.operators(organizationId))
+        .get(ApiEndpoints.organizations.operators(organizationId), { signal })
         .then(unwrapData<OrganizationOperator[]>),
     enabled: Boolean(organizationId) && enabled,
   })
@@ -537,10 +656,10 @@ const invalidateGroupRoleData = (
   organizationId: string,
   groupId: string,
 ) => {
-  invalidateGroupData(queryClient, organizationId, groupId)
-  void queryClient.invalidateQueries({
-    queryKey: queryKeys.organizationOperators(organizationId),
-  })
+  void invalidateCacheDependencies(
+    queryClient,
+    cacheDependencies.groupSummary(organizationId, groupId),
+  )
 }
 
 export function useAddOrganizationOperator(organizationId: string) {
@@ -596,7 +715,12 @@ export function useCreateGroup(organizationId: string) {
       httpBrowserClient
         .post(ApiEndpoints.organizations.groups(organizationId), input)
         .then(unwrapData<OrganizationGroup>),
-    onSuccess: () => invalidateGroupData(queryClient, organizationId),
+    onSuccess: () => {
+      void invalidateCacheDependencies(
+        queryClient,
+        cacheDependencies.groupSummary(organizationId),
+      )
+    },
   })
 }
 
@@ -609,7 +733,8 @@ export function useRenameGroup(organizationId: string, groupId: string) {
           displayName,
         })
         .then(unwrapData<OrganizationGroup>),
-    onSuccess: () => invalidateGroupData(queryClient, organizationId, groupId),
+    onSuccess: () =>
+      invalidateGroupRoleData(queryClient, organizationId, groupId),
   })
 }
 
@@ -726,9 +851,11 @@ export function useRoster(
 ) {
   return useQuery({
     queryKey: queryKeys.roster(organizationId, groupId, search),
-    queryFn: () =>
+    queryFn: ({ signal }) =>
       httpBrowserClient
-        .get(ApiEndpoints.organizations.roster(organizationId, groupId, search))
+        .get(ApiEndpoints.organizations.roster(organizationId, groupId, search), {
+          signal,
+        })
         .then(unwrapData<RosterMember[]>),
     enabled: Boolean(organizationId && groupId) && enabled,
   })
@@ -764,7 +891,7 @@ export function useContactDetails(
 ) {
   return useQuery({
     queryKey: queryKeys.contactDetails(organizationId, groupId, contactId),
-    queryFn: () =>
+    queryFn: ({ signal }) =>
       httpBrowserClient
         .get(
           ApiEndpoints.organizations.contactDetails(
@@ -772,6 +899,7 @@ export function useContactDetails(
             groupId,
             contactId,
           ),
+          { signal },
         )
         .then(unwrapData<ContactDetails>),
     enabled: Boolean(organizationId && groupId && contactId) && enabled,
@@ -866,6 +994,7 @@ export type WebhookNotificationsEnvelope = {
 }
 
 export function useWebhookNotifications(filters: WebhookNotificationFilters) {
+  const organizationId = useActiveOrganizationId() ?? ''
   const {
     eventType = '',
     status = '',
@@ -876,25 +1005,41 @@ export function useWebhookNotifications(filters: WebhookNotificationFilters) {
     page = 1,
     limit = 10,
   } = filters
+  const canonicalFilters = {
+    eventType,
+    status,
+    deviceId,
+    webhookSubscriptionId,
+    start,
+    end,
+    page,
+    limit,
+  }
   return useQuery({
-    queryKey: [
-      'webhook-notification',
-      eventType,
-      page,
-      limit,
-      deviceId,
-      webhookSubscriptionId,
-      status,
-    ],
-    queryFn: () =>
+    queryKey: queryKeys.webhookNotifications(
+      organizationId,
+      canonicalFilters,
+    ),
+    queryFn: ({ signal }) =>
       httpBrowserClient
         .get(
           `${ApiEndpoints.gateway.getWebhookNotifications()}?eventType=${eventType}&page=${page}&limit=${limit}&status=${status}&start=${start}&end=${end}&deviceId=${deviceId}&webhookSubscriptionId=${webhookSubscriptionId}`,
+          { signal },
         )
-        .then(unwrapBody<WebhookNotificationsEnvelope>),
+        .then(unwrapBody<WebhookNotificationsEnvelope>)
+        .then((envelope) => ({
+          ...envelope,
+          data: envelope.data
+            ? {
+                ...envelope.data,
+                data: uniqueByServerId(envelope.data.data ?? []),
+              }
+            : envelope.data,
+        })),
     // Deliveries arrive from outside the tab, so stay fresher than the 60s
     // client-wide default.
-    staleTime: 15_000,
+    ...historyRefreshPolicy,
+    enabled: Boolean(organizationId),
   })
 }
 
@@ -912,10 +1057,18 @@ export type SendSmsPayload = {
 }
 
 export function useSendSms() {
+  const queryClient = useQueryClient()
+  const organizationId = useActiveOrganizationId() ?? ''
   return useMutation({
     mutationKey: ['send-sms'],
     mutationFn: (data: SendSmsPayload) =>
       httpBrowserClient.post(ApiEndpoints.gateway.sendSMS(data.deviceId), data),
+    onSuccess: (_response, data) => {
+      void invalidateCacheDependencies(
+        queryClient,
+        cacheDependencies.acceptedSend(organizationId, [data.deviceId]),
+      )
+    },
   })
 }
 
@@ -940,12 +1093,17 @@ export function useDeviceMessages(
   params: DeviceMessagesParams = {},
   options?: QueryOpts<DeviceMessagesEnvelope>,
 ) {
+  const organizationId = useActiveOrganizationId() ?? ''
   const { type = 'all', page = 1, limit = 20, search = '' } = params
   return useQuery({
     // search joins the key so each term caches separately.
-    queryKey: queryKeys.deviceMessages(deviceId, { type, page, limit, search }),
-    enabled: !!deviceId,
-    queryFn: () => {
+    queryKey: queryKeys.deviceMessages(organizationId, deviceId, {
+      type,
+      page,
+      limit,
+      search,
+    }),
+    queryFn: ({ signal }) => {
       const query = new URLSearchParams({
         type,
         page: String(page),
@@ -954,12 +1112,22 @@ export function useDeviceMessages(
       if (search) query.set('search', search)
 
       return httpBrowserClient
-        .get(`${ApiEndpoints.gateway.getMessages(deviceId)}?${query}`)
+        .get(`${ApiEndpoints.gateway.getMessages(deviceId)}?${query}`, {
+          signal,
+        })
         .then(unwrapBody<DeviceMessagesEnvelope>)
+        .then((envelope) => ({
+          ...envelope,
+          data: uniqueByServerId(
+            envelope.data as Array<{ _id?: string }>,
+          ),
+        }))
     },
     // Inbound messages arrive from outside the tab, so stay fresher than the
     // 60s client-wide default. Before ...options so callers can override.
-    staleTime: 15_000,
+    ...historyRefreshPolicy,
     ...options,
+    enabled:
+      Boolean(organizationId && deviceId) && (options?.enabled ?? true),
   })
 }

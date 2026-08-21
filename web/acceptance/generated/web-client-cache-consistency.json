@@ -1,0 +1,35 @@
+{
+  "name": "B031 web client cache consistency",
+  "scenarios": [
+    {
+      "name": "Message history refreshes without duplicating rows",
+      "steps": [
+        { "keyword": "Given", "text": "an authenticated organization operator using mocked history data" },
+        { "keyword": "When", "text": "the operator opens message history and requests a refresh" },
+        { "keyword": "Then", "text": "exactly one additional message request is made" },
+        { "keyword": "And", "text": "each server message is rendered once" }
+      ],
+      "examples": []
+    },
+    {
+      "name": "Webhook history keys represent the complete request",
+      "steps": [
+        { "keyword": "Given", "text": "an authenticated organization operator using mocked history data" },
+        { "keyword": "When", "text": "the operator opens webhook delivery history and requests a refresh" },
+        { "keyword": "Then", "text": "the webhook request contains every active filter dimension" },
+        { "keyword": "And", "text": "exactly one additional webhook request is made" }
+      ],
+      "examples": []
+    },
+    {
+      "name": "A delayed response cannot cross an organization switch",
+      "steps": [
+        { "keyword": "Given", "text": "an authenticated operator with delayed Organization A history" },
+        { "keyword": "When", "text": "the active browser context changes to Organization B" },
+        { "keyword": "Then", "text": "only Organization B history is rendered" },
+        { "keyword": "And", "text": "the delayed Organization A request is cancelled and cannot reappear" }
+      ],
+      "examples": []
+    }
+  ]
+}
