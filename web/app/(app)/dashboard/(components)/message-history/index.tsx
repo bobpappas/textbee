@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { MessageSquare, SearchX, Smartphone } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -14,6 +14,7 @@ import { groupMessagesByDay } from './group'
 import type { MessagesPagination, SmsMessage } from './types'
 
 const SEARCH_DEBOUNCE_MS = 300
+const NO_MESSAGES: SmsMessage[] = []
 
 // Container for the message-history screen: owns filter/pagination state and
 // data fetching; rendering is delegated to the focused subcomponents.
@@ -28,9 +29,6 @@ export default function MessageHistory() {
   const [messageType, setMessageType] = useState('all')
   const [page, setPage] = useState(1)
   const [limit] = useState(20)
-  const [autoRefreshInterval, setAutoRefreshInterval] = useState(0)
-  const [isRefreshing, setIsRefreshing] = useState(false)
-  const refreshTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   // Two values: what is typed, and what has been committed to the query.
   // Search is server-side, so it is debounced to avoid a request per keystroke.
@@ -56,6 +54,7 @@ export default function MessageHistory() {
   const {
     data: messagesResponse,
     isLoading: isLoadingMessages,
+    isFetching: isFetchingMessages,
     error: messagesError,
     refetch,
   } = useDeviceMessages(currentDevice, {
@@ -65,35 +64,11 @@ export default function MessageHistory() {
     search,
   })
 
-  const handleRefresh = async () => {
-    if (!currentDevice) return
-    setIsRefreshing(true)
-    await refetch()
-    setTimeout(() => setIsRefreshing(false), 500)
+  const handleRefresh = () => {
+    if (currentDevice && !isFetchingMessages) void refetch()
   }
 
-  useEffect(() => {
-    if (refreshTimerRef.current) {
-      clearInterval(refreshTimerRef.current)
-      refreshTimerRef.current = null
-    }
-
-    if (autoRefreshInterval > 0 && currentDevice) {
-      refreshTimerRef.current = setInterval(() => {
-        refetch()
-        setIsRefreshing(true)
-        setTimeout(() => setIsRefreshing(false), 300)
-      }, autoRefreshInterval * 1000)
-    }
-
-    return () => {
-      if (refreshTimerRef.current) {
-        clearInterval(refreshTimerRef.current)
-      }
-    }
-  }, [autoRefreshInterval, currentDevice, refetch])
-
-  const messages = (messagesResponse?.data ?? []) as SmsMessage[]
+  const messages = (messagesResponse?.data as SmsMessage[] | undefined) ?? NO_MESSAGES
   const pagination: MessagesPagination = {
     page: messagesResponse?.meta?.page ?? 1,
     limit: messagesResponse?.meta?.limit ?? limit,
@@ -160,15 +135,32 @@ export default function MessageHistory() {
         search={searchInput}
         onSearchChange={setSearchInput}
         onRefresh={handleRefresh}
-        isRefreshing={isRefreshing}
-        autoRefreshInterval={autoRefreshInterval}
-        onAutoRefreshIntervalChange={setAutoRefreshInterval}
+        isRefreshing={isFetchingMessages && !isLoadingMessages}
       />
 
-      {messagesError && (
-        <div className='flex h-full items-center justify-center'>
-          Error: {messagesError.message}
+      {messagesError && messagesResponse && (
+        <div
+          role='status'
+          aria-live='polite'
+          className='flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/40 p-3 text-sm'
+        >
+          <span>
+            Updated messages could not be loaded. Existing rows are unchanged.
+          </span>
+          <Button variant='outline' size='sm' onClick={handleRefresh}>
+            Retry refresh
+          </Button>
         </div>
+      )}
+
+      {isFetchingMessages && !isLoadingMessages && (
+        <p
+          role='status'
+          aria-live='polite'
+          className='text-sm text-muted-foreground'
+        >
+          Refreshing…
+        </p>
       )}
 
       {isLoadingMessages ? (
@@ -177,7 +169,19 @@ export default function MessageHistory() {
             <MessageRowSkeleton key={i} />
           ))}
         </div>
-      ) : !messagesError && messages.length === 0 ? (
+      ) : messagesError && !messagesResponse ? (
+        <div className='rounded-xl border border-border p-6 text-center'>
+          <p className='text-sm'>Messages could not be loaded.</p>
+          <Button
+            className='mt-3'
+            variant='outline'
+            size='sm'
+            onClick={handleRefresh}
+          >
+            Retry
+          </Button>
+        </div>
+      ) : messages.length === 0 ? (
         // A search that found nothing is a different situation from a device
         // that has never sent a message, and needs a different way out.
         search ? (

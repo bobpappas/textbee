@@ -5,15 +5,12 @@ import { PlusCircle, Webhook } from 'lucide-react'
 import ErrorState from '@/components/shared/error-state'
 import { useState } from 'react'
 import { WebhookData } from '@/lib/types'
-import { queryKeys } from '@/lib/api/query-keys'
 import { WebhookCard } from './webhook-card'
 import { WebhookDocs } from './webhook-docs'
 import { CreateWebhookDialog } from './create-webhook-dialog'
 import { EditWebhookDialog } from './edit-webhook-dialog'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import httpBrowserClient from '@/lib/httpBrowserClient'
-import { ApiEndpoints } from '@/config/api'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useWebhooks } from '@/lib/api'
 
 function WebhookRowSkeleton() {
   return (
@@ -39,24 +36,12 @@ export default function WebhooksSection() {
   const [selectedWebhook, setSelectedWebhook] = useState<WebhookData | null>(
     null,
   )
-  const queryClient = useQueryClient()
-
   const {
-    data: webhooks,
+    data: webhookRows = [],
     isLoading,
     error,
     refetch,
-  } = useQuery({
-    queryKey: queryKeys.webhooks,
-    queryFn: () =>
-      httpBrowserClient
-        .get(ApiEndpoints.gateway.getWebhooks())
-        .then((res) => res.data as { data: WebhookData[] }),
-  })
-
-  // The list was previously read as `webhooks?.data?.length > 0`, which
-  // compares undefined against 0 while the query is still in flight.
-  const webhookList = webhooks?.data ?? []
+  } = useWebhooks()
 
   const handleCreateClick = () => {
     setCreateDialogOpen(true)
@@ -67,7 +52,7 @@ export default function WebhooksSection() {
     setEditDialogOpen(true)
   }
 
-  const webhookCount = webhooks?.data?.length ?? 0
+  const webhookCount = webhookRows.length
   const reachedLimit = webhookCount >= MAX_WEBHOOKS_PER_USER
 
   return (
@@ -116,14 +101,14 @@ export default function WebhooksSection() {
               icon={Webhook}
               onRetry={() => refetch()}
             />
-          ) : webhookList.length > 0 ? (
+          ) : webhookRows.length > 0 ? (
             <div className='rounded-md border divide-y bg-card overflow-hidden'>
-              {webhookList.map((webhook) => (
+              {webhookRows.map((webhook) => (
                 <WebhookCard
                   key={webhook._id}
                   webhook={webhook}
                   onEdit={() => handleEditClick(webhook)}
-                  defaultOpen={webhookList.length === 1}
+                  defaultOpen={webhookRows.length === 1}
                 />
               ))}
             </div>

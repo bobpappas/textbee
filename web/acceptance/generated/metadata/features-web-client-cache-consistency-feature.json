@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "feature_path": "acceptance/features/web-client-cache-consistency.feature",
+  "ir_path": "acceptance/generated/web-client-cache-consistency.json",
+  "implementation_hash": "sha256:0d595f715d7e87bb17154fc4a1b9d0d1e15d8f67f7012d4b406291e51755207b",
+  "hash_scope": "generated_files",
+  "generated_files": [
+    "e2e/generated/web-client-cache-consistency.acceptance.spec.ts"
+  ]
+}

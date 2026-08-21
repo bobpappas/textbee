@@ -142,9 +142,10 @@ export interface WebhookNotification {
 export interface WebhookSubscription {
   _id: string
   name?: string
-  deliveryUrl?: string
-  events?: string[]
-  isActive?: boolean
+  deliveryUrl: string
+  events: string[]
+  isActive: boolean
+  signingSecret: string
   createdAt?: string
 }
 

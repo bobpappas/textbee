@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useDropzone, type FileRejection } from 'react-dropzone'
 import Papa from 'papaparse'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import httpBrowserClient from '@/lib/httpBrowserClient'
 import { ApiEndpoints } from '@/config/api'
 import { useDevices, useSubscription } from '@/lib/api'
@@ -18,10 +18,18 @@ import {
   type CsvRow,
 } from './bulk-csv'
 import { FALLBACK_MAX_ROWS, MAX_FILE_SIZE } from './constants'
+import { useActiveOrganizationId } from '@/lib/organization-scope'
+import { queryKeys } from '@/lib/api/query-keys'
+import {
+  cacheDependencies,
+  invalidateCacheDependencies,
+} from '@/lib/api/cache-dependencies'
 
 // All bulk-send state in one place, mirroring get-started/use-onboarding.
 // The steps are presentation only and read this through a single prop.
 export function useBulkSend() {
+  const queryClient = useQueryClient()
+  const organizationId = useActiveOrganizationId() ?? ''
   const [rows, setRows] = useState<CsvRow[]>([])
   const [columns, setColumns] = useState<string[]>([])
   const [fileName, setFileName] = useState<string | null>(null)
@@ -204,15 +212,16 @@ export function useBulkSend() {
   const composed = mapped && template.trim().length > 0 && Boolean(deviceId)
 
   const eligibility = useQuery({
-    queryKey: [
-      'messaging-eligibility',
-      deviceId,
+    queryKey: queryKeys.messagingEligibility(
+      organizationId,
+      deviceId ?? '',
       plan.valid.map((row) => row.raw),
-    ],
-    queryFn: async () => {
+    ),
+    queryFn: async ({ signal }) => {
       const response = await httpBrowserClient.post(
         ApiEndpoints.gateway.messagingEligibility(deviceId!),
-        { recipients: plan.valid.map((row) => row.raw) }
+        { recipients: plan.valid.map((row) => row.raw) },
+        { signal },
       )
       return response.data.data as {
         total: number
@@ -229,7 +238,7 @@ export function useBulkSend() {
         }
       }
     },
-    enabled: composed,
+    enabled: Boolean(organizationId) && composed,
     staleTime: 0,
     refetchOnWindowFocus: false,
   })
@@ -254,6 +263,12 @@ export function useBulkSend() {
       return httpBrowserClient.post(
         ApiEndpoints.gateway.sendBulkSMS(deviceId!),
         { messageTemplate: template, messages }
+      )
+    },
+    onSuccess: () => {
+      void invalidateCacheDependencies(
+        queryClient,
+        cacheDependencies.acceptedSend(organizationId, [deviceId!]),
       )
     },
   })

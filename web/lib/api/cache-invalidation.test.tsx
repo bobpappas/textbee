@@ -120,8 +120,14 @@ describe('cache invalidation', () => {
     )
 
     // Prime the two caches a new key must invalidate.
-    queryClient.setQueryData(queryKeys.apiKeys('active'), { data: [] })
-    queryClient.setQueryData(queryKeys.stats, { totalApiKeyCount: 0 })
+    queryClient.setQueryData(
+      queryKeys.apiKeys(mockOrganizationContext.organization.id, 'active'),
+      { data: [] },
+    )
+    queryClient.setQueryData(
+      queryKeys.stats(mockOrganizationContext.organization.id),
+      { totalApiKeyCount: 0 },
+    )
 
     renderWith(<GenerateApiKey />)
 
@@ -139,11 +145,15 @@ describe('cache invalidation', () => {
 
     await waitFor(() => {
       expect(
-        queryClient.getQueryState(queryKeys.apiKeys('active'))?.isInvalidated,
+        queryClient.getQueryState(
+          queryKeys.apiKeys(mockOrganizationContext.organization.id, 'active'),
+        )?.isInvalidated,
         'the API key list must be invalidated'
       ).toBe(true)
       expect(
-        queryClient.getQueryState(queryKeys.stats)?.isInvalidated,
+        queryClient.getQueryState(
+          queryKeys.stats(mockOrganizationContext.organization.id),
+        )?.isInvalidated,
         'the dashboard stats must be invalidated'
       ).toBe(true)
     })

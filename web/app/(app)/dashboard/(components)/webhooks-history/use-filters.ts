@@ -55,10 +55,9 @@ export function useWebhookHistoryFilters() {
   const [status, setStatus] = useState('all')
   const [dateRange, setDateRange] = useState('90')
   const [openCal, setOpenCal] = useState(false)
-  const [dateQuery, setDateQuery] = useState<{ start: string; end: string }>({
-    start: '',
-    end: '',
-  })
+  const [dateQuery, setDateQuery] = useState<{ start: string; end: string }>(() =>
+    presetToRange('90'),
+  )
   const [page, setPage] = useState(1)
   const [limit] = useState(10)
 
