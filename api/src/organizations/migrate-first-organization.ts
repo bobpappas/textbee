@@ -36,6 +36,9 @@ async function main() {
 main().catch((error) => {
   const message =
     error?.response?.error || error?.message || 'Migration did not complete'
-  process.stderr.write(`${JSON.stringify({ error: message })}\n`)
+  const code = error?.response?.code
+  process.stderr.write(
+    `${JSON.stringify({ ...(code ? { code } : {}), error: message })}\n`,
+  )
   process.exitCode = 1
 })
