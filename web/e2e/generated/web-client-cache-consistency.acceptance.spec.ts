@@ -48,6 +48,28 @@ const feature = {
         }
       ],
       "examples": []
+    },
+    {
+      "name": "A delayed response cannot cross an organization switch",
+      "steps": [
+        {
+          "keyword": "Given",
+          "text": "an authenticated operator with delayed Organization A history"
+        },
+        {
+          "keyword": "When",
+          "text": "the active browser context changes to Organization B"
+        },
+        {
+          "keyword": "Then",
+          "text": "only Organization B history is rendered"
+        },
+        {
+          "keyword": "And",
+          "text": "the delayed Organization A request is cancelled and cannot reappear"
+        }
+      ],
+      "examples": []
     }
   ]
 } as const
@@ -59,5 +81,9 @@ test.describe(feature.name, () => {
 
   test("Webhook history keys represent the complete request/example_1", async ({ page, context }) => {
     await runAcceptanceScenario(feature, 1, {}, { page, context })
+  })
+
+  test("A delayed response cannot cross an organization switch/example_1", async ({ page, context }) => {
+    await runAcceptanceScenario(feature, 2, {}, { page, context })
   })
 })

@@ -11,3 +11,9 @@ Feature: B031 web client cache consistency
     When the operator opens webhook delivery history and requests a refresh
     Then the webhook request contains every active filter dimension
     And exactly one additional webhook request is made
+
+  Scenario: A delayed response cannot cross an organization switch
+    Given an authenticated operator with delayed Organization A history
+    When the active browser context changes to Organization B
+    Then only Organization B history is rendered
+    And the delayed Organization A request is cancelled and cannot reappear

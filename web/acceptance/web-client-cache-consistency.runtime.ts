@@ -1,4 +1,9 @@
-import { expect, type BrowserContext, type Page } from '@playwright/test'
+import {
+  expect,
+  type BrowserContext,
+  type Page,
+  type Request,
+} from '@playwright/test'
 import { mockApi } from '../e2e/mock-api'
 import { authenticate } from '../e2e/session'
 import { mockOrganizationContext } from '../test/fixtures'
@@ -11,6 +16,8 @@ type World = Fixtures & {
   messageRequests: string[]
   webhookRequests: string[]
   requestCountBeforeRefresh: number
+  oldMessageRequest?: Request
+  oldMessageRequestFailed: boolean
 }
 
 async function executeStep(world: World, text: string) {
@@ -81,6 +88,117 @@ async function executeStep(world: World, text: string) {
     expect(world.webhookRequests.length - world.requestCountBeforeRefresh).toBe(1)
     return
   }
+  if (text === 'an authenticated operator with delayed Organization A history') {
+    const organizationA = {
+      ...mockOrganizationContext,
+      organization: {
+        ...mockOrganizationContext.organization,
+        id: 'organization-a',
+        displayName: 'Organization A',
+      },
+    }
+    const organizationB = {
+      ...mockOrganizationContext,
+      organization: {
+        ...mockOrganizationContext.organization,
+        id: 'organization-b',
+        displayName: 'Organization B',
+      },
+    }
+    await authenticate(world.context, 'REGULAR')
+    await mockApi(page, {
+      organizationContext: organizationA,
+      organizationProfileForbidden: true,
+    })
+
+    let contextRequests = 0
+    await page.route(
+      '**/api/v1/organizations/current-context',
+      async (route) => {
+        contextRequests += 1
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            data: contextRequests === 1 ? organizationA : organizationB,
+          }),
+        })
+      },
+    )
+
+    let messageRequests = 0
+    await page.route(
+      '**/api/v1/gateway/devices/*/messages*',
+      async (route) => {
+        messageRequests += 1
+        const request = route.request()
+        const fromA = messageRequests === 1
+        if (fromA) {
+          world.oldMessageRequest = request
+          await new Promise((resolve) => setTimeout(resolve, 750))
+        }
+        try {
+          await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              data: [
+                {
+                  _id: fromA ? 'organization-a-message' : 'organization-b-message',
+                  message: fromA
+                    ? 'private Organization A message'
+                    : 'Organization B message',
+                  sender: '+12085550100',
+                  status: 'received',
+                  type: 'received',
+                  receivedAt: new Date().toISOString(),
+                  createdAt: new Date().toISOString(),
+                },
+              ],
+              meta: { total: 1, page: 1, limit: 20, totalPages: 1 },
+            }),
+          })
+        } catch {
+          // The expected Organization A cancellation can close the intercepted
+          // request before its deliberately delayed response is fulfillable.
+        }
+      },
+    )
+    page.on('requestfailed', (request) => {
+      if (request === world.oldMessageRequest) {
+        world.oldMessageRequestFailed = true
+      }
+    })
+
+    await page.goto('/dashboard/messaging/history')
+    await expect(page.getByText('Organization A').first()).toBeVisible()
+    await expect.poll(() => messageRequests).toBe(1)
+    return
+  }
+  if (text === 'the active browser context changes to Organization B') {
+    await page
+      .getByRole('link', { name: 'Organization profile' })
+      .first()
+      .click()
+    await expect(page.getByText('Organization B').first()).toBeVisible()
+    await page.goBack()
+    return
+  }
+  if (text === 'only Organization B history is rendered') {
+    await expect(page.getByText('Organization B message')).toBeVisible()
+    await expect(page.getByText('private Organization A message')).toHaveCount(0)
+    return
+  }
+  if (
+    text ===
+    'the delayed Organization A request is cancelled and cannot reappear'
+  ) {
+    await expect.poll(() => world.oldMessageRequestFailed).toBe(true)
+    await page.waitForTimeout(900)
+    await expect(page.getByText('private Organization A message')).toHaveCount(0)
+    await expect(page.getByText('Organization B message')).toHaveCount(1)
+    return
+  }
   throw new Error(`unsupported B031 acceptance step: ${text}`)
 }
 
@@ -97,6 +215,7 @@ export async function runAcceptanceScenario(
     messageRequests: [],
     webhookRequests: [],
     requestCountBeforeRefresh: 0,
+    oldMessageRequestFailed: false,
   }
   for (const step of scenario.steps) await executeStep(world, step.text)
 }

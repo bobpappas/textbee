@@ -20,6 +20,16 @@
         { "keyword": "And", "text": "exactly one additional webhook request is made" }
       ],
       "examples": []
+    },
+    {
+      "name": "A delayed response cannot cross an organization switch",
+      "steps": [
+        { "keyword": "Given", "text": "an authenticated operator with delayed Organization A history" },
+        { "keyword": "When", "text": "the active browser context changes to Organization B" },
+        { "keyword": "Then", "text": "only Organization B history is rendered" },
+        { "keyword": "And", "text": "the delayed Organization A request is cancelled and cannot reappear" }
+      ],
+      "examples": []
     }
   ]
 }

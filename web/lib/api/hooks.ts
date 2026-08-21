@@ -55,6 +55,15 @@ type ListQueryOpts<T> = Omit<
 >
 const selectList = <T>(raw: ListEnvelope<T> | undefined): T[] => raw?.data ?? []
 
+export const HISTORY_REFRESH_INTERVAL_MS = 15_000
+const historyRefreshPolicy = {
+  staleTime: HISTORY_REFRESH_INTERVAL_MS,
+  refetchInterval: HISTORY_REFRESH_INTERVAL_MS,
+  refetchIntervalInBackground: false,
+  refetchOnWindowFocus: true,
+  refetchOnReconnect: true,
+} as const
+
 export const uniqueByServerId = <T extends { _id?: string }>(rows: T[]) => {
   const seen = new Set<string>()
   return rows.filter((row) => {
@@ -1029,12 +1038,8 @@ export function useWebhookNotifications(filters: WebhookNotificationFilters) {
         })),
     // Deliveries arrive from outside the tab, so stay fresher than the 60s
     // client-wide default.
-    staleTime: 15_000,
+    ...historyRefreshPolicy,
     enabled: Boolean(organizationId),
-    refetchInterval: 15_000,
-    refetchIntervalInBackground: false,
-    refetchOnWindowFocus: true,
-    refetchOnReconnect: true,
   })
 }
 
@@ -1120,11 +1125,7 @@ export function useDeviceMessages(
     },
     // Inbound messages arrive from outside the tab, so stay fresher than the
     // 60s client-wide default. Before ...options so callers can override.
-    staleTime: 15_000,
-    refetchInterval: 15_000,
-    refetchIntervalInBackground: false,
-    refetchOnWindowFocus: true,
-    refetchOnReconnect: true,
+    ...historyRefreshPolicy,
     ...options,
     enabled:
       Boolean(organizationId && deviceId) && (options?.enabled ?? true),
