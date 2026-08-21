@@ -532,6 +532,17 @@ const invalidateOperators = (
   void queryClient.invalidateQueries({ queryKey: queryKeys.organizationContext })
 }
 
+const invalidateGroupRoleData = (
+  queryClient: ReturnType<typeof useQueryClient>,
+  organizationId: string,
+  groupId: string,
+) => {
+  invalidateGroupData(queryClient, organizationId, groupId)
+  void queryClient.invalidateQueries({
+    queryKey: queryKeys.organizationOperators(organizationId),
+  })
+}
+
 export function useAddOrganizationOperator(organizationId: string) {
   const queryClient = useQueryClient()
   return useMutation({
@@ -656,7 +667,8 @@ export function useAssignGroupOwner(organizationId: string, groupId: string) {
           ),
         )
         .then(unwrapData<OrganizationGroup>),
-    onSuccess: () => invalidateGroupData(queryClient, organizationId, groupId),
+    onSuccess: () =>
+      invalidateGroupRoleData(queryClient, organizationId, groupId),
   })
 }
 
@@ -674,7 +686,8 @@ export function useRevokeGroupOwner(organizationId: string, groupId: string) {
           { data: { reason } },
         )
         .then(unwrapData<OrganizationGroup>),
-    onSuccess: () => invalidateGroupData(queryClient, organizationId, groupId),
+    onSuccess: () =>
+      invalidateGroupRoleData(queryClient, organizationId, groupId),
   })
 }
 
@@ -685,7 +698,8 @@ export function useAssignGroupSender(organizationId: string, groupId: string) {
       httpBrowserClient
         .post(ApiEndpoints.organizations.groupSender(organizationId, groupId, membershipId))
         .then(unwrapData<OrganizationGroup>),
-    onSuccess: () => invalidateGroupData(queryClient, organizationId, groupId),
+    onSuccess: () =>
+      invalidateGroupRoleData(queryClient, organizationId, groupId),
   })
 }
 
@@ -699,7 +713,8 @@ export function useRevokeGroupSender(organizationId: string, groupId: string) {
           { data: { reason } },
         )
         .then(unwrapData<OrganizationGroup>),
-    onSuccess: () => invalidateGroupData(queryClient, organizationId, groupId),
+    onSuccess: () =>
+      invalidateGroupRoleData(queryClient, organizationId, groupId),
   })
 }
 
