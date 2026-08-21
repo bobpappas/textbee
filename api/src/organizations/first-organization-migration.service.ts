@@ -75,6 +75,7 @@ export class FirstOrganizationMigrationService {
           'Apply requires --backup-confirmed and a documented --rollback-path',
       })
     }
+    await this.assertTransactionSupport()
 
     const after = await this.connection.transaction(async (session) => {
       const transactionValidated = await this.validate(input, session)
@@ -164,6 +165,25 @@ export class FirstOrganizationMigrationService {
       before,
       after,
     }
+  }
+
+  private async assertTransactionSupport() {
+    let topology: { setName?: string; msg?: string }
+    try {
+      topology = (await this.connection.db?.admin().command({ hello: 1 })) ?? {}
+    } catch {
+      throw new ConflictException({
+        code: 'MIGRATION_TRANSACTION_TOPOLOGY_UNVERIFIED',
+        error:
+          'Could not verify MongoDB transaction support. Use the documented backed-up replica-set migration window, then rerun the dry run before apply.',
+      })
+    }
+    if (!topology.setName && topology.msg !== 'isdbgrid')
+      throw new ConflictException({
+        code: 'MIGRATION_TRANSACTION_TOPOLOGY_REQUIRED',
+        error:
+          'Apply requires a MongoDB replica set or sharded cluster. Use the documented backed-up replica-set migration window, then rerun the dry run before apply.',
+      })
   }
 
   private async validate(

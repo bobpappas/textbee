@@ -15,11 +15,18 @@ describe('FirstOrganizationMigrationService', () => {
   let audits: any
   let connection: any
   let organizations: any
+  let topologyCommand: jest.Mock
 
   beforeEach(() => {
     resources = Array.from({ length: 7 }, resource)
     audits = { updateOne: jest.fn().mockResolvedValue({ upsertedCount: 1 }) }
+    topologyCommand = jest.fn().mockResolvedValue({ setName: 'rs0' })
     connection = {
+      db: {
+        admin: jest.fn(() => ({
+          command: topologyCommand,
+        })),
+      },
       transaction: jest.fn(async (callback) => callback({ id: 'session' })),
     }
     organizations = {
@@ -91,6 +98,50 @@ describe('FirstOrganizationMigrationService', () => {
         apply: true,
       }),
     ).rejects.toBeInstanceOf(BadRequestException)
+  })
+
+  it('rejects standalone MongoDB before starting a transaction or writes', async () => {
+    topologyCommand.mockResolvedValue({ ok: 1 })
+
+    await expect(
+      service.run({
+        organizationId: String(organizationId),
+        administratorEmails: ['admin@example.test'],
+        apply: true,
+        backupConfirmed: true,
+        rollbackPath: 'credential-free verified restore runbook',
+      }),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'MIGRATION_TRANSACTION_TOPOLOGY_REQUIRED',
+        error: expect.stringContaining('replica set or sharded cluster'),
+      },
+    })
+
+    expect(connection.transaction).not.toHaveBeenCalled()
+    expect(
+      resources.every((model) => model.updateMany.mock.calls.length === 0),
+    ).toBe(true)
+  })
+
+  it('reports an actionable error when topology cannot be verified', async () => {
+    topologyCommand.mockRejectedValue(new Error('raw driver error'))
+
+    await expect(
+      service.run({
+        organizationId: String(organizationId),
+        administratorEmails: ['admin@example.test'],
+        apply: true,
+        backupConfirmed: true,
+        rollbackPath: 'credential-free verified restore runbook',
+      }),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'MIGRATION_TRANSACTION_TOPOLOGY_UNVERIFIED',
+        error: expect.not.stringContaining('raw driver error'),
+      },
+    })
+    expect(connection.transaction).not.toHaveBeenCalled()
   })
 
   it('repeats validation inside apply transaction', async () => {

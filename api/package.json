@@ -19,7 +19,7 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "smoke:organizations": "ts-node test/organization-smoke.ts",
-    "migrate:first-organization": "ts-node src/organizations/migrate-first-organization.ts"
+    "migrate:first-organization": "node dist/organizations/migrate-first-organization.js"
   },
   "dependencies": {
     "@nest-modules/mailer": "^1.3.22",
