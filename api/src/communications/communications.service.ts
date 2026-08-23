@@ -433,9 +433,10 @@ export class CommunicationsService {
         id: String(conversation._id),
         contact: {
           displayName: conversation.displayName,
-          number: !isSenderOnly(access, requestedGroupId)
-            ? conversation.canonicalNumber
-            : this.mask(conversation.canonicalNumber),
+          number:
+            conversation.contactId && !isSenderOnly(access, requestedGroupId)
+              ? conversation.canonicalNumber
+              : this.mask(conversation.canonicalNumber),
         },
         lastActivityAt: conversation.lastActivityAt,
         lastEntry: await this.entryView(last, access),
@@ -516,9 +517,10 @@ export class CommunicationsService {
       id: String(conversation._id),
       contact: {
         displayName: conversation.displayName,
-        number: !isSenderOnly(access, groupObjectId)
-          ? conversation.canonicalNumber
-          : this.mask(conversation.canonicalNumber),
+        number:
+          conversation.contactId && !isSenderOnly(access, groupObjectId)
+            ? conversation.canonicalNumber
+            : this.mask(conversation.canonicalNumber),
       },
       entries: await Promise.all(
         entries.map((entry) => this.entryView(entry, access)),
@@ -664,8 +666,10 @@ export class CommunicationsService {
         currentState: this.workView(state),
       })
     const action = String(input?.action || '')
+    const set: Record<string, unknown> = {}
+    const unset: Record<string, 1> = {}
     if (action === 'assign-self')
-      state.assigneeMembershipId = access.membership._id
+      set.assigneeMembershipId = access.membership._id
     else if (action === 'assign') {
       if (isSenderOnly(access, groupObjectId))
         throw new NotFoundException(UNAVAILABLE)
@@ -681,7 +685,7 @@ export class CommunicationsService {
           error: 'The selected operator no longer has access to this group',
           code: 'ASSIGNEE_NOT_AUTHORIZED',
         })
-      state.assigneeMembershipId = assigneeId
+      set.assigneeMembershipId = assigneeId
     } else if (action === 'unassign') {
       if (
         isSenderOnly(access, groupObjectId) &&
@@ -689,35 +693,61 @@ export class CommunicationsService {
           String(access.membership._id)
       )
         throw new NotFoundException(UNAVAILABLE)
-      state.assigneeMembershipId = undefined
+      unset.assigneeMembershipId = 1
     } else if (action === 'resolve') {
-      state.resolved = true
-      state.resolvedBy = access.userId
-      state.resolvedAt = new Date()
+      set.resolved = true
+      set.resolvedBy = access.userId
+      set.resolvedAt = new Date()
     } else if (action === 'reopen') {
-      state.resolved = false
-      state.resolvedBy = undefined
-      state.resolvedAt = undefined
+      set.resolved = false
+      unset.resolvedBy = 1
+      unset.resolvedAt = 1
     } else
       throw new BadRequestException({
         error: 'Choose a supported work-state action',
       })
-    state.version += 1
-    await state.save()
+    const updated = await this.work.findOneAndUpdate(
+      {
+        _id: state._id,
+        organizationId: conversation.organizationId,
+        conversationId: conversation._id,
+        groupId: groupObjectId,
+        version: expectedVersion,
+      },
+      {
+        ...(Object.keys(set).length ? { $set: set } : {}),
+        ...(Object.keys(unset).length ? { $unset: unset } : {}),
+        $inc: { version: 1 },
+      },
+      { new: true },
+    )
+    if (!updated) {
+      const current = await this.work.findOne({
+        organizationId: conversation.organizationId,
+        conversationId: conversation._id,
+        groupId: groupObjectId,
+      })
+      throw new ConflictException({
+        error:
+          'This conversation changed. Review the current assignment and resolution state.',
+        code: 'COMMUNICATION_STATE_STALE',
+        currentState: current ? this.workView(current) : null,
+      })
+    }
     await this.audits.create({
       organizationId: conversation.organizationId,
       actorUserId: access.userId,
       action: `WORK_${action.toUpperCase().replace('-', '_')}`,
       targetId: `${conversationId}:${groupId}`,
       details: {
-        version: state.version,
-        assigneeMembershipId: state.assigneeMembershipId
-          ? String(state.assigneeMembershipId)
+        version: updated.version,
+        assigneeMembershipId: updated.assigneeMembershipId
+          ? String(updated.assigneeMembershipId)
           : null,
-        resolved: state.resolved,
+        resolved: updated.resolved,
       },
     })
-    return this.workView(state)
+    return this.workView(updated)
   }
 
   async previewReply(
@@ -859,7 +889,7 @@ export class CommunicationsService {
     const prior = await this.groupSends.findOne({
       organizationId: preview.organizationId,
       groupId: preview.groupId,
-      requestId,
+      $or: [{ previewId: preview._id }, { requestId }],
     })
     if (prior) return this.replySendView(prior)
     const [group, contact, membership, parent, device] = await Promise.all([
@@ -934,7 +964,7 @@ export class CommunicationsService {
         const existing = await this.groupSends.findOne({
           organizationId: preview.organizationId,
           groupId: preview.groupId,
-          requestId,
+          $or: [{ previewId: preview._id }, { requestId }],
         })
         if (existing) return this.replySendView(existing)
       }
@@ -1008,10 +1038,8 @@ export class CommunicationsService {
     await this.conversations.updateOne(
       { organizationId, canonicalNumber },
       {
-        $set: {
-          lastActivityAt: eventAt,
-          displayName: contact?.displayName || 'Unknown sender',
-        },
+        $set: { displayName: contact?.displayName || 'Unknown sender' },
+        $max: { lastActivityAt: eventAt },
         $setOnInsert: {
           organizationId,
           canonicalNumber,
