@@ -45,6 +45,12 @@ import {
   CommunicationDirection,
   CommunicationEntryKind,
 } from './communication.enums'
+import {
+  canReplyToEntry,
+  hasGroupAccess,
+  isSenderOnly,
+  visibleEntryGroupFilter,
+} from './communications-access'
 import { CommunicationAuditEvent } from './schemas/communication-audit-event.schema'
 import { CommunicationReplyPreview } from './schemas/communication-reply-preview.schema'
 import { ConversationEntry } from './schemas/conversation-entry.schema'
@@ -427,10 +433,9 @@ export class CommunicationsService {
         id: String(conversation._id),
         contact: {
           displayName: conversation.displayName,
-          number:
-            access.admin || !this.senderOnly(access, requestedGroupId)
-              ? conversation.canonicalNumber
-              : this.mask(conversation.canonicalNumber),
+          number: !isSenderOnly(access, requestedGroupId)
+            ? conversation.canonicalNumber
+            : this.mask(conversation.canonicalNumber),
         },
         lastActivityAt: conversation.lastActivityAt,
         lastEntry: await this.entryView(last, access),
@@ -511,10 +516,9 @@ export class CommunicationsService {
       id: String(conversation._id),
       contact: {
         displayName: conversation.displayName,
-        number:
-          access.admin || !this.senderOnly(access, groupObjectId)
-            ? conversation.canonicalNumber
-            : this.mask(conversation.canonicalNumber),
+        number: !isSenderOnly(access, groupObjectId)
+          ? conversation.canonicalNumber
+          : this.mask(conversation.canonicalNumber),
       },
       entries: await Promise.all(
         entries.map((entry) => this.entryView(entry, access)),
@@ -663,7 +667,7 @@ export class CommunicationsService {
     if (action === 'assign-self')
       state.assigneeMembershipId = access.membership._id
     else if (action === 'assign') {
-      if (this.senderOnly(access, groupObjectId))
+      if (isSenderOnly(access, groupObjectId))
         throw new NotFoundException(UNAVAILABLE)
       const assigneeId = this.objectId(input?.assigneeMembershipId)
       if (
@@ -680,7 +684,7 @@ export class CommunicationsService {
       state.assigneeMembershipId = assigneeId
     } else if (action === 'unassign') {
       if (
-        this.senderOnly(access, groupObjectId) &&
+        isSenderOnly(access, groupObjectId) &&
         String(state.assigneeMembershipId || '') !==
           String(access.membership._id)
       )
@@ -738,7 +742,7 @@ export class CommunicationsService {
     if (
       !conversation?.contactId ||
       !parent ||
-      !(await this.canReplyToEntry(access, parent, groupId))
+      !canReplyToEntry(access, parent, groupId)
     )
       throw new NotFoundException(UNAVAILABLE)
     const body = this.messageBody(input?.body)
@@ -811,7 +815,7 @@ export class CommunicationsService {
       group: { id: String(group._id), displayName: group.displayName },
       recipient: {
         displayName: contact.displayName,
-        number: this.senderOnly(access, groupId)
+        number: isSenderOnly(access, groupId)
           ? this.mask(contact.mobileNumber)
           : contact.mobileNumber,
       },
@@ -889,7 +893,7 @@ export class CommunicationsService {
       !membership ||
       !parent ||
       String(device._id) !== String(preview.deviceId) ||
-      !(await this.canReplyToEntry(access, parent, preview.groupId))
+      !canReplyToEntry(access, parent, preview.groupId)
     )
       throw new ConflictException({
         error:
@@ -1072,24 +1076,7 @@ export class CommunicationsService {
       conversationId,
     }
     if (requestedGroupId) {
-      const groupId = String(requestedGroupId)
-      if (access.admin)
-        filter.$or = [
-          { groupId: requestedGroupId },
-          {
-            attributionState: AttributionState.AMBIGUOUS,
-            candidateGroupIds: requestedGroupId,
-          },
-        ]
-      else if (access.ownerGroupIds.has(groupId))
-        filter.$or = [
-          { groupId: requestedGroupId },
-          {
-            attributionState: AttributionState.AMBIGUOUS,
-            candidateGroupIds: requestedGroupId,
-          },
-        ]
-      else filter.groupId = requestedGroupId
+      Object.assign(filter, visibleEntryGroupFilter(access, requestedGroupId))
     } else if (!access.admin) return []
     return this.entries.find(filter).sort({ eventAt: 1, _id: 1 })
   }
@@ -1137,37 +1124,9 @@ export class CommunicationsService {
     }
   }
 
-  private async canReplyToEntry(
-    access: Access,
-    entry: ConversationEntry,
-    groupId: Types.ObjectId,
-  ) {
-    const id = String(groupId)
-    if (entry.attributionState === AttributionState.AMBIGUOUS) return false
-    return (
-      String(entry.groupId || '') === id &&
-      (access.admin ||
-        access.ownerGroupIds.has(id) ||
-        access.senderGroupIds.has(id))
-    )
-  }
-
   private requireGroupAccess(access: Access, groupId: string) {
-    if (
-      !access.admin &&
-      !access.ownerGroupIds.has(groupId) &&
-      !access.senderGroupIds.has(groupId)
-    )
+    if (!hasGroupAccess(access, groupId))
       throw new NotFoundException(UNAVAILABLE)
-  }
-
-  private senderOnly(access: Access, groupId?: Types.ObjectId | string) {
-    const id = String(groupId || '')
-    return (
-      !access.admin &&
-      !access.ownerGroupIds.has(id) &&
-      access.senderGroupIds.has(id)
-    )
   }
 
   private async ensureWorkState(
