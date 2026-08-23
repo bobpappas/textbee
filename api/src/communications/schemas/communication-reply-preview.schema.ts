@@ -1,14 +1,15 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose'
-import mongoose, { HydratedDocument, Types } from 'mongoose'
+import mongoose, { Types } from 'mongoose'
 import { Device } from '../../gateway/schemas/device.schema'
+import { Contact } from '../../groups/schemas/contact.schema'
+import { Group } from '../../groups/schemas/group.schema'
 import { Organization } from '../../organizations/schemas/organization.schema'
 import { User } from '../../users/schemas/user.schema'
-import { Group } from './group.schema'
-
-export type GroupMessageSendDocument = HydratedDocument<GroupMessageSend>
+import { ConversationEntry } from './conversation-entry.schema'
+import { Conversation } from './conversation.schema'
 
 @Schema({ timestamps: true })
-export class GroupMessageSend {
+export class CommunicationReplyPreview {
   _id?: Types.ObjectId
 
   @Prop({
@@ -18,7 +19,20 @@ export class GroupMessageSend {
     immutable: true,
   })
   organizationId: Types.ObjectId
-
+  @Prop({
+    type: mongoose.Schema.Types.ObjectId,
+    ref: Conversation.name,
+    required: true,
+    immutable: true,
+  })
+  conversationId: Types.ObjectId
+  @Prop({
+    type: mongoose.Schema.Types.ObjectId,
+    ref: ConversationEntry.name,
+    required: true,
+    immutable: true,
+  })
+  parentEntryId: Types.ObjectId
   @Prop({
     type: mongoose.Schema.Types.ObjectId,
     ref: Group.name,
@@ -26,7 +40,13 @@ export class GroupMessageSend {
     immutable: true,
   })
   groupId: Types.ObjectId
-
+  @Prop({
+    type: mongoose.Schema.Types.ObjectId,
+    ref: Contact.name,
+    required: true,
+    immutable: true,
+  })
+  contactId: Types.ObjectId
   @Prop({
     type: mongoose.Schema.Types.ObjectId,
     ref: User.name,
@@ -34,7 +54,6 @@ export class GroupMessageSend {
     immutable: true,
   })
   actorUserId: Types.ObjectId
-
   @Prop({
     type: mongoose.Schema.Types.ObjectId,
     ref: Device.name,
@@ -42,63 +61,28 @@ export class GroupMessageSend {
     immutable: true,
   })
   deviceId: Types.ObjectId
-
-  @Prop({
-    type: mongoose.Schema.Types.ObjectId,
-    required: true,
-    immutable: true,
-    unique: true,
-  })
-  previewId: Types.ObjectId
-
   @Prop({ type: String, required: true, immutable: true })
-  requestId: string
-
+  canonicalNumber: string
+  @Prop({ type: String, required: true, immutable: true })
+  displayName: string
   @Prop({ type: String, required: true, immutable: true })
   groupName: string
-
   @Prop({ type: String, required: true, immutable: true })
   joinCode: string
-
   @Prop({ type: String, required: true, immutable: true })
   body: string
-
   @Prop({ type: String, required: true, immutable: true })
   message: string
-
-  @Prop({ type: String, required: true })
-  status: string
-
-  @Prop({ type: mongoose.Schema.Types.ObjectId })
-  smsBatchId?: Types.ObjectId
-
-  @Prop({
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'ConversationEntry',
-    immutable: true,
-  })
-  parentInboundEntryId?: Types.ObjectId
-
-  @Prop({ type: Number, required: true })
-  candidateCount: number
-
-  @Prop({ type: Number, required: true })
-  acceptedCount: number
-
-  @Prop({ type: Number, required: true })
-  excludedCount: number
-
-  @Prop({ type: String })
-  failure?: string
-
-  createdAt?: Date
-  updatedAt?: Date
+  @Prop({ type: Number, required: true, immutable: true })
+  segments: number
+  @Prop({ type: Date, required: true })
+  expiresAt: Date
 }
 
-export const GroupMessageSendSchema =
-  SchemaFactory.createForClass(GroupMessageSend)
-GroupMessageSendSchema.index({ organizationId: 1, groupId: 1, createdAt: -1 })
-GroupMessageSendSchema.index(
-  { organizationId: 1, groupId: 1, requestId: 1 },
-  { unique: true },
+export const CommunicationReplyPreviewSchema = SchemaFactory.createForClass(
+  CommunicationReplyPreview,
+)
+CommunicationReplyPreviewSchema.index(
+  { expiresAt: 1 },
+  { expireAfterSeconds: 0 },
 )

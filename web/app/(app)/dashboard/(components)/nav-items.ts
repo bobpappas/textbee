@@ -12,6 +12,7 @@ import {
 import type { OrganizationCapability, OrganizationContext } from '@/lib/api'
 import {
   GROUPS_READ,
+  GROUP_MESSAGES_SEND,
   MESSAGES_READ,
   OPERATORS_MANAGE,
   ORGANIZATION_PROFILE_MANAGE,
@@ -38,10 +39,10 @@ export type NavItem = {
 export const navItems: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   {
-    href: '/dashboard/messaging',
-    label: 'Messaging',
+    href: '/dashboard/communications',
+    label: 'Communications',
     icon: MessageSquareText,
-    requiredCapability: MESSAGES_READ,
+    requiredCapability: GROUP_MESSAGES_SEND,
   },
   {
     href: '/dashboard/webhooks',
@@ -103,7 +104,11 @@ export function visibleNavItems(role?: string, context?: OrganizationContext) {
           requiredCapability: OPERATORS_MANAGE,
         }]
       : []
-  return [...navItems, ...groupNavigation, ...organizationProfile, ...operatorAccess].filter(
+  const messagingDiagnostic: NavItem[] =
+    context?.state === 'ACTIVE' && context.capabilities.includes(MESSAGES_READ)
+      ? [{ href: '/dashboard/messaging', label: 'Message History', icon: MessageSquareText, mobileHidden: true, requiredCapability: MESSAGES_READ }]
+      : []
+  return [...navItems, ...groupNavigation, ...messagingDiagnostic, ...organizationProfile, ...operatorAccess].filter(
     (item) =>
       (!item.requiredRole || item.requiredRole === role) &&
       (!item.requiredCapability ||

@@ -35,6 +35,11 @@ import type {
   ContactDetails,
   GroupMessagePreview,
   GroupMessageSend,
+  CommunicationsPage,
+  ConversationThread,
+  CommunicationWorkState,
+  CommunicationEntry,
+  ReplyPreview,
 } from './types'
 
 // Most endpoints wrap their payload as { data: ... }; a few (subscription)
@@ -611,6 +616,114 @@ export function useConfirmGroupMessage(organizationId: string, groupId: string) 
         cacheDependencies.acceptedSend(organizationId),
       )
     },
+  })
+}
+
+export type CommunicationsFilters = {
+  view?: 'unread' | 'recent' | 'all' | 'groups'
+  groupId?: string
+  search?: string
+  assignee?: string
+  resolution?: 'open' | 'resolved' | ''
+  cursor?: string
+}
+
+const communicationsQuery = (filters: CommunicationsFilters) => {
+  const params = new URLSearchParams()
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value) params.set(key, value)
+  })
+  return params.toString()
+}
+
+export function useCommunications(
+  organizationId: string,
+  filters: CommunicationsFilters,
+  options?: QueryOpts<CommunicationsPage>,
+) {
+  return useQuery({
+    queryKey: queryKeys.communications(organizationId, filters),
+    queryFn: ({ signal }) => {
+      const query = communicationsQuery(filters)
+      const endpoint = filters.groupId
+        ? ApiEndpoints.organizations.groupCommunications(organizationId, filters.groupId, query)
+        : ApiEndpoints.organizations.communications(organizationId, query)
+      return httpBrowserClient.get(endpoint, { signal }).then(unwrapData<CommunicationsPage>)
+    },
+    enabled: Boolean(organizationId),
+    refetchInterval: 15_000,
+    refetchIntervalInBackground: false,
+    ...options,
+  })
+}
+
+export function useConversation(
+  organizationId: string,
+  conversationId: string,
+  groupId?: string,
+  options?: QueryOpts<ConversationThread>,
+) {
+  return useQuery({
+    queryKey: queryKeys.conversation(organizationId, conversationId, groupId),
+    queryFn: ({ signal }) => httpBrowserClient
+      .get(ApiEndpoints.organizations.conversation(organizationId, conversationId, groupId), { signal })
+      .then(unwrapData<ConversationThread>),
+    enabled: Boolean(organizationId && conversationId),
+    refetchInterval: 15_000,
+    refetchIntervalInBackground: false,
+    ...options,
+  })
+}
+
+const invalidateCommunications = (
+  queryClient: ReturnType<typeof useQueryClient>,
+  organizationId: string,
+) => queryClient.invalidateQueries({ queryKey: queryKeys.communicationsAll(organizationId) })
+
+export function useConversationReadState(organizationId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ conversationId, groupId, read }: { conversationId: string; groupId?: string; read: boolean }) =>
+      httpBrowserClient.patch(ApiEndpoints.organizations.conversationReadState(organizationId, conversationId), { groupId, read }).then(unwrapData<{ read: boolean; entryCount: number }>),
+    onSuccess: () => void invalidateCommunications(queryClient, organizationId),
+  })
+}
+
+export function useConversationWorkState(organizationId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ conversationId, groupId, ...input }: { conversationId: string; groupId: string; action: string; version: number; assigneeMembershipId?: string }) =>
+      httpBrowserClient.patch(ApiEndpoints.organizations.conversationWorkState(organizationId, conversationId, groupId), input).then(unwrapData<CommunicationWorkState>),
+    onSuccess: () => void invalidateCommunications(queryClient, organizationId),
+    onError: (error: any) => {
+      if (error?.response?.status === 409)
+        void invalidateCommunications(queryClient, organizationId)
+    },
+  })
+}
+
+export function useAssignAttribution(organizationId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ entryId, groupId, reason }: { entryId: string; groupId: string; reason: string }) =>
+      httpBrowserClient.post(ApiEndpoints.organizations.entryAttribution(organizationId, entryId), { groupId, reason }).then(unwrapData<CommunicationEntry>),
+    onSuccess: () => void invalidateCommunications(queryClient, organizationId),
+  })
+}
+
+export function usePreviewReply(organizationId: string, conversationId: string) {
+  return useMutation({
+    mutationFn: (input: { parentEntryId: string; groupId: string; body: string }) =>
+      httpBrowserClient.post(ApiEndpoints.organizations.replyPreview(organizationId, conversationId), input).then(unwrapData<ReplyPreview>),
+  })
+}
+
+export function useConfirmReply(organizationId: string, conversationId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ previewId, requestId }: { previewId: string; requestId: string }) =>
+      httpBrowserClient.post(ApiEndpoints.organizations.replyConfirm(organizationId, conversationId, previewId), {}, { headers: { 'X-Request-Id': requestId } }).then(unwrapData<GroupMessageSend>),
+    onSuccess: () => void invalidateCommunications(queryClient, organizationId),
   })
 }
 

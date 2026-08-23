@@ -1,9 +1,12 @@
 'use client'
 
 import Link from 'next/link'
-import { ArchiveRestore, FileUp, Pencil, Search, Send, UserPlus, UsersRound } from 'lucide-react'
+import { useSearchParams } from 'next/navigation'
+import { ArchiveRestore, FileUp, Pencil, Search, UserPlus, UsersRound } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { GroupCommand } from '@/components/groups/group-command'
+import { GroupMessageDialog } from '@/components/groups/group-message-dialog'
+import CommunicationsWorkspace from '@/components/communications/communications-workspace'
 import { freshOrganizationContext, useOrganizationContext } from '@/components/organizations/organization-context-provider'
 import ErrorState from '@/components/shared/error-state'
 import PageHeader from '@/components/shared/page-header'
@@ -19,6 +22,7 @@ import { Textarea } from '@/components/ui/textarea'
 import {
   GROUPS_MANAGE,
   GROUP_ROSTER_MANAGE,
+  GROUP_JOIN_SETTINGS_MANAGE,
   useAddRosterMember,
   useApplyRosterBulkAdd,
   useArchiveGroup,
@@ -27,8 +31,6 @@ import {
   useChangeGroupJoinSettings,
   useContactDetails,
   useGroup,
-  usePreviewGroupMessage,
-  useConfirmGroupMessage,
   useOrganizationOperators,
   useReactivateGroup,
   useReceivingNumbers,
@@ -42,8 +44,6 @@ import {
   useRoster,
   type RosterMember,
   type RosterBulkImport,
-  type GroupMessagePreview,
-  type GroupMessageSend,
   type ActiveOrganizationContext,
 } from '@/lib/api'
 import { apiErrorMessage } from '@/lib/utils/errorHandler'
@@ -55,6 +55,14 @@ export default function GroupWorkspace({ groupId }: { groupId: string }) {
   const organizationId = active?.organization.id ?? ''
   const canManage = Boolean(active?.capabilities.includes(GROUPS_MANAGE))
   const canRoster = Boolean(active?.capabilities.includes(GROUP_ROSTER_MANAGE))
+  const canSettings = Boolean(active?.capabilities.includes(GROUP_JOIN_SETTINGS_MANAGE))
+  const params = useSearchParams()
+  const requestedSection = params?.get('section')
+  const section = requestedSection === 'people' && canRoster
+    ? 'people'
+    : requestedSection === 'settings' && canSettings
+      ? 'settings'
+      : 'messages'
   const group = useGroup(organizationId, groupId, { enabled: Boolean(active), retry: false })
   const refreshedAfterDenial = useRef(false)
   const [search, setSearch] = useState('')
@@ -78,73 +86,35 @@ export default function GroupWorkspace({ groupId }: { groupId: string }) {
 
   return (
     <section className="container mx-auto min-w-0 px-4 py-6 sm:px-6">
-      <PageHeader title={group.data.displayName} description={archived ? 'Archived group detail' : 'Group detail and roster'} icon={UsersRound} actions={<div className="flex flex-wrap gap-2">{!archived && <GroupMessageDialog key={group.data.joinCode} organizationId={organizationId} groupId={groupId} groupName={group.data.displayName} joinCode={group.data.joinCode} />}<Button asChild variant="outline"><Link href="/dashboard/groups">Back to groups</Link></Button></div>} />
-      <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)]">
+      <PageHeader title={group.data.displayName} description={archived ? 'Archived group workspace' : 'Group messages, people, and settings'} icon={UsersRound} actions={<div className="flex flex-wrap gap-2">{section === 'messages' && !archived && <GroupMessageDialog key={group.data.joinCode} organizationId={organizationId} groupId={groupId} groupName={group.data.displayName} joinCode={group.data.joinCode} />}<Button asChild variant="outline"><Link href="/dashboard/groups">Back to groups</Link></Button></div>} />
+      <nav aria-label="Group sections" className="mb-5 flex gap-2 overflow-x-auto pb-1">
+        <Button asChild size="sm" variant={section === 'messages' ? 'default' : 'outline'}><Link href={`/dashboard/groups/${groupId}?section=messages`}>Messages</Link></Button>
+        {canRoster && <Button asChild size="sm" variant={section === 'people' ? 'default' : 'outline'}><Link href={`/dashboard/groups/${groupId}?section=people`}>People</Link></Button>}
+        {canSettings && <Button asChild size="sm" variant={section === 'settings' ? 'default' : 'outline'}><Link href={`/dashboard/groups/${groupId}?section=settings`}>Settings</Link></Button>}
+      </nav>
+
+      {section === 'messages' && <CommunicationsWorkspace groupId={groupId} embedded />}
+
+      {section === 'people' && canRoster && <Card className="min-w-0">
+        <CardHeader><div className="flex flex-wrap items-center justify-between gap-3"><div><CardTitle>People</CardTitle><p className="mt-1 text-sm text-muted-foreground">{group.data.rosterCount} active people. Contacts do not receive application accounts.</p></div>{!archived && <div className="flex flex-wrap gap-2"><BulkAddDialog organizationId={organizationId} groupId={groupId} /><AddPersonDialog organizationId={organizationId} groupId={groupId} /></div>}</div></CardHeader>
+        <CardContent className="min-w-0 space-y-4">
+          <Label className="relative block"><span className="sr-only">Search people</span><Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" /><Input className="pl-9" placeholder="Search this group" value={search} onChange={(event) => setSearch(event.target.value)} /></Label>
+          {roster.isPending ? <Skeleton className="h-32 w-full" /> : roster.isError ? <ErrorState title="People could not be loaded" error={roster.error} onRetry={() => roster.refetch()} /> : roster.data.length === 0 ? <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">{search ? 'No people match this search.' : 'No one has been added to this group.'}</p> : <div className="grid min-w-0 gap-3">{roster.data.map((member) => <div key={member.id} className="flex min-w-0 flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><p className="break-words font-medium">{member.displayName}</p><p className="break-words text-sm text-muted-foreground">{member.displayNumber}</p><p className="mt-1 text-xs text-muted-foreground">{member.consentSource === 'TEXT_TO_JOIN' ? 'Consent: Text-to-Join' : member.consentSource === 'OPERATOR_AFFIRMATION' ? 'Consent: operator affirmation' : 'No active group consent'}</p></div>{!archived && <div className="flex flex-wrap gap-2"><ContactDetailsDialog organizationId={organizationId} groupId={groupId} member={member} /><RemoveMemberDialog organizationId={organizationId} groupId={groupId} member={member} /></div>}</div>)}</div>}
+        </CardContent>
+      </Card>}
+
+      {section === 'settings' && canSettings && <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)]">
         <div className="min-w-0 space-y-5">
           <Card className="min-w-0"><CardHeader><div className="flex flex-wrap items-center justify-between gap-2"><CardTitle>Join this group</CardTitle><Badge variant={archived ? 'secondary' : 'outline'}>{archived ? 'Archived' : 'Active'}</Badge></div></CardHeader><CardContent><GroupCommand group={group.data} />{!archived && <p className="mt-3 text-xs text-muted-foreground">Advertising must say: Message frequency varies. Message and data rates may apply. Reply STOP to stop all Boise Church of Christ texts; HELP for help. Include an administrator-controlled privacy or support contact.</p>}</CardContent></Card>
-          {canRoster ? <Card className="min-w-0">
-            <CardHeader><div className="flex flex-wrap items-center justify-between gap-3"><div><CardTitle>Roster</CardTitle><p className="mt-1 text-sm text-muted-foreground">{group.data.rosterCount} active people. Contacts do not receive application accounts.</p></div>{!archived && canRoster && <div className="flex flex-wrap gap-2"><BulkAddDialog organizationId={organizationId} groupId={groupId} /><AddPersonDialog organizationId={organizationId} groupId={groupId} /></div>}</div></CardHeader>
-            <CardContent className="min-w-0 space-y-4">
-              <Label className="relative block"><span className="sr-only">Search roster</span><Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" /><Input className="pl-9" placeholder="Search this roster" value={search} onChange={(event) => setSearch(event.target.value)} /></Label>
-              {roster.isPending ? <Skeleton className="h-32 w-full" /> : roster.isError ? <ErrorState title="Roster could not be loaded" error={roster.error} onRetry={() => roster.refetch()} /> : roster.data.length === 0 ? <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">{search ? 'No people match this search.' : 'No one has been added to this roster.'}</p> : <div className="grid min-w-0 gap-3">{roster.data.map((member) => <div key={member.id} className="flex min-w-0 flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><p className="break-words font-medium">{member.displayName}</p><p className="break-words text-sm text-muted-foreground">{member.displayNumber}</p><p className="mt-1 text-xs text-muted-foreground">{member.consentSource === 'TEXT_TO_JOIN' ? 'Consent: Text-to-Join' : member.consentSource === 'OPERATOR_AFFIRMATION' ? 'Consent: operator affirmation' : 'No active group consent'}</p></div>{!archived && canRoster && <div className="flex flex-wrap gap-2"><ContactDetailsDialog organizationId={organizationId} groupId={groupId} member={member} /><RemoveMemberDialog organizationId={organizationId} groupId={groupId} member={member} /></div>}</div>)}</div>}
-            </CardContent>
-          </Card> : <Card><CardHeader><CardTitle>Audience preview</CardTitle></CardHeader><CardContent><p className="text-sm">{group.data.rosterCount} active contacts are in this group. Sender access does not expose roster or contact details.</p></CardContent></Card>}
+          <AdminSettings organizationId={organizationId} groupId={groupId} groupName={group.data.displayName} joinCode={group.data.joinCode} receivingNumberId={group.data.receivingNumberId} archived={archived} />
         </div>
         <div className="min-w-0 space-y-5">
           <Card><CardHeader><CardTitle>Owners</CardTitle></CardHeader><CardContent className="space-y-3"><p className="break-words text-sm">{group.data.owners.map((owner) => owner.displayName).join(', ') || 'No assigned owners'}</p>{canManage && !archived && <OwnerEditor organizationId={organizationId} groupId={groupId} currentOwnerIds={group.data.owners.map((owner) => owner.membershipId)} />}</CardContent></Card>
           {canManage && <Card><CardHeader><CardTitle>Senders</CardTitle></CardHeader><CardContent className="space-y-3"><p className="break-words text-sm">{(group.data.senders ?? []).map((sender) => sender.displayName).join(', ') || 'No assigned senders'}</p>{!archived && <SenderEditor organizationId={organizationId} groupId={groupId} currentSenderIds={(group.data.senders ?? []).map((sender) => sender.membershipId)} />}</CardContent></Card>}
-          {canManage && <AdminSettings organizationId={organizationId} groupId={groupId} groupName={group.data.displayName} joinCode={group.data.joinCode} receivingNumberId={group.data.receivingNumberId} archived={archived} />}
         </div>
-      </div>
+      </div>}
     </section>
   )
-}
-
-function GroupMessageDialog({ organizationId, groupId, groupName, joinCode }: { organizationId: string; groupId: string; groupName: string; joinCode: string }) {
-  const previewMutation = usePreviewGroupMessage(organizationId, groupId)
-  const confirmMutation = useConfirmGroupMessage(organizationId, groupId)
-  const [open, setOpen] = useState(false)
-  const [body, setBody] = useState('')
-  const [preview, setPreview] = useState<GroupMessagePreview | null>(null)
-  const [result, setResult] = useState<GroupMessageSend | null>(null)
-  const [requestId, setRequestId] = useState('')
-  const [message, setMessage] = useState('')
-  const reset = () => { setBody(''); setPreview(null); setResult(null); setRequestId(''); setMessage('') }
-  const createPreview = () => {
-    setMessage('')
-    previewMutation.mutate(body, {
-      onSuccess: (value) => { setPreview(value); setResult(null); setRequestId(crypto.randomUUID()) },
-      onError: (error) => setMessage(apiErrorMessage(error) || 'Message preview could not be created.'),
-    })
-  }
-  const confirm = () => {
-    if (!preview || !requestId) return
-    setMessage('')
-    confirmMutation.mutate({ previewId: preview.id, requestId }, {
-      onSuccess: setResult,
-      onError: (error) => setMessage(apiErrorMessage(error) || 'The group message could not be confirmed.'),
-    })
-  }
-  const capacity = (value: number) => value === -1 ? 'Unlimited' : value.toLocaleString()
-  return <Dialog open={open} onOpenChange={(value) => { setOpen(value); if (!value) reset() }}>
-    <DialogTrigger asChild><Button><Send />Send message</Button></DialogTrigger>
-    <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
-      <DialogHeader><DialogTitle>Send to {groupName}</DialogTitle><DialogDescription>Preview the exact recipients and required join-code prefix before confirming. Previewing never sends or reserves capacity.</DialogDescription></DialogHeader>
-      {!result && <div className="min-w-0 space-y-4">
-        <div className="space-y-2"><Label htmlFor="group-message-prefix">Required prefix</Label><Input id="group-message-prefix" value={`${preview?.joinCode || joinCode}:`} readOnly aria-readonly="true" /></div>
-        <div className="space-y-2"><Label htmlFor="group-message-body">Message</Label><Textarea id="group-message-body" value={body} maxLength={1000} rows={5} onChange={(event) => { setBody(event.target.value); setPreview(null); setResult(null); setRequestId(''); setMessage('') }} /><p className="text-xs text-muted-foreground">The prefix is included in segment calculations and cannot be edited.</p></div>
-        {!preview ? <Button type="button" onClick={createPreview} disabled={!body.trim() || previewMutation.isPending}>{previewMutation.isPending ? 'Building preview…' : 'Preview recipients'}</Button> : <div className="space-y-4">
-          <div role="status" aria-live="polite" className="rounded-lg border p-4 text-sm"><p className="break-words font-medium">{preview.message}</p><p className="mt-2 text-muted-foreground">{preview.eligibleCount} eligible of {preview.candidateCount} candidates · {preview.totalSegments} segments total</p><p className="text-muted-foreground">Remaining local capacity: {capacity(preview.remainingCapacity.minuteSegments)} this minute · {capacity(preview.remainingCapacity.dailySegments)} today · {capacity(preview.remainingCapacity.rolling30DaySegments)} rolling 30 days</p></div>
-          {preview.excluded.length > 0 && <div className="space-y-2"><p className="font-medium">Excluded before send ({preview.excludedCount})</p>{preview.excluded.map((item, index) => <div key={`${item.maskedNumber}-${index}`} className="rounded-lg border p-3 text-sm"><p className="break-words font-medium">{item.displayName} · {item.maskedNumber}</p><p className="break-words text-muted-foreground">{item.explanation}</p></div>)}</div>}
-          {preview.eligibleCount === 0 && <p role="alert" className="rounded-lg border border-destructive/40 p-3 text-sm text-destructive">No recipients are eligible. Confirmation is disabled.</p>}
-          {!preview.capacityAvailable && <p role="alert" className="rounded-lg border border-destructive/40 p-3 text-sm text-destructive">Local SMS capacity cannot accept this send. Wait for the active safety window to reset and create a new preview.</p>}
-          <DialogFooter><Button variant="outline" onClick={() => setPreview(null)}>Edit message</Button><Button onClick={confirm} disabled={!preview.canConfirm || confirmMutation.isPending}>{confirmMutation.isPending ? 'Confirming…' : `Confirm send to ${preview.eligibleCount}`}</Button></DialogFooter>
-        </div>}
-      </div>}
-      {result && <div className="space-y-4"><div role="status" aria-live="polite" className="rounded-lg border p-4"><p className="font-medium">Group send {result.status.toLowerCase()}</p><p className="mt-1 break-words text-sm text-muted-foreground">{Object.entries(result.counts).map(([status, count]) => `${status.toLowerCase()}: ${count}`).join(' · ')}</p></div><div className="grid gap-2">{result.recipients.map((item, index) => <div key={`${item.maskedNumber}-${index}`} className="flex min-w-0 flex-col justify-between gap-1 rounded-lg border p-3 text-sm sm:flex-row"><span className="break-words">{item.displayName} · {item.maskedNumber}</span><Badge variant={item.status === 'FAILED' ? 'destructive' : item.status === 'EXCLUDED' ? 'secondary' : 'outline'}>{item.status}</Badge></div>)}</div><DialogFooter><Button onClick={() => setOpen(false)}>Close</Button></DialogFooter></div>}
-      <p role="alert" aria-live="assertive" className="text-sm text-destructive">{message}</p>
-    </DialogContent>
-  </Dialog>
 }
 
 function ContactDetailsDialog({ organizationId, groupId, member }: { organizationId: string; groupId: string; member: RosterMember }) {

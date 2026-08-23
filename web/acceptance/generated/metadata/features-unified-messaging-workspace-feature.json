@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "feature_path": "acceptance/features/unified-messaging-workspace.feature",
+  "ir_path": "acceptance/generated/unified-messaging-workspace.json",
+  "implementation_hash": "sha256:2dc488294abc9dbad2d44ab4783ec5f52cd4d3830e7d4ab09ce6d74c7994825e",
+  "hash_scope": "generated_files",
+  "generated_files": [
+    "e2e/generated/unified-messaging-workspace.acceptance.spec.ts"
+  ]
+}

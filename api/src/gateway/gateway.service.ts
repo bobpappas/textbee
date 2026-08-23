@@ -1,4 +1,4 @@
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common'
+import { HttpException, HttpStatus, Injectable, Optional } from '@nestjs/common'
 import { InjectModel } from '@nestjs/mongoose'
 import { Device, DeviceDocument } from './schemas/device.schema'
 import { Model, Types } from 'mongoose'
@@ -41,6 +41,7 @@ import {
 } from './messaging-eligibility'
 import { getGatewayAvailability } from './device-availability'
 import { issueDispatchAttempts } from './dispatch-attempt'
+import { EventEmitter2 } from '@nestjs/event-emitter'
 
 @Injectable()
 export class GatewayService {
@@ -56,6 +57,7 @@ export class GatewayService {
     private smsQueueService: SmsQueueService,
     private consentService: ConsentService,
     private selfHostedPolicy: SelfHostedPolicyService,
+    @Optional() private readonly events?: EventEmitter2,
   ) {}
 
   async previewMessagingEligibility(deviceId: string, recipients: string[]) {
@@ -1231,21 +1233,41 @@ export class GatewayService {
     const toleranceStart = new Date(receivedAt.getTime() - toleranceMs)
     const toleranceEnd = new Date(receivedAt.getTime() + toleranceMs)
 
-    const existingSMS = await this.smsModel.findOne({
-      device: device._id,
-      type: SMSType.RECEIVED,
-      sender: dto.sender,
-      message: dto.message,
-      receivedAt: {
-        $gte: toleranceStart,
-        $lte: toleranceEnd,
-      },
-    })
+    const transportIdentity = String(dto.transportId || '').trim()
+    const existingSMS = await this.smsModel.findOne(
+      transportIdentity
+        ? {
+            organizationId: device.organizationId,
+            device: device._id,
+            type: SMSType.RECEIVED,
+            transportIdentity,
+          }
+        : {
+            device: device._id,
+            type: SMSType.RECEIVED,
+            sender: dto.sender,
+            message: dto.message,
+            receivedAt: {
+              $gte: toleranceStart,
+              $lte: toleranceEnd,
+            },
+          },
+    )
 
     if (existingSMS) {
       console.log(
         `Duplicate inbound SMS detected for device ${deviceId}; returning existing record ${existingSMS._id}`,
       )
+      const duplicateCommand = await this.consentService.processInbound({
+        sender: dto.sender,
+        body: dto.message,
+        inboundSmsId: existingSMS._id,
+        receivedAt,
+      })
+      if (!duplicateCommand.handled)
+        await this.events?.emitAsync('sms.inbound.ordinary', {
+          smsId: String(existingSMS._id),
+        })
       return existingSMS
     }
 
@@ -1259,8 +1281,10 @@ export class GatewayService {
       status: 'received',
       sender: dto.sender,
       receivedAt,
+      transportIdentity: transportIdentity || undefined,
       metadata: {
         receivingNumber: process.env.TEXTBEE_DEFAULT_RECEIVING_NUMBER,
+        replyToDeliveryId: dto.replyToDeliveryId,
       },
     })
 
@@ -1296,6 +1320,10 @@ export class GatewayService {
       }
       return sms
     }
+
+    await this.events?.emitAsync('sms.inbound.ordinary', {
+      smsId: String(sms._id),
+    })
 
     this.deviceModel
       .findByIdAndUpdate(deviceId, {

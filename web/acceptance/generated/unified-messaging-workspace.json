@@ -1,0 +1,208 @@
+{
+  "name" : "B017 unified organization and group messaging workspace",
+  "scenarios" : [ {
+    "name" : "B017.1 Communications is the primary messaging workspace",
+    "steps" : [ {
+      "keyword" : "When",
+      "text" : "primary messaging navigation is rendered"
+    }, {
+      "keyword" : "Then",
+      "text" : "Communications opens on Unread and Message History remains diagnostic"
+    } ],
+    "examples" : [ ]
+  }, {
+    "name" : "B017.2 Group navigation describes the whole workspace",
+    "steps" : [ {
+      "keyword" : "When",
+      "text" : "the administrator opens the groups list"
+    }, {
+      "keyword" : "Then",
+      "text" : "active group actions say Open group and expose authorized workspace sections"
+    } ],
+    "examples" : [ ]
+  }, {
+    "name" : "B017.3 One group composer is reused",
+    "steps" : [ {
+      "keyword" : "When",
+      "text" : "the administrator starts a new group message from Communications"
+    }, {
+      "keyword" : "Then",
+      "text" : "the exact join-code prefix and one-group preview controls are shown"
+    } ],
+    "examples" : [ ]
+  }, {
+    "name" : "B017.4 Conversation is chronological and durable",
+    "steps" : [ {
+      "keyword" : "When",
+      "text" : "the administrator opens a synthetic contact conversation"
+    }, {
+      "keyword" : "Then",
+      "text" : "sent and received entries appear in chronological order with group context"
+    } ],
+    "examples" : [ ]
+  }, {
+    "name" : "B017.5 Organization boundary precedes inference",
+    "steps" : [ {
+      "keyword" : "When",
+      "text" : "the administrator opens the synthetic organization inbox"
+    }, {
+      "keyword" : "Then",
+      "text" : "no foreign-organization contact or group is rendered"
+    } ],
+    "examples" : [ ]
+  }, {
+    "name" : "B017.6 Exact quote produces Confirmed attribution",
+    "steps" : [ {
+      "keyword" : "When",
+      "text" : "the administrator opens a conversation with exact-message evidence"
+    }, {
+      "keyword" : "Then",
+      "text" : "Confirmed and the exact-message explanation are shown"
+    } ],
+    "examples" : [ ]
+  }, {
+    "name" : "B017.7 Recent send produces only Likely attribution",
+    "steps" : [ {
+      "keyword" : "When",
+      "text" : "the administrator opens a conversation with recent-send evidence"
+    }, {
+      "keyword" : "Then",
+      "text" : "Likely and the inference explanation are shown"
+    } ],
+    "examples" : [ ]
+  }, {
+    "name" : "B017.8 Ambiguous and Unassigned remain honest",
+    "steps" : [ {
+      "keyword" : "When",
+      "text" : "the administrator opens the ambiguity queue"
+    }, {
+      "keyword" : "Then",
+      "text" : "Ambiguous or Unassigned is shown without a Confirmed claim"
+    } ],
+    "examples" : [ ]
+  }, {
+    "name" : "B017.9 Unknown sender is restricted",
+    "steps" : [ {
+      "keyword" : "When",
+      "text" : "the administrator opens the unassigned queue"
+    }, {
+      "keyword" : "Then",
+      "text" : "the unknown sender is masked and reply controls are absent"
+    } ],
+    "examples" : [ ]
+  }, {
+    "name" : "B017.10 Multi-group contact does not leak a conversation",
+    "steps" : [ {
+      "keyword" : "When",
+      "text" : "a Group B operator opens Group B messages"
+    }, {
+      "keyword" : "Then",
+      "text" : "Group A-only message content is absent"
+    } ],
+    "examples" : [ ]
+  }, {
+    "name" : "B017.11 Group sender has bounded reply authority",
+    "steps" : [ {
+      "keyword" : "When",
+      "text" : "a group sender opens the assigned group workspace"
+    }, {
+      "keyword" : "Then",
+      "text" : "Messages is available while People Settings and full numbers are absent"
+    } ],
+    "examples" : [ ]
+  }, {
+    "name" : "B017.12 Manual attribution is constrained and audited",
+    "steps" : [ {
+      "keyword" : "When",
+      "text" : "an owner opens an Ambiguous candidate for the owned group"
+    }, {
+      "keyword" : "Then",
+      "text" : "the assign-to-group action is available before replying"
+    } ],
+    "examples" : [ ]
+  }, {
+    "name" : "B017.13 Commands win over conversation routing",
+    "steps" : [ {
+      "keyword" : "When",
+      "text" : "command-classified synthetic history is opened"
+    }, {
+      "keyword" : "Then",
+      "text" : "no ordinary unread reply or reply composer is created for the command"
+    } ],
+    "examples" : [ ]
+  }, {
+    "name" : "B017.14 Reply rechecks every safety decision",
+    "steps" : [ {
+      "keyword" : "When",
+      "text" : "an authorized operator previews an ineligible reply"
+    }, {
+      "keyword" : "Then",
+      "text" : "actionable eligibility guidance is shown and the draft remains"
+    } ],
+    "examples" : [ ]
+  }, {
+    "name" : "B017.15 Reply is prefixed and duplicate-safe",
+    "steps" : [ {
+      "keyword" : "When",
+      "text" : "an authorized operator previews a valid individual reply"
+    }, {
+      "keyword" : "Then",
+      "text" : "the exact join-code-prefixed text is shown before confirmation"
+    } ],
+    "examples" : [ ]
+  }, {
+    "name" : "B017.16 Unread is personal and resolution is shared",
+    "steps" : [ {
+      "keyword" : "When",
+      "text" : "an authorized operator opens group work"
+    }, {
+      "keyword" : "Then",
+      "text" : "Mark unread assignment and resolution controls are available"
+    } ],
+    "examples" : [ ]
+  }, {
+    "name" : "B017.17 Concurrent work fails clearly",
+    "steps" : [ {
+      "keyword" : "When",
+      "text" : "a stale work-state update is rejected"
+    }, {
+      "keyword" : "Then",
+      "text" : "current work is refreshed without showing raw 409 or losing a draft"
+    } ],
+    "examples" : [ ]
+  }, {
+    "name" : "B017.18 Revocation clears visible data",
+    "steps" : [ {
+      "keyword" : "When",
+      "text" : "the current group grant is revoked before refresh"
+    }, {
+      "keyword" : "Then",
+      "text" : "the thread becomes non-disclosing access denied"
+    } ],
+    "examples" : [ ]
+  }, {
+    "name" : "B017.19 Legacy history is not guessed into conversations",
+    "steps" : [ {
+      "keyword" : "When",
+      "text" : "legacy diagnostic history has no durable group-delivery link"
+    }, {
+      "keyword" : "Then",
+      "text" : "it is absent from group conversations and remains in Message History"
+    } ],
+    "examples" : [ ]
+  }, {
+    "name" : "B017.20 Mobile and accessible states are complete",
+    "steps" : [ {
+      "keyword" : "When",
+      "text" : "the operator opens a thread at 320 CSS pixels using keyboard controls"
+    }, {
+      "keyword" : "Then",
+      "text" : "the back control labels and live result regions are usable without horizontal overflow"
+    } ],
+    "examples" : [ ]
+  } ],
+  "background" : [ {
+    "keyword" : "Given",
+    "text" : "an authenticated B017 organization administrator with synthetic messaging data"
+  } ]
+}

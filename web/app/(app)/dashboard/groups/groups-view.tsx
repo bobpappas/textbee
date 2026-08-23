@@ -73,7 +73,7 @@ export default function GroupsView() {
                   <div><dt className="text-muted-foreground">Roster</dt><dd>{group.rosterCount} people</dd></div>
                   <div><dt className="text-muted-foreground">Owners</dt><dd className="break-words">{group.owners.map((owner) => owner.displayName).join(', ') || 'No assigned owners'}</dd></div>
                 </dl>
-                <Button asChild variant="outline"><Link href={`/dashboard/groups/${group.id}`}>{group.status === 'ACTIVE' ? 'Open roster' : 'View archived group'}</Link></Button>
+                <Button asChild variant="outline"><Link href={`/dashboard/groups/${group.id}`}>{group.status === 'ACTIVE' ? 'Open group' : 'View archived group'}</Link></Button>
               </CardContent>
             </Card>
           ))}

@@ -36,6 +36,17 @@ export const queryKeys = {
       : (['organization', organizationId, 'messages', deviceId] as const),
   messageHistory: (organizationId: string) =>
     ['organization', organizationId, 'messages'] as const,
+  communicationsAll: (organizationId: string) =>
+    ['organization', organizationId, 'communications'] as const,
+  communications: (
+    organizationId: string,
+    filters: Record<string, unknown>,
+  ) => ['organization', organizationId, 'communications', 'list', filters] as const,
+  conversation: (
+    organizationId: string,
+    conversationId: string,
+    groupId = '',
+  ) => ['organization', organizationId, 'communications', 'thread', conversationId, groupId] as const,
   organizations: ['organizations'] as const,
   organizationContext: ['organizationContext'] as const,
   organizationProfile: (organizationId: string) =>

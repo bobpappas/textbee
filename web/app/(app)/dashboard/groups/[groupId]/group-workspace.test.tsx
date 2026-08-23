@@ -12,12 +12,19 @@ import { renderWithProviders, screen, userEvent } from '@/test/render'
 import OrganizationContextProvider from '@/components/organizations/organization-context-provider'
 import GroupWorkspace from './group-workspace'
 
+const navigation = vi.hoisted(() => ({ section: 'messages' }))
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(`section=${navigation.section}`),
+}))
+
 const organizationId = mockOrganizationContext.organization.id
 const group = mockOrganizationGroups[0]
 const url = (path: string) => `${API_BASE_URL}${path}`
 
 describe('GroupWorkspace group messaging', () => {
   it('invalidates edited previews and confirms the server-authoritative message', async () => {
+    navigation.section = 'messages'
     const confirm = vi.fn()
     server.use(
       http.get(url(ApiEndpoints.organizations.group(organizationId, group.id)), () =>
@@ -25,6 +32,9 @@ describe('GroupWorkspace group messaging', () => {
       ),
       http.get(url(ApiEndpoints.organizations.roster(organizationId, group.id)), () =>
         HttpResponse.json({ data: mockRosterMembers }),
+      ),
+      http.get(url(ApiEndpoints.organizations.groupCommunications(organizationId, group.id)), () =>
+        HttpResponse.json({ data: { view: 'unread', items: [], nextCursor: null, counts: { unread: 0 } } }),
       ),
       http.get(url(ApiEndpoints.organizations.operators(organizationId)), () =>
         HttpResponse.json({ data: group.owners }),
@@ -128,6 +138,7 @@ describe('GroupWorkspace group messaging', () => {
   })
 
   it('edits contact details and records missing consent as separate actions', async () => {
+    navigation.section = 'people'
     const member = mockRosterMembers[0]
     const rename = vi.fn()
     const recordConsent = vi.fn()
@@ -244,6 +255,7 @@ describe('GroupWorkspace group messaging', () => {
   })
 
   it('adds a send-ineligible roster member without claiming consent', async () => {
+    navigation.section = 'people'
     const addedMember = {
       id: '64b7c42f18f0c31f8c9fd402',
       contactId: '64b7c42f18f0c31f8c9fd502',

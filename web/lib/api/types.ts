@@ -343,6 +343,73 @@ export type GroupMessageSend = {
   createdAt: string
 }
 
+export type AttributionState = 'CONFIRMED' | 'LIKELY' | 'AMBIGUOUS' | 'UNASSIGNED'
+export type CommunicationEntry = {
+  id: string
+  direction: 'INBOUND' | 'OUTBOUND' | 'SYSTEM'
+  kind: 'MESSAGE' | 'REACTION' | 'COMMAND'
+  message: string
+  status?: string
+  eventAt: string
+  group: { id: string; displayName: string } | null
+  author: string
+  attribution: {
+    state: AttributionState
+    method: string
+    reason: string
+    candidateGroupIds: string[]
+    manuallyAssigned: boolean
+  }
+  reaction?: { name?: string; targetEntryId: string } | null
+  version: number
+}
+
+export type CommunicationWorkState = {
+  assigneeMembershipId: string | null
+  resolved: boolean
+  resolvedBy: string | null
+  resolvedAt: string | null
+  version: number
+}
+
+export type CommunicationSummary = {
+  id: string
+  contact: { displayName: string; number: string }
+  lastActivityAt: string
+  lastEntry: CommunicationEntry
+  unreadCount: number
+  groupIds: string[]
+  workState?: CommunicationWorkState
+}
+
+export type CommunicationsPage = {
+  view: 'unread' | 'recent' | 'all' | 'groups'
+  items: CommunicationSummary[]
+  nextCursor: string | null
+  counts: { unread: number }
+}
+
+export type ConversationThread = {
+  id: string
+  contact: { displayName: string; number: string }
+  entries: CommunicationEntry[]
+  workState?: CommunicationWorkState
+}
+
+export type ReplyPreview = {
+  id: string
+  parentEntryId: string
+  group: { id: string; displayName: string }
+  recipient: { displayName: string; number: string }
+  message: string
+  encoding: string
+  segments: number
+  route: { deviceId: string; simSubscriptionId: number | null }
+  eligibility: { eligible: boolean }
+  remainingCapacity: Record<string, number>
+  expiresAt: string
+}
+
 export type ActiveOrganizationContext = {
   state: 'ACTIVE'
   organization: { id: string; displayName: string }

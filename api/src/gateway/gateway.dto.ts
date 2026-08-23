@@ -197,6 +197,21 @@ export class ReceivedSMSDTO {
     description: 'The time the message was created',
   })
   receivedAtInMillis?: number
+
+  @ApiProperty({
+    type: String,
+    required: false,
+    description: 'Stable carrier or gateway identity when available',
+  })
+  transportId?: string
+
+  @ApiProperty({
+    type: String,
+    required: false,
+    description:
+      'Stable outbound group-delivery identity when supplied by the carrier',
+  })
+  replyToDeliveryId?: string
 }
 
 export class DeviceDTO {

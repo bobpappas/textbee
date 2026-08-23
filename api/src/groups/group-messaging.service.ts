@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  Optional,
   ServiceUnavailableException,
 } from '@nestjs/common'
 import { InjectModel } from '@nestjs/mongoose'
@@ -39,6 +40,7 @@ import { GroupOwnerAssignment } from './schemas/group-owner-assignment.schema'
 import { GroupSenderAssignment } from './schemas/group-sender-assignment.schema'
 import { Group } from './schemas/group.schema'
 import { RosterMembership } from './schemas/roster-membership.schema'
+import { EventEmitter2 } from '@nestjs/event-emitter'
 
 type Actor = { _id?: Types.ObjectId | string; id?: string }
 type PreviewRecipient = {
@@ -80,6 +82,7 @@ export class GroupMessagingService {
     private readonly selfHostedPolicy: SelfHostedPolicyService,
     @InjectModel(GroupSenderAssignment.name)
     private readonly senders?: Model<GroupSenderAssignment>,
+    @Optional() private readonly events?: EventEmitter2,
   ) {}
 
   async preview(
@@ -284,6 +287,9 @@ export class GroupMessagingService {
           status: send.status,
         }),
         correlationId: requestId,
+      })
+      await this.events?.emitAsync('group.message.confirmed', {
+        sendId: String(send._id),
       })
       return this.sendView(send, access.senderOnly)
     } catch (error: any) {

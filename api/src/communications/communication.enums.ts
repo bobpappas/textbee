@@ -1,0 +1,27 @@
+export enum AttributionState {
+  CONFIRMED = 'CONFIRMED',
+  LIKELY = 'LIKELY',
+  AMBIGUOUS = 'AMBIGUOUS',
+  UNASSIGNED = 'UNASSIGNED',
+}
+
+export enum AttributionMethod {
+  TRANSPORT_REPLY = 'TRANSPORT_REPLY',
+  EXACT_QUOTE = 'EXACT_QUOTE',
+  RECENT_SEND = 'RECENT_SEND',
+  CONFLICTING_EVIDENCE = 'CONFLICTING_EVIDENCE',
+  NO_EVIDENCE = 'NO_EVIDENCE',
+  MANUAL = 'MANUAL',
+}
+
+export enum CommunicationDirection {
+  INBOUND = 'INBOUND',
+  OUTBOUND = 'OUTBOUND',
+  SYSTEM = 'SYSTEM',
+}
+
+export enum CommunicationEntryKind {
+  MESSAGE = 'MESSAGE',
+  REACTION = 'REACTION',
+  COMMAND = 'COMMAND',
+}

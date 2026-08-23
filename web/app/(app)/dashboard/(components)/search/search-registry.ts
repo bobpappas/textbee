@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   LifeBuoy,
   ListChecks,
+  MessageSquareText,
   Send,
   Shield,
   Upload,
@@ -22,6 +23,7 @@ import type { OrganizationContext } from '@/lib/api'
 import {
   GROUPS_MANAGE,
   GROUPS_READ,
+  GROUP_MESSAGES_SEND,
   OPERATORS_MANAGE,
   ORGANIZATION_PROFILE_MANAGE,
   type OrganizationCapability,
@@ -53,6 +55,15 @@ export type SearchEntry = {
 }
 
 export const searchEntries: SearchEntry[] = [
+  {
+    href: '/dashboard/communications',
+    label: 'Communications',
+    group: 'Messaging',
+    icon: MessageSquareText,
+    description: 'Read and reply to organization and group conversations',
+    keywords: ['communications', 'inbox', 'conversations', 'unread', 'replies'],
+    requiredCapability: GROUP_MESSAGES_SEND,
+  },
   {
     href: '/dashboard/operators',
     label: 'Operator Access',

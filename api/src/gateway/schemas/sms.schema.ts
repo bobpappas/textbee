@@ -49,6 +49,9 @@ export class SMS {
   @Prop({ type: Date })
   receivedAt: Date
 
+  @Prop({ type: String, immutable: true })
+  transportIdentity?: string
+
   // fields for outgoing messages
   @Prop({ type: String })
   recipient: string
@@ -111,3 +114,7 @@ SMSSchema.index({ user: 1, createdAt: -1, type: 1 })
 SMSSchema.index({ status: 1, dispatchExpiresAt: 1 })
 SMSSchema.index({ organizationId: 1, createdAt: -1, type: 1 })
 SMSSchema.index({ organizationId: 1, status: 1, dispatchExpiresAt: 1 })
+SMSSchema.index(
+  { organizationId: 1, device: 1, transportIdentity: 1 },
+  { unique: true, sparse: true },
+)

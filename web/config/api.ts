@@ -68,6 +68,22 @@ export const ApiEndpoints = {
       `/organizations/${id}/groups/${groupId}/messages/${previewId}/confirm`,
     groupMessageResult: (id: string, groupId: string, sendId: string) =>
       `/organizations/${id}/groups/${groupId}/messages/${sendId}`,
+    communications: (id: string, query = '') =>
+      `/organizations/${id}/communications${query ? `?${query}` : ''}`,
+    groupCommunications: (id: string, groupId: string, query = '') =>
+      `/organizations/${id}/groups/${groupId}/communications${query ? `?${query}` : ''}`,
+    conversation: (id: string, conversationId: string, groupId?: string) =>
+      `/organizations/${id}/communications/${conversationId}${groupId ? `?groupId=${encodeURIComponent(groupId)}` : ''}`,
+    conversationReadState: (id: string, conversationId: string) =>
+      `/organizations/${id}/communications/${conversationId}/read-state`,
+    conversationWorkState: (id: string, conversationId: string, groupId: string) =>
+      `/organizations/${id}/communications/${conversationId}/groups/${groupId}/work-state`,
+    entryAttribution: (id: string, entryId: string) =>
+      `/organizations/${id}/communications/entries/${entryId}/attribution`,
+    replyPreview: (id: string, conversationId: string) =>
+      `/organizations/${id}/communications/${conversationId}/replies/preview`,
+    replyConfirm: (id: string, conversationId: string, previewId: string) =>
+      `/organizations/${id}/communications/${conversationId}/replies/${previewId}/confirm`,
     groupName: (id: string, groupId: string) =>
       `/organizations/${id}/groups/${groupId}/name`,
     groupJoinSettings: (id: string, groupId: string) =>

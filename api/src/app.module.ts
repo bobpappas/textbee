@@ -24,6 +24,7 @@ import { OrganizationsModule } from './organizations/organizations.module'
 import { GroupsModule } from './groups/groups.module'
 import { ConsentModule } from './consent/consent.module'
 import { validateSelfHostedEnvironment } from './billing/self-hosted-policy.config'
+import { CommunicationsModule } from './communications/communications.module'
 
 @Injectable()
 export class LoggerMiddleware implements NestMiddleware {
@@ -67,6 +68,7 @@ export class LoggerMiddleware implements NestMiddleware {
     OrganizationsModule,
     GroupsModule,
     ConsentModule,
+    CommunicationsModule,
   ],
   controllers: [],
   providers: [
