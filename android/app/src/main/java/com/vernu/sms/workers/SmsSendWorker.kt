@@ -86,7 +86,8 @@ class SmsSendWorker(context: Context, workerParams: WorkerParameters) : Worker(c
                 .claimSMSDispatch(deviceId, smsId, apiKey, claim)
                 .execute()
             if (!response.isSuccessful) {
-                Log.w(TAG, "Dispatch attempt was not claimable")
+                val error = response.errorBody()?.string()?.take(256)
+                Log.w(TAG, "Dispatch attempt was not claimable (HTTP ${response.code()}): $error")
                 return Result.failure()
             }
         } catch (e: IOException) {

@@ -1655,10 +1655,10 @@ export class GatewayService {
     const claimed = await this.smsModel.findOneAndUpdate(
       {
         _id: smsId as any,
-        device: deviceId as any,
+        device: new Types.ObjectId(deviceId),
         status: 'pending',
         dispatchAttemptId: input.attemptId,
-        dispatchExpiresAt: new Date(expiresAt),
+        dispatchExpiresAt: { $gt: new Date(now) },
       },
       {
         $set: {

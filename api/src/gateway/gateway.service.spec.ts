@@ -23,6 +23,7 @@ import { User } from '../users/schemas/user.schema'
 import { BatchResponse } from 'firebase-admin/messaging'
 import { ConsentService } from '../consent/consent.service'
 import { SelfHostedPolicyService } from '../billing/self-hosted-policy.service'
+import { Types } from 'mongoose'
 
 // Mock firebase-admin
 jest.mock('firebase-admin', () => ({
@@ -325,9 +326,10 @@ describe('GatewayService', () => {
     it('atomically advances a fresh pending command to dispatched', async () => {
       mockSmsModel.findOneAndUpdate.mockResolvedValue({ _id: 'sms123' })
       const expiresAt = String(Date.now() + 60_000)
+      const deviceId = '507f1f77bcf86cd799439011'
 
       await expect(
-        service.claimSMSDispatch('device123', 'sms123', {
+        service.claimSMSDispatch(deviceId, 'sms123', {
           attemptId: 'attempt-1',
           expiresAt,
         }),
@@ -336,10 +338,10 @@ describe('GatewayService', () => {
       expect(mockSmsModel.findOneAndUpdate).toHaveBeenCalledWith(
         {
           _id: 'sms123',
-          device: 'device123',
+          device: new Types.ObjectId(deviceId),
           status: 'pending',
           dispatchAttemptId: 'attempt-1',
-          dispatchExpiresAt: new Date(Number(expiresAt)),
+          dispatchExpiresAt: { $gt: expect.any(Date) },
         },
         expect.objectContaining({
           $set: expect.objectContaining({
