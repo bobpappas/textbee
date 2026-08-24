@@ -37,6 +37,7 @@ import {
   OperatorMembership,
   OperatorMembershipSchema,
 } from '../organizations/schemas/operator-membership.schema'
+import { UsersModule } from '../users/users.module'
 import { User, UserSchema } from '../users/schemas/user.schema'
 import { CommunicationsController } from './communications.controller'
 import { CommunicationsListener } from './communications.listener'
@@ -70,6 +71,7 @@ import { Conversation, ConversationSchema } from './schemas/conversation.schema'
     ConsentModule,
     GatewayModule,
     OrganizationsModule,
+    UsersModule,
     MongooseModule.forFeature([
       { name: Conversation.name, schema: ConversationSchema },
       { name: ConversationEntry.name, schema: ConversationEntrySchema },
