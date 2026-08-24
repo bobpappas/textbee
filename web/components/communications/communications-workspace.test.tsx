@@ -62,6 +62,7 @@ describe('CommunicationsWorkspace', () => {
     expect(screen.getAllByText('Yes').length).toBeGreaterThan(0)
     expect(screen.getByText('LIKELY')).toBeInTheDocument()
     expect(screen.getByText(/Most recent group message within 72 hours/)).toBeInTheDocument()
+    expect(screen.getByLabelText('Reply to Synthetic Contact directly')).toBeInTheDocument()
     expect(screen.queryByText('+12085550123')).not.toBeInTheDocument()
   })
 })
