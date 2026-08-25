@@ -6,7 +6,7 @@ plugins {
 }
 
 def devApiBaseUrl = System.getenv("TEXTBEE_DEV_API_BASE_URL") ?: ""
-def productionApiBaseUrl = "https://textbee.bobpappas.com/api/v1/"
+def productionApiBaseUrl = "https://textbee.pappas.io/api/v1/"
 def dashboardUrlForApiBaseUrl = { String value ->
     value.endsWith("/api/v1/")
             ? value.substring(0, value.length() - "/api/v1/".length()) + "/dashboard"

@@ -67,7 +67,7 @@ updates are supplied by the administrator.
 The production flavor uses:
 
 ```text
-https://textbee.bobpappas.com/api/v1/
+https://textbee.pappas.io/api/v1/
 ```
 
 It rejects cleartext traffic. Its Firebase Android configuration belongs at

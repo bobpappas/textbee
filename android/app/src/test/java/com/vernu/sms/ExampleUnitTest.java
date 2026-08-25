@@ -32,8 +32,8 @@ public class ExampleUnitTest {
         } else {
             assertEquals("production", BuildConfig.ENVIRONMENT);
             assertEquals("com.bobpappas.textbee", BuildConfig.APPLICATION_ID);
-            assertEquals("https://textbee.bobpappas.com/api/v1/", BuildConfig.API_BASE_URL);
-            assertEquals("https://textbee.bobpappas.com/dashboard", BuildConfig.DASHBOARD_URL);
+            assertEquals("https://textbee.pappas.io/api/v1/", BuildConfig.API_BASE_URL);
+            assertEquals("https://textbee.pappas.io/dashboard", BuildConfig.DASHBOARD_URL);
         }
     }
 }

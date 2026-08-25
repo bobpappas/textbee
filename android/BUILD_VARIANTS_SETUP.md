@@ -10,7 +10,7 @@ complete build and secret-handling instructions.
 | --- | --- | --- |
 | Application ID | `com.bobpappas.textbee.dev` | `com.bobpappas.textbee` |
 | App name | `TextBee (Dev)` | `TextBee` |
-| API base URL | Required `TEXTBEE_DEV_API_BASE_URL` | `https://textbee.bobpappas.com/api/v1/` |
+| API base URL | Required `TEXTBEE_DEV_API_BASE_URL` | `https://textbee.pappas.io/api/v1/` |
 | Firebase input | `app/src/dev/google-services.json` | `app/src/prod/google-services.json` |
 | Cleartext HTTP | Allowed for trusted-LAN development | Disabled |
 | Signing | Android debug signing | External release signing |

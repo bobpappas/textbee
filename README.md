@@ -56,7 +56,7 @@ Manage SMS messages through a web dashboard or a REST API. textbee is ideal for 
 const API_KEY = 'YOUR_API_KEY';
 const DEVICE_ID = 'YOUR_DEVICE_ID';
 
-await axios.post(`https://textbee.bobpappas.com/api/v1/gateway/devices/${DEVICE_ID}/send-sms`, {
+await axios.post(`https://textbee.pappas.io/api/v1/gateway/devices/${DEVICE_ID}/send-sms`, {
   recipients: [ '+251912345678' ],
   message: 'Hello World!',
 }, {
@@ -73,7 +73,7 @@ API_KEY = 'YOUR_API_KEY'
 DEVICE_ID = 'YOUR_DEVICE_ID'
 
 requests.post(
-    f'https://textbee.bobpappas.com/api/v1/gateway/devices/{DEVICE_ID}/send-sms',
+    f'https://textbee.pappas.io/api/v1/gateway/devices/{DEVICE_ID}/send-sms',
     json={
         'recipients': ['+251912345678'],
         'message': 'Hello World!',
@@ -86,7 +86,7 @@ requests.post(
 <details>
 <summary><b>curl</b></summary>
 ```bash
-curl -X POST "https://textbee.bobpappas.com/api/v1/gateway/devices/YOUR_DEVICE_ID/send-sms" \
+curl -X POST "https://textbee.pappas.io/api/v1/gateway/devices/YOUR_DEVICE_ID/send-sms" \
   -H 'x-api-key: YOUR_API_KEY' \
   -H 'Content-Type: application/json' \
   -d '{
@@ -104,7 +104,7 @@ Enable SMS receiving in the mobile app, then access incoming messages via the RE
 const API_KEY = 'YOUR_API_KEY';
 const DEVICE_ID = 'YOUR_DEVICE_ID';
 
-await axios.get(`https://textbee.bobpappas.com/api/v1/gateway/devices/${DEVICE_ID}/get-received-sms`, {
+await axios.get(`https://textbee.pappas.io/api/v1/gateway/devices/${DEVICE_ID}/get-received-sms`, {
   headers: { 'x-api-key': API_KEY },
 });
 ```
@@ -112,7 +112,7 @@ await axios.get(`https://textbee.bobpappas.com/api/v1/gateway/devices/${DEVICE_I
 <details>
 <summary><b>curl</b></summary>
 ```bash
-curl -X GET "https://textbee.bobpappas.com/api/v1/gateway/devices/YOUR_DEVICE_ID/get-received-sms" \
+curl -X GET "https://textbee.pappas.io/api/v1/gateway/devices/YOUR_DEVICE_ID/get-received-sms" \
   -H "x-api-key: YOUR_API_KEY"
 ```
 
