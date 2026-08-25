@@ -1,7 +1,7 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
 import { InjectConnection, InjectModel } from '@nestjs/mongoose'
-import { Connection, Model } from 'mongoose'
+import { ClientSession, Connection, Model } from 'mongoose'
 import { User, UserDocument } from '../../users/schemas/user.schema'
 import {
   OAuthApprovalState,
@@ -46,52 +46,9 @@ export class OAuthAuthenticationOrchestrator {
   async authenticate(identity: VerifiedOAuthIdentity) {
     let record: AuthenticationRecord | undefined
     try {
-      await this.connection.transaction(async (session) => {
-        const approval = await this.approvals
-          .findOne({
-            providerKey: identity.providerKey,
-            normalizedEmail: identity.normalizedEmail,
-            state: {
-              $in: [OAuthApprovalState.PENDING, OAuthApprovalState.BOUND],
-            },
-          })
-          .session(session)
-        if (!approval) return
-
-        let user: UserDocument
-        let action = OAuthAuthenticationAuditAction.LOGIN_SUCCEEDED
-        if (approval.state === OAuthApprovalState.PENDING) {
-          user = await this.bindPendingApproval(identity, approval, session)
-          action = OAuthAuthenticationAuditAction.IDENTITY_BOUND
-        } else {
-          user = await this.loadBoundUser(identity, approval, session)
-        }
-
-        user.role = approval.role
-        user.lastLoginAt = new Date()
-        if (!user.emailVerifiedAt) user.emailVerifiedAt = new Date()
-        await user.save({ session })
-
-        const audit = new this.audits({
-          providerKey: identity.providerKey,
-          approvalId: approval._id,
-          userId: user._id,
-          action,
-          outcome: OAuthAuthenticationAuditOutcome.SUCCESS,
-          verificationMetadata: identity.auditMetadata,
-          occurredAt: new Date(),
-        })
-        await audit.save({ session })
-        await this.approvals.updateOne(
-          { _id: approval._id },
-          { $addToSet: { auditEventIds: audit._id } },
-          { session },
-        )
-        record = {
-          user,
-          authorizationRevision: approval.authorizationRevision,
-        }
-      })
+      record = await this.connection.transaction((session) =>
+        this.authenticateWithinTransaction(identity, session),
+      )
     } catch {
       record = undefined
     }
@@ -113,10 +70,61 @@ export class OAuthAuthenticationOrchestrator {
     }
   }
 
+  private async authenticateWithinTransaction(
+    identity: VerifiedOAuthIdentity,
+    session: ClientSession,
+  ): Promise<AuthenticationRecord | undefined> {
+    const approval = await this.approvals
+      .findOne({
+        providerKey: identity.providerKey,
+        normalizedEmail: identity.normalizedEmail,
+        state: {
+          $in: [OAuthApprovalState.PENDING, OAuthApprovalState.BOUND],
+        },
+      })
+      .session(session)
+    if (!approval) return undefined
+
+    let user: UserDocument
+    let action = OAuthAuthenticationAuditAction.LOGIN_SUCCEEDED
+    if (approval.state === OAuthApprovalState.PENDING) {
+      user = await this.bindPendingApproval(identity, approval, session)
+      action = OAuthAuthenticationAuditAction.IDENTITY_BOUND
+    } else {
+      user = await this.loadBoundUser(identity, approval, session)
+    }
+
+    user.role = approval.role
+    user.lastLoginAt = new Date()
+    if (!user.emailVerifiedAt) user.emailVerifiedAt = new Date()
+    await user.save({ session })
+
+    const audit = new this.audits({
+      providerKey: identity.providerKey,
+      approvalId: approval._id,
+      userId: user._id,
+      action,
+      outcome: OAuthAuthenticationAuditOutcome.SUCCESS,
+      verificationMetadata: identity.auditMetadata,
+      occurredAt: new Date(),
+    })
+    await audit.save({ session })
+    await this.approvals.updateOne(
+      { _id: approval._id },
+      { $addToSet: { auditEventIds: audit._id } },
+      { session },
+    )
+
+    return {
+      user,
+      authorizationRevision: approval.authorizationRevision,
+    }
+  }
+
   private async bindPendingApproval(
     identity: VerifiedOAuthIdentity,
     approval: OAuthApprovalDocument,
-    session: any,
+    session: ClientSession,
   ) {
     const [subjectBinding, emailUser] = await Promise.all([
       this.bindings
@@ -175,7 +183,7 @@ export class OAuthAuthenticationOrchestrator {
   private async loadBoundUser(
     identity: VerifiedOAuthIdentity,
     approval: OAuthApprovalDocument,
-    session: any,
+    session: ClientSession,
   ) {
     if (approval.boundSubject !== identity.subject || !approval.userId) {
       throw new Error('identity conflict')
