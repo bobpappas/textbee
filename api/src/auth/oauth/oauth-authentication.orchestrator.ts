@@ -126,15 +126,18 @@ export class OAuthAuthenticationOrchestrator {
     approval: OAuthApprovalDocument,
     session: ClientSession,
   ) {
-    const [subjectBinding, emailUser] = await Promise.all([
-      this.bindings
-        .findOne({
-          providerKey: identity.providerKey,
-          providerSubject: identity.subject,
-        })
-        .session(session),
-      this.users.findOne({ email: identity.normalizedEmail }).session(session),
-    ])
+    // MongoDB does not support parallel operations on one transaction session.
+    // Keep these conflict checks sequential so the replica-set deployment has
+    // one deterministic operation in flight per session.
+    const subjectBinding = await this.bindings
+      .findOne({
+        providerKey: identity.providerKey,
+        providerSubject: identity.subject,
+      })
+      .session(session)
+    const emailUser = await this.users
+      .findOne({ email: identity.normalizedEmail })
+      .session(session)
     // Existing email alone is never authority to link provider identities.
     if (subjectBinding || emailUser) throw new Error('identity conflict')
 
