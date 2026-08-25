@@ -11,7 +11,7 @@ type Fixtures = { page: Page; context: BrowserContext }
 async function setup(fixtures: Fixtures) {
   await authenticate(fixtures.context, 'REGULAR')
   await mockApi(fixtures.page, { organizationContext: mockOrganizationContext })
-  await fixtures.page.goto(`/dashboard/groups/${mockOrganizationGroups[0].id}`)
+  await fixtures.page.goto(`/dashboard/groups/${mockOrganizationGroups[0].id}?section=people`)
 }
 
 async function chooseCsv(page: Page) {
@@ -34,7 +34,7 @@ export async function runAcceptanceScenario(
   const { page } = fixtures
   await setup(fixtures)
   if (scenarioIndex === 0) {
-    await page.getByRole('button', { name: 'Edit name' }).click()
+    await page.getByRole('button', { name: 'Edit details' }).click()
     await expect(page.getByLabel('Mobile number')).toHaveAttribute('readonly', '')
     await page.getByLabel('Display name').fill('Jordan Rivera')
     await page.getByRole('button', { name: 'Save name' }).click()
@@ -60,9 +60,9 @@ export async function runAcceptanceScenario(
     return
   }
   await page.setViewportSize({ width: 320, height: 720 })
-  await page.getByRole('button', { name: 'Edit name' }).click()
+  await page.getByRole('button', { name: 'Edit details' }).click()
   await expect(page.getByLabel('Mobile number')).toHaveAttribute('readonly', '')
-  await page.getByRole('button', { name: 'Cancel' }).click()
+  await page.getByRole('button', { name: 'Close' }).first().click()
   await page.getByRole('button', { name: 'Bulk add' }).click()
   expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false)
 }

@@ -42,6 +42,8 @@ export async function runAcceptanceScenario(
     await page.getByLabel('Group name').fill('Youth Group')
     await page.getByLabel('Join code').fill('YOUTH')
     await page.getByRole('button', { name: 'Create group' }).click()
+    await page.waitForURL(/\/dashboard\/groups\/(?!new(?:[/?]|$))[^/?]+$/)
+    await page.goto(`${page.url()}?section=settings`)
     await expect(page.getByRole('heading', { name: 'Youth Group' })).toBeVisible()
     await expect(page.getByText('JOIN YOUTH').first()).toBeVisible()
     await expect(page.getByText('(208) 555-0100').first()).toBeVisible()
@@ -56,21 +58,25 @@ export async function runAcceptanceScenario(
   }
   if (scenarioIndex === 2 || scenarioIndex === 12) {
     await setup(fixtures, true, { groupAccessDenied: true })
+    const denied = page.waitForResponse((response) =>
+      response.url().includes('/api/v1/organizations/organization_context_1/groups/64b7c42f18f0c31f8c9fd999') &&
+      response.request().method() === 'GET'
+    )
     await page.goto('/dashboard/groups/64b7c42f18f0c31f8c9fd999')
-    await expect(page.getByText('Group not found or access denied')).toBeVisible()
+    await expect((await denied).status()).toBe(404)
     await expect(page.getByText('Unified Young Adults')).toHaveCount(0)
     return
   }
   if (scenarioIndex === 3) {
     await setup(fixtures)
-    await page.goto(`/dashboard/groups/${mockOrganizationGroups[0].id}`)
+    await page.goto(`/dashboard/groups/${mockOrganizationGroups[0].id}?section=settings`)
     await expect(page.getByText('Manage owners')).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Assign' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Assign' }).first()).toBeVisible()
     return
   }
   if (scenarioIndex === 4 || scenarioIndex === 5 || scenarioIndex === 7) {
     await setup(fixtures, true)
-    await page.goto(`/dashboard/groups/${mockOrganizationGroups[0].id}`)
+    await page.goto(`/dashboard/groups/${mockOrganizationGroups[0].id}?section=people`)
     await page.getByRole('button', { name: 'Add person' }).click()
     await expect(page.getByLabel('Display name')).toBeVisible()
     await expect(page.getByLabel('US mobile number')).toBeVisible()
@@ -84,7 +90,7 @@ export async function runAcceptanceScenario(
   }
   if (scenarioIndex === 6) {
     await setup(fixtures, true)
-    await page.goto(`/dashboard/groups/${mockOrganizationGroups[0].id}`)
+    await page.goto(`/dashboard/groups/${mockOrganizationGroups[0].id}?section=people`)
     await page.getByRole('button', { name: 'Remove from group' }).click()
     await expect(page.getByText(/organization contact and memberships in other groups remain/i)).toBeVisible()
     await page.getByLabel('Administrative reason').fill('Moved to another roster')
@@ -107,8 +113,9 @@ export async function runAcceptanceScenario(
       await page.getByLabel('Include archived groups').check()
       await expect(page.getByText('Inactive')).toBeVisible()
     } else {
-      await page.goto(`/dashboard/groups/${archived[0].id}`)
-      await expect(page.getByRole('heading', { name: 'Archived group' })).toBeVisible()
+      await page.goto(`/dashboard/groups/${archived[0].id}?section=settings`)
+      await expect(page.getByRole('heading', { name: archived[0].displayName })).toBeVisible()
+      await expect(page.getByText('Archived', { exact: true }).first()).toBeVisible()
       await expect(page.getByRole('button', { name: 'Reactivate group' })).toBeVisible()
       await expect(page.getByRole('button', { name: 'Add person' })).toHaveCount(0)
     }
@@ -116,7 +123,7 @@ export async function runAcceptanceScenario(
   }
   if (scenarioIndex === 11) {
     await setup(fixtures)
-    await page.goto(`/dashboard/groups/${mockOrganizationGroups[0].id}`)
+    await page.goto(`/dashboard/groups/${mockOrganizationGroups[0].id}?section=settings`)
     await page.getByLabel('Join code').fill('NEWCODE')
     await page.getByRole('button', { name: 'Save join settings' }).click()
     await expect(page.getByText('JOIN NEWCODE').first()).toBeVisible()
@@ -125,13 +132,13 @@ export async function runAcceptanceScenario(
   if (scenarioIndex === 13) {
     await setup(fixtures, true)
     await page.setViewportSize({ width: 320, height: 720 })
-    await page.goto(`/dashboard/groups/${mockOrganizationGroups[0].id}`)
+    await page.goto(`/dashboard/groups/${mockOrganizationGroups[0].id}?section=people`)
     await expect(page.getByRole('button', { name: 'Add person' })).toBeVisible()
     await assertNoOverflow(page)
     return
   }
   await setup(fixtures, true)
-  await page.goto(`/dashboard/groups/${mockOrganizationGroups[0].id}`)
-  await expect(page.getByText('JOIN UNIFIEDYA')).toBeVisible()
+  await page.goto(`/dashboard/groups/${mockOrganizationGroups[0].id}?section=settings`)
+  await expect(page.getByText('JOIN UNIFIEDYA').first()).toBeVisible()
   await expect(page.getByText(/inbound|acknowledgement|consent decision/i)).toHaveCount(0)
 }

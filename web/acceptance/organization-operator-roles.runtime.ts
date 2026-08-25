@@ -221,19 +221,20 @@ async function runScenario(
 
   if (name === 'Access revocation clears a rendered dashboard') {
     await authenticate(fixtures.context, 'REGULAR')
-    await mockApi(fixtures.page, {
-      organizationContexts: [
-        mockOrganizationContext,
-        {
-          state: 'NO_ACCESS',
-          organization: null,
-          membership: null,
-          capabilities: [],
-          roleLabel: null,
-        },
-      ],
-    })
+    await mockApi(fixtures.page, { organizationContext: mockOrganizationContext })
     await fixtures.page.goto('/dashboard')
+    await expect(fixtures.page.getByText(mockOrganizationContext.organization.displayName).first()).toBeVisible()
+    await fixtures.page.route('**/api/v1/organizations/current-context', (route) => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ data: {
+        state: 'NO_ACCESS',
+        organization: null,
+        membership: null,
+        capabilities: [],
+        roleLabel: null,
+      } }),
+    }))
     await fixtures.page.reload()
     await expect(
       fixtures.page.getByRole('heading', { name: 'No organization access' }),
@@ -250,19 +251,19 @@ async function runScenario(
       owners: [],
       senders: [{ membershipId: 'membership-1', displayName: 'Alex Rivera' }],
     }
-    await dashboard(
-      fixtures,
-      {
+    await authenticate(fixtures.context, 'REGULAR')
+    await mockApi(fixtures.page, {
+      organizationContext: {
         ...mockOrganizationContext,
         capabilities: ['groups:read', 'group-messages:send'],
         roleLabel: 'Group sender',
       },
-      `/dashboard/groups/${group.id}`,
-    )
-    await expect(fixtures.page.getByText(/audience/i).first()).toBeVisible()
-    await expect(
-      fixtures.page.getByRole('button', { name: /add contact/i }),
-    ).toHaveCount(0)
+      groups: [group],
+    })
+    await fixtures.page.goto(`/dashboard/groups/${group.id}`)
+    await fixtures.page.getByRole('button', { name: 'Send message' }).click()
+    await expect(fixtures.page.getByText(/exact recipients/i)).toBeVisible()
+    await expect(fixtures.page.getByRole('link', { name: 'People' })).toHaveCount(0)
     return
   }
 

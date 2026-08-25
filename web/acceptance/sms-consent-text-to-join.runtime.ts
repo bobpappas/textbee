@@ -16,7 +16,7 @@ const groupId = mockOrganizationGroups[0].id;
 
 async function openGroup(
   fixtures: Fixtures,
-  options: { archived?: boolean; rosterMembers?: any[] } = {},
+  options: { archived?: boolean; rosterMembers?: any[]; section?: "people" | "settings" } = {},
 ) {
   await authenticate(fixtures.context, "REGULAR");
   const groups = structuredClone(mockOrganizationGroups);
@@ -26,7 +26,7 @@ async function openGroup(
     groups,
     rosterMembers: options.rosterMembers,
   });
-  await fixtures.page.goto(`/dashboard/groups/${groupId}`);
+  await fixtures.page.goto(`/dashboard/groups/${groupId}?section=${options.section ?? "people"}`);
 }
 
 export async function runAcceptanceScenario(
@@ -49,7 +49,10 @@ export async function runAcceptanceScenario(
     await page.getByLabel("US mobile number").fill("(208) 555-0124");
     const submit = page.getByRole("button", { name: "Add person" }).last();
     if (scenarioIndex === 0) {
-      await expect(submit).toBeDisabled();
+      await expect(page.getByLabel(/Consent method note \(optional/)).toBeDisabled();
+      await submit.click();
+      await expect.poll(() => submitted).toMatchObject({ consentAffirmed: false });
+      await expect(page.getByText("No active group consent").first()).toBeVisible();
       return;
     }
     await page
@@ -58,7 +61,7 @@ export async function runAcceptanceScenario(
       )
       .check();
     await page
-      .getByLabel("Consent method note (optional)")
+      .getByLabel(/Consent method note \(optional/)
       .fill("In-person request");
     await submit.click();
     await expect
@@ -81,7 +84,6 @@ export async function runAcceptanceScenario(
       ],
     });
     await expect(page.getByText("Consent: Text-to-Join")).toBeVisible();
-    await expect(page.getByText(/JOIN UNIFIEDYA/i).first()).toBeVisible();
     await expect(page.getByText(/original inbound message/i)).toHaveCount(0);
     return;
   }
@@ -101,7 +103,7 @@ export async function runAcceptanceScenario(
   }
 
   if (scenarioIndex === 4) {
-    await openGroup(fixtures);
+    await openGroup(fixtures, { section: "settings" });
     await expect(page.getByText("JOIN UNIFIEDYA").first()).toBeVisible();
     await expect(page.getByText(/message frequency varies/i)).toBeVisible();
     await expect(
@@ -114,7 +116,7 @@ export async function runAcceptanceScenario(
     return;
   }
 
-  await openGroup(fixtures, { archived: true });
+  await openGroup(fixtures, { archived: true, section: "settings" });
   await expect(page.getByText(/inactive/i).first()).toBeVisible();
   await expect(page.getByRole("button", { name: "Add person" })).toHaveCount(0);
 }

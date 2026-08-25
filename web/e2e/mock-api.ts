@@ -429,6 +429,21 @@ export async function mockApi(page: Page, overrides: MockApiOverrides = {}) {
     if (/\/gateway\/devices\/[^/]+\/(messages|get-received-sms)/.test(path))
       return json(route, mockMessages)
 
+    if (
+      /^\/organizations\/[^/]+\/(?:groups\/[^/]+\/)?communications$/.test(path)
+    ) {
+      const view =
+        new URL(route.request().url()).searchParams.get('view') || 'unread'
+      return json(route, {
+        data: {
+          view,
+          items: [],
+          nextCursor: null,
+          counts: { unread: 0 },
+        },
+      })
+    }
+
     // Any unmapped backend call still gets a benign mocked response so the test
     // cannot fall through to a real backend.
     return json(route, { data: [] })
