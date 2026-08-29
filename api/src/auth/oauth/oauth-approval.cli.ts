@@ -27,6 +27,7 @@ async function run() {
         role: value('--role') as UserRole,
         reason: value('--reason') || '',
         confirmPlatformAdmin: process.argv.includes('--confirm-platform-admin'),
+        systemBootstrap: process.argv.includes('--system-bootstrap'),
       })
     } else if (action === 'revoke') {
       result = await approvals.revoke(

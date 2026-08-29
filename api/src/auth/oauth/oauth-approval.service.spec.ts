@@ -2,47 +2,122 @@ import { UserRole } from '../../users/user-roles.enum'
 import { OAuthApprovalState } from './oauth-authentication.enums'
 import { OAuthApprovalService } from './oauth-approval.service'
 
-const document = (values: Record<string, unknown>) => ({
-  _id: 'approval-1',
+const query = <T>(resolve: () => T | Promise<T>) => ({
+  session: jest.fn(async () => resolve()),
+})
+
+const approvalDocument = (values: Record<string, any>): any => ({
+  _id: values._id || `approval-${Math.random()}`,
   auditEventIds: [],
   save: jest.fn().mockResolvedValue(undefined),
   ...values,
 })
 
-const build = () => {
-  let created: any
+const build = (initialApprovals: any[] = []) => {
+  const records: any[] = initialApprovals.map(approvalDocument)
   const approvals: any = jest.fn().mockImplementation(function (values) {
-    created = Object.assign(this, document(values))
+    const created = Object.assign(this, approvalDocument(values))
+    records.push(created)
     return created
   })
-  approvals.findOne = jest.fn()
-  approvals.countDocuments = jest.fn()
-  approvals.updateOne = jest.fn().mockResolvedValue(undefined)
-  approvals.find = jest.fn()
-  const bindings = { deleteOne: jest.fn().mockResolvedValue(undefined) }
-  const audits = {
-    create: jest.fn().mockResolvedValue({ _id: 'audit-1' }),
+  approvals.findOne = jest.fn((filter) =>
+    query(() =>
+      records.find(
+        (approval) =>
+          approval.providerKey === filter.providerKey &&
+          approval.normalizedEmail === filter.normalizedEmail &&
+          (!filter.state?.$ne || approval.state !== filter.state.$ne),
+      ),
+    ),
+  )
+  approvals.countDocuments = jest.fn((filter) =>
+    query(
+      () =>
+        records.filter((approval) =>
+          Object.entries(filter).every(
+            ([key, value]) => approval[key] === value,
+          ),
+        ).length,
+    ),
+  )
+  approvals.find = jest.fn(() => ({
+    sort: jest.fn().mockResolvedValue(records),
+  }))
+
+  const bindings = {
+    deleteOne: jest.fn().mockResolvedValue(undefined),
+  }
+  const auditEvents: any[] = []
+  const audits: any = jest.fn().mockImplementation(function (values) {
+    Object.assign(this, values, {
+      _id: `audit-${auditEvents.length + 1}`,
+      save: jest.fn(async () => {
+        auditEvents.push(this)
+      }),
+    })
+  })
+  const invariant = {
+    _id: 'authority-invariant',
+    scope: 'platform-administrator',
+    serializationRevision: 0,
+    bootstrapCompleted: false,
+    save: jest.fn().mockResolvedValue(undefined),
+  }
+  const authorityInvariant = {
+    updateOne: jest.fn().mockResolvedValue(undefined),
+    findOneAndUpdate: jest.fn(async () => {
+      invariant.serializationRevision += 1
+      return invariant
+    }),
+  }
+  let transactionTail = Promise.resolve<void>(undefined)
+  const connection = {
+    transaction: jest.fn((callback) => {
+      const result = transactionTail.then(() => callback({ id: 'session' }))
+      transactionTail = result.then(
+        () => undefined,
+        () => undefined,
+      )
+      return result
+    }),
   }
   const providers = { isEnabled: jest.fn().mockReturnValue(true) }
   return {
     service: new OAuthApprovalService(
+      connection as any,
       approvals,
       bindings as any,
-      audits as any,
+      audits,
+      authorityInvariant as any,
       providers as any,
     ),
+    records,
     approvals,
     bindings,
     audits,
-    providers,
-    created: () => created,
+    auditEvents,
+    invariant,
+    authorityInvariant,
+    connection,
   }
 }
 
+const boundAdmin = (email: string) => ({
+  providerKey: 'google',
+  normalizedEmail: email,
+  role: UserRole.ADMIN,
+  state: OAuthApprovalState.BOUND,
+  boundSubject: `subject-${email}`,
+  userId: `user-${email}`,
+  boundAt: new Date(),
+  authorizationRevision: 3,
+  actorKind: 'PRIVATE_SHELL_ADMIN',
+  reason: 'existing administrator',
+})
+
 describe('OAuthApprovalService private command boundary', () => {
-  it('creates one pending exact-email approval without a user or session', async () => {
+  it('creates one pending exact-email approval and links its audit atomically', async () => {
     const context = build()
-    context.approvals.findOne.mockResolvedValue(null)
 
     await expect(
       context.service.approve({
@@ -57,23 +132,32 @@ describe('OAuthApprovalService private command boundary', () => {
       state: OAuthApprovalState.PENDING,
       authorizationRevision: 1,
     })
-    expect(context.created()).toMatchObject({
+
+    expect(context.records[0]).toMatchObject({
       normalizedEmail: 'operator@external.example',
       actorKind: 'PRIVATE_SHELL_ADMIN',
+      auditEventIds: ['audit-1'],
     })
-    expect(context.audits.create).toHaveBeenCalled()
+    expect(context.records[0].save).toHaveBeenCalledWith({
+      session: { id: 'session' },
+    })
+    expect(context.auditEvents[0]).toMatchObject({
+      actorKind: 'PRIVATE_SHELL_ADMIN',
+      authorizationRevision: 1,
+    })
+    expect(context.connection.transaction).toHaveBeenCalledTimes(1)
   })
 
   it('is idempotent for the same active role', async () => {
-    const context = build()
-    const existing = document({
-      providerKey: 'google',
-      normalizedEmail: 'operator@example.com',
-      role: UserRole.REGULAR,
-      state: OAuthApprovalState.PENDING,
-      authorizationRevision: 2,
-    })
-    context.approvals.findOne.mockResolvedValue(existing)
+    const context = build([
+      {
+        providerKey: 'google',
+        normalizedEmail: 'operator@example.com',
+        role: UserRole.REGULAR,
+        state: OAuthApprovalState.PENDING,
+        authorizationRevision: 2,
+      },
+    ])
 
     await context.service.approve({
       provider: 'google',
@@ -81,8 +165,8 @@ describe('OAuthApprovalService private command boundary', () => {
       role: UserRole.REGULAR,
       reason: 'same approval',
     })
-    expect(existing.save).not.toHaveBeenCalled()
-    expect(context.audits.create).not.toHaveBeenCalled()
+    expect(context.records[0].save).not.toHaveBeenCalled()
+    expect(context.auditEvents).toHaveLength(0)
   })
 
   it('requires explicit platform-authority confirmation', async () => {
@@ -95,43 +179,108 @@ describe('OAuthApprovalService private command boundary', () => {
         reason: 'restore platform authority',
       }),
     ).rejects.toThrow('--confirm-platform-admin')
-    expect(context.approvals.findOne).not.toHaveBeenCalled()
+    expect(context.connection.transaction).not.toHaveBeenCalled()
   })
 
-  it('rejects revocation of the last usable platform administrator and audits denial', async () => {
+  it('labels the one-time explicit initial bootstrap distinctly', async () => {
     const context = build()
-    context.approvals.findOne.mockResolvedValue(
-      document({
-        providerKey: 'google',
-        normalizedEmail: 'admin@example.com',
-        role: UserRole.ADMIN,
-        state: OAuthApprovalState.BOUND,
-        authorizationRevision: 3,
-      }),
-    )
-    context.approvals.countDocuments.mockResolvedValue(1)
+    const command = {
+      provider: 'google',
+      email: 'admin@example.com',
+      role: UserRole.ADMIN,
+      reason: 'initial platform bootstrap',
+      confirmPlatformAdmin: true,
+      systemBootstrap: true,
+    }
+
+    await context.service.approve(command)
+    await expect(context.service.approve(command)).resolves.toMatchObject({
+      role: UserRole.ADMIN,
+    })
+    expect(context.invariant.bootstrapCompleted).toBe(true)
+    expect(context.records[0].actorKind).toBe('SYSTEM_BOOTSTRAP')
+    expect(context.auditEvents[0].actorKind).toBe('SYSTEM_BOOTSTRAP')
+    expect(context.auditEvents).toHaveLength(1)
+  })
+
+  it('rejects and audits demotion of the last usable platform administrator', async () => {
+    const context = build([boundAdmin('admin@example.com')])
 
     await expect(
-      context.service.revoke('google', 'admin@example.com', 'routine revoke'),
+      context.service.approve({
+        provider: 'google',
+        email: 'admin@example.com',
+        role: UserRole.REGULAR,
+        reason: 'routine demotion',
+      }),
     ).rejects.toThrow('last usable platform administrator')
-    expect(context.audits.create).toHaveBeenCalledWith(
-      expect.objectContaining({ outcome: 'DENIED', action: 'COMMAND_DENIED' }),
-    )
+    expect(context.records[0]).toMatchObject({
+      role: UserRole.ADMIN,
+      state: OAuthApprovalState.BOUND,
+      authorizationRevision: 3,
+    })
+    expect(context.auditEvents[0]).toMatchObject({
+      outcome: 'DENIED',
+      action: 'COMMAND_DENIED',
+      reason: 'routine demotion',
+    })
   })
 
-  it('resets a confirmed binding and increments the session revision', async () => {
-    const context = build()
-    const approval: any = document({
-      providerKey: 'google',
-      normalizedEmail: 'operator@example.com',
-      role: UserRole.REGULAR,
-      state: OAuthApprovalState.BOUND,
-      boundSubject: 'subject-1',
-      userId: 'user-1',
-      boundAt: new Date(),
-      authorizationRevision: 5,
-    })
-    context.approvals.findOne.mockResolvedValue(approval)
+  it('serializes competing revoke, reset, and demotion operations', async () => {
+    const context = build([
+      boundAdmin('one@example.com'),
+      boundAdmin('two@example.com'),
+      boundAdmin('three@example.com'),
+    ])
+
+    const results = await Promise.allSettled([
+      context.service.revoke('google', 'one@example.com', 'competing revoke'),
+      context.service.resetBinding(
+        'google',
+        'two@example.com',
+        'competing reset',
+        true,
+      ),
+      context.service.approve({
+        provider: 'google',
+        email: 'three@example.com',
+        role: UserRole.REGULAR,
+        reason: 'competing demotion',
+      }),
+    ])
+
+    expect(
+      results.filter((result) => result.status === 'fulfilled'),
+    ).toHaveLength(2)
+    expect(
+      results.filter((result) => result.status === 'rejected'),
+    ).toHaveLength(1)
+    expect(
+      context.records.filter(
+        (approval) =>
+          approval.role === UserRole.ADMIN &&
+          approval.state === OAuthApprovalState.BOUND,
+      ),
+    ).toHaveLength(1)
+    expect(
+      context.auditEvents.filter((event) => event.outcome === 'DENIED'),
+    ).toHaveLength(1)
+    expect(context.invariant.serializationRevision).toBe(3)
+  })
+
+  it('resets a confirmed non-admin binding and increments the session revision', async () => {
+    const context = build([
+      {
+        providerKey: 'google',
+        normalizedEmail: 'operator@example.com',
+        role: UserRole.REGULAR,
+        state: OAuthApprovalState.BOUND,
+        boundSubject: 'subject-1',
+        userId: 'user-1',
+        boundAt: new Date(),
+        authorizationRevision: 5,
+      },
+    ])
 
     await expect(
       context.service.resetBinding(
@@ -144,10 +293,10 @@ describe('OAuthApprovalService private command boundary', () => {
       state: OAuthApprovalState.PENDING,
       authorizationRevision: 6,
     })
-    expect(context.bindings.deleteOne).toHaveBeenCalledWith({
-      approvalId: 'approval-1',
-    })
-    expect(approval.boundSubject).toBeUndefined()
-    expect(approval.userId).toBeUndefined()
+    expect(context.bindings.deleteOne).toHaveBeenCalledWith(
+      { approvalId: context.records[0]._id },
+      { session: { id: 'session' } },
+    )
+    expect(context.auditEvents[0].authorizationRevision).toBe(6)
   })
 })

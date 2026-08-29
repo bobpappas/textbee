@@ -1,5 +1,6 @@
 import { OAuthApprovalSchema } from './schemas/oauth-approval.schema'
 import { OAuthIdentityBindingSchema } from './schemas/oauth-identity-binding.schema'
+import { OAuthPlatformAuthorityInvariantSchema } from './schemas/oauth-platform-authority-invariant.schema'
 
 const uniqueIndex = (schema: any, keys: Record<string, number>) =>
   schema
@@ -27,5 +28,11 @@ describe('provider-neutral OAuth persistence', () => {
 
   it('does not permit implicit cross-provider linking to one user', () => {
     expect(uniqueIndex(OAuthIdentityBindingSchema, { userId: 1 })).toBeDefined()
+  })
+
+  it('has one durable serialization record per platform-authority scope', () => {
+    expect(
+      uniqueIndex(OAuthPlatformAuthorityInvariantSchema, { scope: 1 }),
+    ).toBeDefined()
   })
 })

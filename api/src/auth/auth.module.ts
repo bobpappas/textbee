@@ -48,6 +48,10 @@ import { OAuth2Client } from 'google-auth-library'
 import { OAuthSessionAuthorizationService } from './oauth/oauth-session-authorization.service'
 import { OAuthApprovalService } from './oauth/oauth-approval.service'
 import { GoogleLegacyIdentityAdoptionService } from './oauth/google-legacy-identity-adoption.service'
+import {
+  OAuthPlatformAuthorityInvariant,
+  OAuthPlatformAuthorityInvariantSchema,
+} from './oauth/schemas/oauth-platform-authority-invariant.schema'
 
 @Module({
   imports: [
@@ -79,6 +83,10 @@ import { GoogleLegacyIdentityAdoptionService } from './oauth/google-legacy-ident
       {
         name: OAuthAuthenticationAuditEvent.name,
         schema: OAuthAuthenticationAuditEventSchema,
+      },
+      {
+        name: OAuthPlatformAuthorityInvariant.name,
+        schema: OAuthPlatformAuthorityInvariantSchema,
       },
     ]),
     UsersModule,
@@ -115,9 +123,6 @@ import { GoogleLegacyIdentityAdoptionService } from './oauth/google-legacy-ident
     GoogleLegacyIdentityAdoptionService,
     OAuthProviderRegistry,
     OAuthAuthenticationOrchestrator,
-    OAuthSessionAuthorizationService,
-    OAuthApprovalService,
-    MongooseModule,
   ],
   exports: [
     AuthService,

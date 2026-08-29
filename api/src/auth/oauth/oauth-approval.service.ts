@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common'
-import { InjectModel } from '@nestjs/mongoose'
-import { Model } from 'mongoose'
+import { InjectConnection, InjectModel } from '@nestjs/mongoose'
+import { ClientSession, Connection, Model } from 'mongoose'
 import { UserRole } from '../../users/user-roles.enum'
 import {
   OAuthApprovalState,
@@ -21,8 +21,16 @@ import {
   OAuthIdentityBinding,
   OAuthIdentityBindingDocument,
 } from './schemas/oauth-identity-binding.schema'
+import {
+  OAuthPlatformAuthorityInvariant,
+  OAuthPlatformAuthorityInvariantDocument,
+} from './schemas/oauth-platform-authority-invariant.schema'
 
-const ACTOR = 'PRIVATE_SHELL_ADMIN'
+const PRIVATE_SHELL_ACTOR = 'PRIVATE_SHELL_ADMIN'
+const SYSTEM_BOOTSTRAP_ACTOR = 'SYSTEM_BOOTSTRAP'
+const PLATFORM_AUTHORITY_SCOPE = 'platform-administrator'
+const LAST_ADMINISTRATOR_ERROR =
+  'Cannot change the last usable platform administrator'
 
 export type ApprovalCommand = {
   provider: string
@@ -30,17 +38,26 @@ export type ApprovalCommand = {
   role: UserRole
   reason: string
   confirmPlatformAdmin?: boolean
+  systemBootstrap?: boolean
+}
+
+type CommandResult = {
+  approval: OAuthApprovalDocument
+  denied?: boolean
 }
 
 @Injectable()
 export class OAuthApprovalService {
   constructor(
+    @InjectConnection() private readonly connection: Connection,
     @InjectModel(OAuthApproval.name)
     private readonly approvals: Model<OAuthApprovalDocument>,
     @InjectModel(OAuthIdentityBinding.name)
     private readonly bindings: Model<OAuthIdentityBindingDocument>,
     @InjectModel(OAuthAuthenticationAuditEvent.name)
     private readonly audits: Model<OAuthAuthenticationAuditEventDocument>,
+    @InjectModel(OAuthPlatformAuthorityInvariant.name)
+    private readonly authorityInvariant: Model<OAuthPlatformAuthorityInvariantDocument>,
     private readonly providers: OAuthProviderRegistry,
   ) {}
 
@@ -52,63 +69,123 @@ export class OAuthApprovalService {
     if (command.role === UserRole.ADMIN && !command.confirmPlatformAdmin) {
       throw new Error('ADMIN approval requires --confirm-platform-admin')
     }
+    if (command.systemBootstrap && command.role !== UserRole.ADMIN) {
+      throw new Error('System bootstrap requires an ADMIN approval')
+    }
 
     const normalizedEmail = normalizeOAuthEmail(command.email)
-    let approval = await this.approvals.findOne({
-      providerKey: command.provider,
-      normalizedEmail,
+    const actorKind = command.systemBootstrap
+      ? SYSTEM_BOOTSTRAP_ACTOR
+      : PRIVATE_SHELL_ACTOR
+    const result = await this.serializedCommand(async (session, invariant) => {
+      let approval = await this.approvals
+        .findOne({ providerKey: command.provider, normalizedEmail })
+        .session(session)
+
+      if (command.systemBootstrap) {
+        if (invariant.bootstrapCompleted) {
+          if (
+            approval?.actorKind === SYSTEM_BOOTSTRAP_ACTOR &&
+            approval.role === UserRole.ADMIN &&
+            approval.state !== OAuthApprovalState.REVOKED
+          ) {
+            return { approval }
+          }
+          throw new Error('System bootstrap has already completed')
+        }
+        const priorAdminApprovals = await this.approvals
+          .countDocuments({ role: UserRole.ADMIN })
+          .session(session)
+        if (priorAdminApprovals > 0) {
+          throw new Error('System bootstrap requires no prior ADMIN approval')
+        }
+        invariant.bootstrapCompleted = true
+        await invariant.save({ session })
+      }
+
+      if (!approval) {
+        approval = new this.approvals({
+          providerKey: command.provider,
+          normalizedEmail,
+          role: command.role,
+          state: OAuthApprovalState.PENDING,
+          authorizationRevision: 1,
+          approvedAt: new Date(),
+          actorKind,
+          reason: command.reason,
+        })
+      } else if (
+        approval.state !== OAuthApprovalState.REVOKED &&
+        approval.role === command.role
+      ) {
+        return { approval }
+      } else {
+        if (
+          approval.role === UserRole.ADMIN &&
+          command.role !== UserRole.ADMIN &&
+          approval.state === OAuthApprovalState.BOUND &&
+          (await this.isLastUsableAdministrator(session))
+        ) {
+          await this.recordAudit(
+            approval,
+            OAuthAuthenticationAuditAction.COMMAND_DENIED,
+            command.reason,
+            OAuthAuthenticationAuditOutcome.DENIED,
+            actorKind,
+            session,
+          )
+          return { approval, denied: true }
+        }
+        approval.role = command.role
+        approval.state = approval.boundSubject
+          ? OAuthApprovalState.BOUND
+          : OAuthApprovalState.PENDING
+        approval.authorizationRevision += 1
+        approval.approvedAt = new Date()
+        approval.revokedAt = undefined
+        approval.roleChangedAt = new Date()
+        approval.actorKind = actorKind
+        approval.reason = command.reason
+      }
+
+      await approval.save({ session })
+      await this.recordAudit(
+        approval,
+        OAuthAuthenticationAuditAction.APPROVAL_GRANTED,
+        command.reason,
+        OAuthAuthenticationAuditOutcome.SUCCESS,
+        actorKind,
+        session,
+      )
+      return { approval }
     })
-    if (!approval) {
-      approval = new this.approvals({
-        providerKey: command.provider,
-        normalizedEmail,
-        role: command.role,
-        state: OAuthApprovalState.PENDING,
-        authorizationRevision: 1,
-        approvedAt: new Date(),
-        actorKind: ACTOR,
-        reason: command.reason,
-      })
-    } else if (
-      approval.state !== OAuthApprovalState.REVOKED &&
-      approval.role === command.role
-    ) {
-      return this.safeApproval(approval)
-    } else {
-      approval.role = command.role
-      approval.state = approval.boundSubject
-        ? OAuthApprovalState.BOUND
-        : OAuthApprovalState.PENDING
-      approval.authorizationRevision += 1
-      approval.approvedAt = new Date()
-      approval.revokedAt = undefined
-      approval.roleChangedAt = new Date()
-      approval.actorKind = ACTOR
-      approval.reason = command.reason
-    }
-    await approval.save()
-    await this.audit(
-      approval,
-      OAuthAuthenticationAuditAction.APPROVAL_GRANTED,
-      command.reason,
-    )
-    return this.safeApproval(approval)
+    return this.commandResult(result)
   }
 
   async revoke(provider: string, email: string, reason: string) {
-    const approval = await this.activeApproval(provider, email, reason)
-    await this.protectLastAdministrator(approval)
-    approval.state = OAuthApprovalState.REVOKED
-    approval.revokedAt = new Date()
-    approval.authorizationRevision += 1
-    approval.reason = reason
-    await approval.save()
-    await this.audit(
-      approval,
-      OAuthAuthenticationAuditAction.APPROVAL_REVOKED,
-      reason,
-    )
-    return this.safeApproval(approval)
+    this.validateCommand(provider, email, reason)
+    const result = await this.serializedCommand(async (session) => {
+      const approval = await this.activeApproval(provider, email, session)
+      if (await this.protectLastAdministrator(approval, reason, session)) {
+        return { approval, denied: true }
+      }
+      approval.state = OAuthApprovalState.REVOKED
+      approval.revokedAt = new Date()
+      approval.authorizationRevision += 1
+      approval.actorKind = PRIVATE_SHELL_ACTOR
+      approval.reason = reason
+      await approval.save({ session })
+      await this.recordAudit(
+        approval,
+        OAuthAuthenticationAuditAction.APPROVAL_REVOKED,
+        reason,
+        OAuthAuthenticationAuditOutcome.SUCCESS,
+        PRIVATE_SHELL_ACTOR,
+        session,
+      )
+      return { approval }
+    })
+    return this.commandResult(result)
   }
 
   async resetBinding(
@@ -118,24 +195,34 @@ export class OAuthApprovalService {
     confirmed: boolean,
   ) {
     if (!confirmed) throw new Error('Binding reset requires --confirm-reset')
-    const approval = await this.activeApproval(provider, email, reason)
-    await this.protectLastAdministrator(approval)
-    if (approval.boundSubject) {
-      await this.bindings.deleteOne({ approvalId: approval._id })
-    }
-    approval.state = OAuthApprovalState.PENDING
-    approval.boundSubject = undefined
-    approval.userId = undefined
-    approval.boundAt = undefined
-    approval.authorizationRevision += 1
-    approval.reason = reason
-    await approval.save()
-    await this.audit(
-      approval,
-      OAuthAuthenticationAuditAction.BINDING_RESET,
-      reason,
-    )
-    return this.safeApproval(approval)
+    this.validateCommand(provider, email, reason)
+    const result = await this.serializedCommand(async (session) => {
+      const approval = await this.activeApproval(provider, email, session)
+      if (await this.protectLastAdministrator(approval, reason, session)) {
+        return { approval, denied: true }
+      }
+      if (approval.boundSubject) {
+        await this.bindings.deleteOne({ approvalId: approval._id }, { session })
+      }
+      approval.state = OAuthApprovalState.PENDING
+      approval.boundSubject = undefined
+      approval.userId = undefined
+      approval.boundAt = undefined
+      approval.authorizationRevision += 1
+      approval.actorKind = PRIVATE_SHELL_ACTOR
+      approval.reason = reason
+      await approval.save({ session })
+      await this.recordAudit(
+        approval,
+        OAuthAuthenticationAuditAction.BINDING_RESET,
+        reason,
+        OAuthAuthenticationAuditOutcome.SUCCESS,
+        PRIVATE_SHELL_ACTOR,
+        session,
+      )
+      return { approval }
+    })
+    return this.commandResult(result)
   }
 
   async list(provider: string, email?: string) {
@@ -151,17 +238,64 @@ export class OAuthApprovalService {
     )
   }
 
+  private async serializedCommand<T>(
+    command: (
+      session: ClientSession,
+      invariant: OAuthPlatformAuthorityInvariantDocument,
+    ) => Promise<T>,
+  ) {
+    await this.ensureAuthorityInvariant()
+    return this.connection.transaction(async (session) => {
+      const invariant = await this.authorityInvariant.findOneAndUpdate(
+        { scope: PLATFORM_AUTHORITY_SCOPE },
+        { $inc: { serializationRevision: 1 } },
+        { new: true, session },
+      )
+      if (!invariant)
+        throw new Error('Platform authority invariant unavailable')
+      return command(session, invariant)
+    })
+  }
+
+  private async ensureAuthorityInvariant() {
+    try {
+      await this.authorityInvariant.updateOne(
+        { scope: PLATFORM_AUTHORITY_SCOPE },
+        {
+          $setOnInsert: {
+            scope: PLATFORM_AUTHORITY_SCOPE,
+            serializationRevision: 0,
+            bootstrapCompleted: false,
+          },
+        },
+        { upsert: true },
+      )
+    } catch (error) {
+      if (!this.isDuplicateKey(error)) throw error
+    }
+  }
+
+  private isDuplicateKey(error: unknown) {
+    return Boolean(
+      error &&
+      typeof error === 'object' &&
+      'code' in error &&
+      error.code === 11000,
+    )
+  }
+
   private async activeApproval(
     provider: string,
     email: string,
-    reason: string,
+    session: ClientSession,
   ) {
-    this.validateCommand(provider, email, reason)
-    const approval = await this.approvals.findOne({
-      providerKey: provider,
-      normalizedEmail: normalizeOAuthEmail(email),
-      state: { $ne: OAuthApprovalState.REVOKED },
-    })
+    const approval = await this.approvals
+      .findOne({
+        providerKey: provider,
+        normalizedEmail: normalizeOAuthEmail(email),
+        state: { $ne: OAuthApprovalState.REVOKED },
+      })
+      .session(session)
     if (!approval) throw new Error('Active approval not found')
     return approval
   }
@@ -174,49 +308,69 @@ export class OAuthApprovalService {
     if (!reason?.trim()) throw new Error('Reason is required')
   }
 
-  private async protectLastAdministrator(approval: OAuthApprovalDocument) {
+  private async protectLastAdministrator(
+    approval: OAuthApprovalDocument,
+    reason: string,
+    session: ClientSession,
+  ) {
     if (
-      approval.role === UserRole.ADMIN &&
-      approval.state === OAuthApprovalState.BOUND &&
-      (await this.approvals.countDocuments({
-        role: UserRole.ADMIN,
-        state: OAuthApprovalState.BOUND,
-      })) <= 1
+      approval.role !== UserRole.ADMIN ||
+      approval.state !== OAuthApprovalState.BOUND ||
+      !(await this.isLastUsableAdministrator(session))
     ) {
-      await this.audit(
-        approval,
-        OAuthAuthenticationAuditAction.COMMAND_DENIED,
-        'last platform administrator safeguard',
-        OAuthAuthenticationAuditOutcome.DENIED,
-      )
-      throw new Error('Cannot change the last usable platform administrator')
+      return false
     }
+    await this.recordAudit(
+      approval,
+      OAuthAuthenticationAuditAction.COMMAND_DENIED,
+      reason,
+      OAuthAuthenticationAuditOutcome.DENIED,
+      PRIVATE_SHELL_ACTOR,
+      session,
+    )
+    return true
   }
 
-  private async audit(
+  private async isLastUsableAdministrator(session: ClientSession) {
+    return (
+      (await this.approvals
+        .countDocuments({
+          role: UserRole.ADMIN,
+          state: OAuthApprovalState.BOUND,
+        })
+        .session(session)) <= 1
+    )
+  }
+
+  private async recordAudit(
     approval: OAuthApprovalDocument,
     action: OAuthAuthenticationAuditAction,
     reason: string,
-    outcome = OAuthAuthenticationAuditOutcome.SUCCESS,
+    outcome: OAuthAuthenticationAuditOutcome,
+    actorKind: string,
+    session: ClientSession,
   ) {
-    const event = await this.audits.create({
+    const event = new this.audits({
       providerKey: approval.providerKey,
       approvalId: approval._id,
       userId: approval.userId,
       action,
       outcome,
       verificationMetadata: {},
-      actorKind: ACTOR,
+      actorKind,
       reason,
       authorizationRevision: approval.authorizationRevision,
       occurredAt: new Date(),
     })
-    if (event?._id) {
-      await this.approvals.updateOne(
-        { _id: approval._id },
-        { $addToSet: { auditEventIds: event._id } },
-      )
-    }
+    await event.save({ session })
+    approval.auditEventIds ||= []
+    approval.auditEventIds.push(event._id)
+    await approval.save({ session })
+  }
+
+  private commandResult(result: CommandResult) {
+    if (result.denied) throw new Error(LAST_ADMINISTRATOR_ERROR)
+    return this.safeApproval(result.approval)
   }
 
   private safeApproval(approval: OAuthApprovalDocument, revealEmail = false) {
