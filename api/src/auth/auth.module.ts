@@ -21,6 +21,25 @@ import {
 import { AuthGuard } from './guards/auth.guard'
 import { OptionalAuthGuard } from './guards/optional-auth.guard'
 import { OrganizationsModule } from '../organizations/organizations.module'
+import { parseOAuthProviderConfigurations } from './oauth/oauth-provider.config'
+import {
+  OAUTH_PROVIDER_ADAPTERS,
+  OAUTH_PROVIDER_CONFIGURATIONS,
+  OAuthProviderRegistry,
+} from './oauth/oauth-provider.registry'
+import { OAuthAuthenticationOrchestrator } from './oauth/oauth-authentication.orchestrator'
+import {
+  OAuthApproval,
+  OAuthApprovalSchema,
+} from './oauth/schemas/oauth-approval.schema'
+import {
+  OAuthIdentityBinding,
+  OAuthIdentityBindingSchema,
+} from './oauth/schemas/oauth-identity-binding.schema'
+import {
+  OAuthAuthenticationAuditEvent,
+  OAuthAuthenticationAuditEventSchema,
+} from './oauth/schemas/oauth-authentication-audit-event.schema'
 
 @Module({
   imports: [
@@ -41,6 +60,18 @@ import { OrganizationsModule } from '../organizations/organizations.module'
         name: EmailVerification.name,
         schema: EmailVerificationSchema,
       },
+      {
+        name: OAuthApproval.name,
+        schema: OAuthApprovalSchema,
+      },
+      {
+        name: OAuthIdentityBinding.name,
+        schema: OAuthIdentityBindingSchema,
+      },
+      {
+        name: OAuthAuthenticationAuditEvent.name,
+        schema: OAuthAuthenticationAuditEventSchema,
+      },
     ]),
     UsersModule,
     PassportModule,
@@ -60,8 +91,25 @@ import { OrganizationsModule } from '../organizations/organizations.module'
     JwtStrategy,
     AuthGuard,
     OptionalAuthGuard,
+    {
+      provide: OAUTH_PROVIDER_CONFIGURATIONS,
+      useFactory: parseOAuthProviderConfigurations,
+    },
+    {
+      provide: OAUTH_PROVIDER_ADAPTERS,
+      useValue: [],
+    },
+    OAuthProviderRegistry,
+    OAuthAuthenticationOrchestrator,
     MongooseModule,
   ],
-  exports: [AuthService, JwtModule, AuthGuard, OptionalAuthGuard],
+  exports: [
+    AuthService,
+    JwtModule,
+    AuthGuard,
+    OptionalAuthGuard,
+    OAuthProviderRegistry,
+    OAuthAuthenticationOrchestrator,
+  ],
 })
 export class AuthModule {}
