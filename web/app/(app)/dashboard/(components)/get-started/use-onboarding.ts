@@ -85,13 +85,7 @@ export function useOnboarding() {
   const doneCount = stepStates.filter((s) => s.isDone).length
   const progressPercent = Math.round((doneCount / STEPS.length) * 100)
 
-  const canNavigateToStep = useCallback(
-    (stepId: string) => {
-      if (stepId === 'verify_email') return false
-      return true
-    },
-    []
-  )
+  const canNavigateToStep = useCallback((_stepId: string) => true, [])
 
   // Restore the persisted current step once, when navigable.
   useEffect(() => {

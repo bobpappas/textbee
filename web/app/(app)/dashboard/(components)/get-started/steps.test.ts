@@ -4,34 +4,28 @@ import { STEPS, computeStepStates } from './steps'
 const byId = (id: string) => STEPS.find((s) => s.id === id)!
 
 describe('onboarding steps', () => {
-  it('verify_email is done only when the user has emailVerifiedAt', () => {
-    expect(byId('verify_email').checkDone({}, undefined, null, [])).toBe(false)
-    expect(
-      byId('verify_email').checkDone(
-        { emailVerifiedAt: '2026-01-01' },
-        undefined,
-        null,
-        []
-      )
-    ).toBe(true)
+  it('contains no password-era email-verification step', () => {
+    expect(STEPS.map((step) => step.id)).not.toContain('verify_email')
   })
 
   it('download_app is done with a device or when skipped', () => {
     const step = byId('download_app')
     expect(step.checkDone({}, { totalDeviceCount: 0 }, null, [])).toBe(false)
     expect(step.checkDone({}, { totalDeviceCount: 1 }, null, [])).toBe(true)
-    expect(step.checkDone({}, { totalDeviceCount: 0 }, null, ['download_app'])).toBe(
-      true
-    )
+    expect(
+      step.checkDone({}, { totalDeviceCount: 0 }, null, ['download_app']),
+    ).toBe(true)
   })
 
   it('api_key / register_device / first_message follow the stats counters', () => {
-    expect(byId('api_key').checkDone({}, { totalApiKeyCount: 1 }, null, [])).toBe(true)
     expect(
-      byId('register_device').checkDone({}, { totalDeviceCount: 1 }, null, [])
+      byId('api_key').checkDone({}, { totalApiKeyCount: 1 }, null, []),
     ).toBe(true)
     expect(
-      byId('first_message').checkDone({}, { totalSentSMSCount: 1 }, null, [])
+      byId('register_device').checkDone({}, { totalDeviceCount: 1 }, null, []),
+    ).toBe(true)
+    expect(
+      byId('first_message').checkDone({}, { totalSentSMSCount: 1 }, null, []),
     ).toBe(true)
   })
 
@@ -40,7 +34,7 @@ describe('onboarding steps', () => {
       { emailVerifiedAt: '2026-01-01' },
       { totalApiKeyCount: 2, totalDeviceCount: 1, totalSentSMSCount: 10 },
       null,
-      []
+      [],
     )
     expect(states.every((s) => s.isDone)).toBe(true)
   })

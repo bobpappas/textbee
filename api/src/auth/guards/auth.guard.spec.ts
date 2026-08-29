@@ -5,6 +5,7 @@ import { AuthGuard } from './auth.guard'
 import { AuthService } from '../auth.service'
 import { UsersService } from '../../users/users.service'
 import * as bcrypt from 'bcryptjs'
+import { OAuthSessionAuthorizationService } from '../oauth/oauth-session-authorization.service'
 
 // Build a minimal ExecutionContext whose HTTP request is `request`.
 const contextFor = (request: any): ExecutionContext =>
@@ -20,6 +21,7 @@ describe('AuthGuard', () => {
     findActiveApiKeyByClientKey: jest.Mock
     trackAccessLog: jest.Mock
   }
+  let oauthSessions: { isCurrent: jest.Mock }
 
   const user = { _id: 'user_1', id: 'user_1' }
 
@@ -30,29 +32,61 @@ describe('AuthGuard', () => {
       findActiveApiKeyByClientKey: jest.fn(),
       trackAccessLog: jest.fn(),
     }
+    oauthSessions = { isCurrent: jest.fn().mockResolvedValue(true) }
     guard = new AuthGuard(
       jwtService as unknown as JwtService,
       usersService as unknown as UsersService,
       authService as unknown as AuthService,
+      oauthSessions as unknown as OAuthSessionAuthorizationService,
     )
   })
 
   describe('bearer token', () => {
     it('resolves the user for a valid bearer token', async () => {
-      jwtService.verify.mockReturnValue({ sub: 'user_1' })
+      jwtService.verify.mockReturnValue({
+        sub: 'user_1',
+        oauthProvider: 'google',
+        authorizationRevision: 1,
+      })
       usersService.findOne.mockResolvedValue(user)
-      const request: any = { headers: { authorization: 'Bearer good' }, query: {} }
+      const request: any = {
+        headers: { authorization: 'Bearer good' },
+        query: {},
+      }
 
       await expect(guard.canActivate(contextFor(request))).resolves.toBe(true)
       expect(usersService.findOne).toHaveBeenCalledWith({ _id: 'user_1' })
       expect(request.user).toBe(user)
+      expect(oauthSessions.isCurrent).toHaveBeenCalled()
+    })
+
+    it('rejects a revoked or stale OAuth session', async () => {
+      jwtService.verify.mockReturnValue({
+        sub: 'user_1',
+        oauthProvider: 'google',
+        authorizationRevision: 1,
+      })
+      usersService.findOne.mockResolvedValue(user)
+      oauthSessions.isCurrent.mockResolvedValue(false)
+      const request: any = {
+        headers: { authorization: 'Bearer stale' },
+        query: {},
+      }
+
+      await expect(guard.canActivate(contextFor(request))).rejects.toThrow(
+        HttpException,
+      )
+      expect(request.user).toBeUndefined()
     })
 
     it('throws 401 when the bearer token is invalid or expired', async () => {
       jwtService.verify.mockImplementation(() => {
         throw new Error('jwt expired')
       })
-      const request: any = { headers: { authorization: 'Bearer bad' }, query: {} }
+      const request: any = {
+        headers: { authorization: 'Bearer bad' },
+        query: {},
+      }
 
       await expect(guard.canActivate(contextFor(request))).rejects.toThrow(
         HttpException,
@@ -104,9 +138,16 @@ describe('AuthGuard', () => {
   })
 
   it('throws 401 when the token resolves a user id but the user no longer exists', async () => {
-    jwtService.verify.mockReturnValue({ sub: 'ghost' })
+    jwtService.verify.mockReturnValue({
+      sub: 'ghost',
+      oauthProvider: 'google',
+      authorizationRevision: 1,
+    })
     usersService.findOne.mockResolvedValue(null)
-    const request: any = { headers: { authorization: 'Bearer good' }, query: {} }
+    const request: any = {
+      headers: { authorization: 'Bearer good' },
+      query: {},
+    }
 
     await expect(guard.canActivate(contextFor(request))).rejects.toThrow(
       HttpException,

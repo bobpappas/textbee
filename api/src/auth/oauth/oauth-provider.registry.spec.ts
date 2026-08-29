@@ -143,6 +143,24 @@ describe('parseOAuthProviderConfigurations', () => {
     ).toEqual(enabled)
   })
 
+  it('requires exactly one enabled Google provider in production', () => {
+    expect(() => parseOAuthProviderConfigurations('', 'production')).toThrow(
+      OAuthProviderConfigurationError,
+    )
+    expect(() =>
+      parseOAuthProviderConfigurations(
+        '[{"key":"synthetic","enabled":true,"settings":{}}]',
+        'production',
+      ),
+    ).toThrow(OAuthProviderConfigurationError)
+    expect(
+      parseOAuthProviderConfigurations(
+        '[{"key":"google","enabled":true,"settings":{"audience":"client.apps.googleusercontent.com"}}]',
+        'production',
+      ),
+    ).toHaveLength(1)
+  })
+
   it.each(['not-json', '{}', '[{"key":"UPPER","enabled":true,"settings":{}}]'])(
     'rejects malformed configuration without echoing it: %s',
     (raw) => {

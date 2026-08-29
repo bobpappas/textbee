@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "feature_path": "acceptance/features/textbee-operator-authentication.feature",
+  "ir_path": "acceptance/generated/textbee-operator-authentication.json",
+  "implementation_hash": "sha256:4c25d989cf973302b4d814146bad549984be6c12e1c754b88b20d09cb58ab52a",
+  "hash_scope": "generated_files",
+  "generated_files": [
+    "e2e/generated/textbee-operator-authentication.acceptance.spec.ts"
+  ]
+}

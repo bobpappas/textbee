@@ -155,7 +155,7 @@ export default function AppHeader({ session }: { session: Session | null }) {
             asChild
             className='rounded-full bg-primary text-white hover:bg-primary/90'
           >
-            <Link href={Routes.register}>Get started</Link>
+            <Link href={Routes.login}>Sign in</Link>
           </Button>
         </nav>
       </SheetContent>
@@ -248,7 +248,7 @@ export default function AppHeader({ session }: { session: Session | null }) {
                   asChild
                   className='rounded-full bg-primary text-white hover:bg-primary/90'
                 >
-                  <Link href={Routes.register}>Get started</Link>
+                  <Link href={Routes.login}>Sign in</Link>
                 </Button>
               </div>
               <SignedOutMobileMenu />

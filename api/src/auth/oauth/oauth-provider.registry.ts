@@ -76,6 +76,10 @@ export class OAuthProviderRegistry {
     return this.validateIdentity(providerKey, identity)
   }
 
+  isEnabled(providerKey: string) {
+    return this.enabled.has(providerKey)
+  }
+
   private validateIdentity(
     providerKey: string,
     identity: VerifiedOAuthIdentity,

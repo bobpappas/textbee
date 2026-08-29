@@ -3,10 +3,14 @@ import { PassportStrategy } from '@nestjs/passport'
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common'
 import { UsersService } from '../users/users.service'
 import { User } from '../users/schemas/user.schema'
+import { OAuthSessionAuthorizationService } from './oauth/oauth-session-authorization.service'
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor(private usersService: UsersService) {
+  constructor(
+    private usersService: UsersService,
+    private oauthSessions: OAuthSessionAuthorizationService,
+  ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
@@ -17,7 +21,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   async validate(payload: any): Promise<User> {
     const userId = payload.sub
     const user = await this.usersService.findOne({ _id: userId })
-    if (!user) {
+    if (
+      !user ||
+      user.isBanned ||
+      !(await this.oauthSessions.isCurrent(payload, user._id))
+    ) {
       throw new HttpException('Unauthorized', HttpStatus.UNAUTHORIZED)
     }
     return user

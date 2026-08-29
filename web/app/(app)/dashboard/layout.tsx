@@ -7,7 +7,6 @@ import { usePathname } from 'next/navigation'
 import AccountDeletionAlert from './(components)/alerts/account-deletion-alert'
 import UpdateAppModal from './(components)/devices/update-app-modal'
 import UpdateAppNotificationBar from './(components)/devices/update-app-notification-bar'
-import VerifyEmailAlert from './(components)/alerts/verify-email-alert'
 import Footer from '@/components/shared/footer'
 import ThemeToggle from '@/components/shared/theme-toggle'
 import CommandMenu from './(components)/search/command-menu'
@@ -112,7 +111,6 @@ export default function DashboardLayout({
         {hasUsableContext ? (
           <div className="space-y-2 p-4 pb-0">
             <UpdateAppNotificationBar />
-            <VerifyEmailAlert />
             <AccountDeletionAlert />
           </div>
         ) : null}
@@ -136,7 +134,9 @@ export default function DashboardLayout({
               onRefresh={() => organizationContext.refetch()}
               isRefreshing={organizationContext.isFetching}
             />
-          ) : children}
+          ) : (
+            children
+          )}
         </main>
         {/* Inside the sidebar-offset column so the fixed sidebar cannot paint
             over it, and padded clear of the fixed mobile tab bar. */}

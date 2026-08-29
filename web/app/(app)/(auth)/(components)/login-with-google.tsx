@@ -29,14 +29,10 @@ function GoogleLoginButton() {
   const redirect = searchParams.get('redirect')
 
   const onGoogleLoginSuccess = async (
-    credentialResponse: CredentialResponse
+    credentialResponse: CredentialResponse,
   ) => {
-    toast({
-      title: 'Success',
-      description: 'You are logged in with Google',
-      variant: 'default',
-    })
-    await signIn('google-id-token-login', {
+    if (!credentialResponse.credential) return onGoogleLoginError()
+    await signIn('google-approved-login', {
       redirect: true,
       callbackUrl: redirect ? decodeURIComponent(redirect) : Routes.dashboard,
       idToken: credentialResponse.credential,
@@ -54,13 +50,13 @@ function GoogleLoginButton() {
     <GoogleLogin
       onSuccess={onGoogleLoginSuccess}
       onError={onGoogleLoginError}
-      useOneTap={true}
+      useOneTap={false}
       width={'100%'}
-      size='large'
-      shape='pill'
-      locale='en'
-      theme='outline'
-      text='continue_with'
+      size="large"
+      shape="pill"
+      locale="en"
+      theme="outline"
+      text="continue_with"
     />
   )
 }

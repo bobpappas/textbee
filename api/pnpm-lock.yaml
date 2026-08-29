@@ -74,6 +74,9 @@ importers:
       firebase-admin:
         specifier: ^13.6.0
         version: 13.6.0
+      google-auth-library:
+        specifier: ^9.14.2
+        version: 9.14.2
       handlebars:
         specifier: ^4.7.8
         version: 4.7.8

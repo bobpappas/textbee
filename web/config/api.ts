@@ -1,19 +1,10 @@
 export const ApiEndpoints = {
   auth: {
-    login: () => '/auth/login',
-    register: () => '/auth/register',
-    signInWithGoogle: () => '/auth/google-login',
+    oauthLogin: () => '/auth/oauth-login',
     updateProfile: () => '/auth/update-profile',
-    changePassword: () => '/auth/change-password',
 
     whoAmI: () => '/auth/who-am-i',
     updateOnboarding: () => '/auth/onboarding',
-
-    sendEmailVerificationEmail: () => '/auth/send-email-verification-email',
-    verifyEmail: () => '/auth/verify-email',
-
-    requestPasswordReset: () => '/auth/request-password-reset',
-    resetPassword: () => '/auth/reset-password',
 
     generateApiKey: () => '/auth/api-keys',
     listApiKeys: (status?: 'active' | 'revoked' | 'all') =>
@@ -76,7 +67,11 @@ export const ApiEndpoints = {
       `/organizations/${id}/communications/${conversationId}${groupId ? `?groupId=${encodeURIComponent(groupId)}` : ''}`,
     conversationReadState: (id: string, conversationId: string) =>
       `/organizations/${id}/communications/${conversationId}/read-state`,
-    conversationWorkState: (id: string, conversationId: string, groupId: string) =>
+    conversationWorkState: (
+      id: string,
+      conversationId: string,
+      groupId: string,
+    ) =>
       `/organizations/${id}/communications/${conversationId}/groups/${groupId}/work-state`,
     entryAttribution: (id: string, entryId: string) =>
       `/organizations/${id}/communications/entries/${entryId}/attribution`,
@@ -118,7 +113,12 @@ export const ApiEndpoints = {
       `/organizations/${id}/operators/${membershipId}/organization-admin`,
     groupSender: (id: string, groupId: string, membershipId: string) =>
       `/organizations/${id}/groups/${groupId}/senders/${membershipId}`,
-    codeAvailability: (id: string, receivingNumberId: string, code: string, excludeGroupId?: string) =>
+    codeAvailability: (
+      id: string,
+      receivingNumberId: string,
+      code: string,
+      excludeGroupId?: string,
+    ) =>
       `/organizations/${id}/groups/join-code-availability?receivingNumberId=${encodeURIComponent(receivingNumberId)}&code=${encodeURIComponent(code)}${excludeGroupId ? `&excludeGroupId=${encodeURIComponent(excludeGroupId)}` : ''}`,
   },
 }

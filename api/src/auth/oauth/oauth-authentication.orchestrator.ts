@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common'
+import { Injectable, Optional, UnauthorizedException } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
 import { InjectConnection, InjectModel } from '@nestjs/mongoose'
 import { ClientSession, Connection, Model } from 'mongoose'
@@ -21,6 +21,7 @@ import {
   OAuthIdentityBinding,
   OAuthIdentityBindingDocument,
 } from './schemas/oauth-identity-binding.schema'
+import { GoogleLegacyIdentityAdoptionService } from './google-legacy-identity-adoption.service'
 
 const GENERIC_FAILURE = 'Authentication unavailable'
 
@@ -41,6 +42,8 @@ export class OAuthAuthenticationOrchestrator {
     private readonly audits: Model<OAuthAuthenticationAuditEventDocument>,
     @InjectModel(User.name) private readonly users: Model<UserDocument>,
     private readonly jwtService: JwtService,
+    @Optional()
+    private readonly legacyAdoption?: GoogleLegacyIdentityAdoptionService,
   ) {}
 
   async authenticate(identity: VerifiedOAuthIdentity) {
@@ -138,17 +141,24 @@ export class OAuthAuthenticationOrchestrator {
     const emailUser = await this.users
       .findOne({ email: identity.normalizedEmail })
       .session(session)
-    // Existing email alone is never authority to link provider identities.
-    if (subjectBinding || emailUser) throw new Error('identity conflict')
+    if (subjectBinding) throw new Error('identity conflict')
 
-    const user = new this.users({
-      email: identity.normalizedEmail,
-      name: identity.normalizedEmail.split('@')[0],
-      role: approval.role,
-      emailVerifiedAt: new Date(),
-      lastLoginAt: new Date(),
-    })
-    await user.save({ session })
+    let user: UserDocument
+    if (emailUser) {
+      if (!(await this.legacyAdoption?.canAdopt(identity, emailUser))) {
+        throw new Error('identity conflict')
+      }
+      user = emailUser
+    } else {
+      user = new this.users({
+        email: identity.normalizedEmail,
+        name: identity.normalizedEmail.split('@')[0],
+        role: approval.role,
+        emailVerifiedAt: new Date(),
+        lastLoginAt: new Date(),
+      })
+      await user.save({ session })
+    }
 
     const binding = new this.bindings({
       providerKey: identity.providerKey,

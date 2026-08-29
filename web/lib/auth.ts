@@ -42,81 +42,8 @@ declare module 'next-auth/jwt' {
 export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
-      id: 'email-password-login',
-      name: 'email-password-login',
-      credentials: {
-        email: { label: 'email', type: 'text' },
-        password: { label: 'Password', type: 'password' },
-        turnstileToken: { label: 'Turnstile Token', type: 'text' },
-      },
-      async authorize(credentials) {
-        // NextAuth can invoke authorize with no credentials at all. There is
-        // nothing to authenticate in that case, so refuse rather than posting
-        // undefined fields to the login endpoint.
-        if (!credentials) return null
-        const { email, password, turnstileToken } = credentials
-        try {
-          const res = await httpServerClient.post(ApiEndpoints.auth.login(), {
-            email,
-            password,
-            turnstileToken,
-          })
-
-          const user = res.data.data.user
-          const accessToken = res.data.data.accessToken
-
-          return {
-            ...user,
-            accessToken,
-          }
-        } catch (e) {
-          console.log(e)
-
-          return null
-        }
-      },
-    }),
-    CredentialsProvider({
-      id: 'email-password-register',
-      name: 'email-password-register',
-      credentials: {
-        email: { label: 'email', type: 'text' },
-        password: { label: 'Password', type: 'password' },
-        name: { label: 'Name', type: 'text' },
-        phone: { label: 'Phone', type: 'text' },
-        turnstileToken: { label: 'Turnstile Token', type: 'text' },
-      },
-      async authorize(credentials) {
-        if (!credentials) return null
-        const { email, password, name, phone, turnstileToken } = credentials
-        try {
-          const res = await httpServerClient.post(
-            ApiEndpoints.auth.register(),
-            {
-              email,
-              password,
-              name,
-              phone,
-              turnstileToken,
-            }
-          )
-
-          const user = res.data.data.user
-          const accessToken = res.data.data.accessToken
-
-          return {
-            ...user,
-            accessToken,
-          }
-        } catch (e) {
-          console.log(e)
-          return null
-        }
-      },
-    }),
-    CredentialsProvider({
-      id: 'google-id-token-login',
-      name: 'google-id-token-login',
+      id: 'google-approved-login',
+      name: 'google-approved-login',
       credentials: {
         idToken: { label: 'idToken', type: 'text' },
       },
@@ -125,10 +52,11 @@ export const authOptions: NextAuthOptions = {
         const { idToken } = credentials
         try {
           const res = await httpServerClient.post(
-            ApiEndpoints.auth.signInWithGoogle(),
+            ApiEndpoints.auth.oauthLogin(),
             {
+              provider: 'google',
               idToken,
-            }
+            },
           )
 
           const user = res.data.data.user
@@ -138,9 +66,7 @@ export const authOptions: NextAuthOptions = {
             ...user,
             accessToken,
           }
-        } catch (e) {
-          console.log(e)
-
+        } catch {
           return null
         }
       },

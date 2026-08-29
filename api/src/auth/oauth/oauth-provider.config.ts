@@ -10,8 +10,12 @@ export class OAuthProviderConfigurationError extends Error {
 
 export const parseOAuthProviderConfigurations = (
   raw = process.env.OAUTH_PROVIDER_CONFIG,
+  runtime = process.env.NODE_ENV,
 ): OAuthProviderConfiguration[] => {
-  if (raw === undefined || raw.trim() === '') return []
+  if (raw === undefined || raw.trim() === '') {
+    if (runtime === 'production') throw new OAuthProviderConfigurationError()
+    return []
+  }
 
   let input: unknown
   try {
@@ -21,7 +25,7 @@ export const parseOAuthProviderConfigurations = (
   }
   if (!Array.isArray(input)) throw new OAuthProviderConfigurationError()
 
-  return input.map((entry) => {
+  const configurations = input.map((entry) => {
     if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
       throw new OAuthProviderConfigurationError()
     }
@@ -44,4 +48,14 @@ export const parseOAuthProviderConfigurations = (
       }),
     }
   })
+
+  if (
+    runtime === 'production' &&
+    (configurations.length !== 1 ||
+      configurations[0].key !== 'google' ||
+      configurations[0].enabled !== true)
+  ) {
+    throw new OAuthProviderConfigurationError()
+  }
+  return configurations
 }

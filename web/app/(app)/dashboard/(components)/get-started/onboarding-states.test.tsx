@@ -29,7 +29,7 @@ describe('GetStartedCard states', () => {
     expect(screen.queryByText('Verify your email')).not.toBeInTheDocument()
   })
 
-  it('renders progress and the active step for a mid-funnel user', async () => {
+  it('does not restore password-era email verification for a legacy user', async () => {
     server.use(
       http.get(`${API_BASE_URL}/auth/who-am-i`, () =>
         HttpResponse.json({
@@ -40,24 +40,16 @@ describe('GetStartedCard states', () => {
 
     renderWithProviders(<GetStartedCard />)
 
-    // 4 of 5 done (only verify_email pending with the default fixtures).
-    await waitFor(() =>
-      expect(screen.getByText('4 of 5')).toBeInTheDocument()
-    )
+    await waitFor(() => expect(screen.getByText('4 of 4')).toBeInTheDocument())
     expect(screen.getByRole('progressbar')).toBeInTheDocument()
-    // The active step is expanded with its inline resend action.
-    expect(screen.getByText('Verify your email')).toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: /resend email/i })
-    ).toBeInTheDocument()
-    // The user's email address is surfaced.
-    expect(screen.getByText(mockUser.email)).toBeInTheDocument()
+    expect(screen.queryByText('Verify your email')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /resend email/i })).not.toBeInTheDocument()
   })
 
   it('shows full progress for an all-done user (before auto-complete lands)', async () => {
     renderWithProviders(<GetStartedCard />)
 
-    await waitFor(() => expect(screen.getByText('5 of 5')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('4 of 4')).toBeInTheDocument())
     expect(screen.getByText('All steps complete!')).toBeInTheDocument()
   })
 
@@ -68,7 +60,7 @@ describe('GetStartedCard states', () => {
     const user = userEvent.setup()
     renderWithProviders(<GetStartedCard />)
 
-    await waitFor(() => expect(screen.getByText('5 of 5')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('4 of 4')).toBeInTheDocument())
 
     await user.click(screen.getByRole('button', { name: 'Generate an API key' }))
 
@@ -101,8 +93,7 @@ describe('GetStartedCard states', () => {
 
     renderWithProviders(<GetStartedCard />)
 
-    // Done with these stats: verify_email (fixture user is verified).
-    await waitFor(() => expect(screen.getByText('1 of 5')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('0 of 4')).toBeInTheDocument())
 
     await user.click(screen.getByRole('button', { name: 'Generate an API key' }))
     expect(
@@ -113,7 +104,7 @@ describe('GetStartedCard states', () => {
     apiKeyCount = 3
 
     await waitFor(
-      () => expect(screen.getByText('2 of 5')).toBeInTheDocument(),
+      () => expect(screen.getByText('1 of 4')).toBeInTheDocument(),
       { timeout: 15000 }
     )
 

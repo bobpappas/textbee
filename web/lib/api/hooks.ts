@@ -273,40 +273,6 @@ export function useUpdateProfile(
   })
 }
 
-export type ChangePasswordPayload = {
-  oldPassword: string
-  newPassword: string
-  confirmPassword?: string
-}
-
-export function useChangePassword(
-  options?: MutationOpts<unknown, ChangePasswordPayload>,
-) {
-  return useMutation({
-    mutationFn: (data: ChangePasswordPayload) =>
-      httpBrowserClient.post(ApiEndpoints.auth.changePassword(), data),
-    ...options,
-  })
-}
-
-export function useSendEmailVerification() {
-  return useMutation({
-    mutationFn: () =>
-      httpBrowserClient.post(ApiEndpoints.auth.sendEmailVerificationEmail()),
-  })
-}
-
-export function useVerifyEmail() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (payload: { userId: string; verificationCode: string }) =>
-      httpBrowserClient.post(ApiEndpoints.auth.verifyEmail(), payload),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.currentUser })
-    },
-  })
-}
-
 export type UpdateOnboardingPayload = {
   skipStepId?: string
   complete?: boolean

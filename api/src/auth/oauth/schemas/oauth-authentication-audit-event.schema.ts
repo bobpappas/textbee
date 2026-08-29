@@ -42,6 +42,15 @@ export class OAuthAuthenticationAuditEvent {
 
   @Prop({ type: Date, required: true })
   occurredAt: Date
+
+  @Prop({ type: String })
+  actorKind?: string
+
+  @Prop({ type: String })
+  reason?: string
+
+  @Prop({ type: Number })
+  authorizationRevision?: number
 }
 
 export const OAuthAuthenticationAuditEventSchema = SchemaFactory.createForClass(

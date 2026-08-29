@@ -13,18 +13,15 @@ import {
   UseGuards,
 } from '@nestjs/common'
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger'
-import {
-  LoginInputDTO,
-  RegisterInputDTO,
-  RequestResetPasswordInputDTO,
-  ResetPasswordInputDTO,
-  UpdateOnboardingDTO,
-} from './auth.dto'
+import { UpdateOnboardingDTO } from './auth.dto'
 import { AuthGuard } from './guards/auth.guard'
 import { AuthService } from './auth.service'
 import { UsersService } from '../users/users.service'
 import { CanModifyApiKey } from './guards/can-modify-api-key.guard'
 import { OrganizationOperationalGuard } from '../organizations/organization-operational.guard'
+import { OAuthProviderRegistry } from './oauth/oauth-provider.registry'
+import { OAuthAuthenticationOrchestrator } from './oauth/oauth-authentication.orchestrator'
+import { OAuthLoginDTO } from './oauth/oauth-login.dto'
 
 @ApiTags('auth')
 @Controller('auth')
@@ -32,28 +29,19 @@ export class AuthController {
   constructor(
     private authService: AuthService,
     private usersService: UsersService,
+    private oauthProviders: OAuthProviderRegistry,
+    private oauthAuthentication: OAuthAuthenticationOrchestrator,
   ) {}
 
-  @ApiOperation({ summary: 'Login' })
+  @ApiOperation({ summary: 'Approval-gated OAuth login' })
   @HttpCode(HttpStatus.OK)
-  @Post('/login')
-  async login(@Body() input: LoginInputDTO) {
-    const data = await this.authService.login(input)
-    return { data }
-  }
-
-  @ApiOperation({ summary: 'Login With Google' })
-  @HttpCode(HttpStatus.OK)
-  @Post('/google-login')
-  async googleLogin(@Body() input: any) {
-    const data = await this.authService.loginWithGoogle(input.idToken)
-    return { data }
-  }
-
-  @ApiOperation({ summary: 'Register' })
-  @Post('/register')
-  async register(@Body() input: RegisterInputDTO) {
-    const data = await this.authService.register(input)
+  @Post('/oauth-login')
+  async oauthLogin(@Body() input: OAuthLoginDTO) {
+    const identity = await this.oauthProviders.verify(
+      input.provider,
+      input.idToken,
+    )
+    const data = await this.oauthAuthentication.authenticate(identity)
     return { data }
   }
 
@@ -75,18 +63,6 @@ export class AuthController {
     @Request() req,
   ) {
     return await this.authService.updateProfile(input, req.user)
-  }
-
-  @ApiOperation({ summary: 'Change Password' })
-  @HttpCode(HttpStatus.OK)
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard)
-  @Post('/change-password')
-  async changePassword(
-    @Body() input: { oldPassword: string; newPassword: string },
-    @Request() req,
-  ) {
-    return await this.authService.changePassword(input, req.user)
   }
 
   @UseGuards(AuthGuard)
@@ -157,39 +133,5 @@ export class AuthController {
   async updateOnboarding(@Body() input: UpdateOnboardingDTO, @Request() req) {
     const user = await this.usersService.updateOnboarding(input, req.user)
     return { data: user }
-  }
-
-  @ApiOperation({ summary: 'Request Password Reset' })
-  @HttpCode(HttpStatus.OK)
-  @Post('/request-password-reset')
-  async requestPasswordReset(@Body() input: RequestResetPasswordInputDTO) {
-    return await this.authService.requestResetPassword(input)
-  }
-
-  @ApiOperation({ summary: 'Reset Password' })
-  @HttpCode(HttpStatus.OK)
-  @Post('/reset-password')
-  async resetPassword(@Body() input: ResetPasswordInputDTO) {
-    return await this.authService.resetPassword(input)
-  }
-
-  // send email verification code
-  @ApiOperation({ summary: 'Send Email Verification Code' })
-  @HttpCode(HttpStatus.OK)
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard)
-  @Post('/send-email-verification-email')
-  async sendEmailVerificationEmail(@Request() req) {
-    return await this.authService.sendEmailVerificationEmail(req.user)
-  }
-
-  @ApiOperation({ summary: 'Verify Email' })
-  @HttpCode(HttpStatus.OK)
-  @ApiBearerAuth()
-  @Post('/verify-email')
-  async verifyEmail(
-    @Body() input: { userId: string; verificationCode: string },
-  ) {
-    return await this.authService.verifyEmail(input)
   }
 }

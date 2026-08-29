@@ -32,8 +32,7 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // If user is authenticated and visiting /app/login or /app/register, redirect to /app/dashboard
-  if (token && (pathname === Routes.login || pathname === Routes.register)) {
+  if (token && pathname === Routes.login) {
     const dashboardUrl = new URL(Routes.dashboard, request.url)
     return NextResponse.redirect(dashboardUrl)
   }

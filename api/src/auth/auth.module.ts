@@ -40,6 +40,14 @@ import {
   OAuthAuthenticationAuditEvent,
   OAuthAuthenticationAuditEventSchema,
 } from './oauth/schemas/oauth-authentication-audit-event.schema'
+import {
+  GOOGLE_OAUTH_CLIENT,
+  GoogleOAuthProvider,
+} from './oauth/google-oauth.provider'
+import { OAuth2Client } from 'google-auth-library'
+import { OAuthSessionAuthorizationService } from './oauth/oauth-session-authorization.service'
+import { OAuthApprovalService } from './oauth/oauth-approval.service'
+import { GoogleLegacyIdentityAdoptionService } from './oauth/google-legacy-identity-adoption.service'
 
 @Module({
   imports: [
@@ -97,10 +105,18 @@ import {
     },
     {
       provide: OAUTH_PROVIDER_ADAPTERS,
-      useValue: [],
+      useFactory: (google: GoogleOAuthProvider) => [google],
+      inject: [GoogleOAuthProvider],
     },
+    { provide: GOOGLE_OAUTH_CLIENT, useFactory: () => new OAuth2Client() },
+    GoogleOAuthProvider,
+    OAuthSessionAuthorizationService,
+    OAuthApprovalService,
+    GoogleLegacyIdentityAdoptionService,
     OAuthProviderRegistry,
     OAuthAuthenticationOrchestrator,
+    OAuthSessionAuthorizationService,
+    OAuthApprovalService,
     MongooseModule,
   ],
   exports: [

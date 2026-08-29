@@ -29,13 +29,7 @@ export const handlers = [
   ),
   // --- auth ---
   http.get(url(ApiEndpoints.auth.whoAmI()), () => dataEnvelope(mockUser)),
-  http.post(url(ApiEndpoints.auth.login()), () =>
-    dataEnvelope({ user: mockUser, accessToken: TEST_ACCESS_TOKEN })
-  ),
-  http.post(url(ApiEndpoints.auth.register()), () =>
-    dataEnvelope({ user: mockUser, accessToken: TEST_ACCESS_TOKEN })
-  ),
-  http.post(url(ApiEndpoints.auth.signInWithGoogle()), () =>
+  http.post(url(ApiEndpoints.auth.oauthLogin()), () =>
     dataEnvelope({ user: mockUser, accessToken: TEST_ACCESS_TOKEN })
   ),
   http.get(url(ApiEndpoints.auth.listApiKeys()), () =>
@@ -45,9 +39,6 @@ export const handlers = [
     dataEnvelope({ ...mockApiKeys[0], apiKey: 'tb_live_new0000' })
   ),
   http.patch(url(ApiEndpoints.auth.updateOnboarding()), () =>
-    dataEnvelope({})
-  ),
-  http.post(url(ApiEndpoints.auth.sendEmailVerificationEmail()), () =>
     dataEnvelope({})
   ),
 

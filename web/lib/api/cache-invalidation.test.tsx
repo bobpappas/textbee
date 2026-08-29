@@ -9,11 +9,9 @@ import {
   API_BASE_URL,
   mockOrganizationContext,
   mockOrganizationGroups,
-  mockUser,
 } from '@/test/fixtures'
 import { ApiEndpoints } from '@/config/api'
 import { queryKeys } from './query-keys'
-import VerifyEmailAlert from '@/app/(app)/dashboard/(components)/alerts/verify-email-alert'
 import GenerateApiKey from '@/app/(app)/dashboard/(components)/api-keys/generate-api-key'
 import {
   useAssignGroupOwner,
@@ -73,40 +71,6 @@ describe('cache invalidation', () => {
 
   const renderWith = (ui: React.ReactElement) =>
     render(<TestProviders queryClient={queryClient}>{ui}</TestProviders>)
-
-  // /auth/who-am-i used to be cached under two keys, ['whoAmI'] and
-  // ['currentUser'], so invalidating one left the other serving stale data.
-  // A user who verified their email still saw the "verify your email" banner,
-  // because the code that refreshed the user used the other key.
-  it('one invalidation refreshes every consumer of the current user', async () => {
-    let verified = false
-    server.use(
-      http.get(url(ApiEndpoints.auth.whoAmI()), () =>
-        HttpResponse.json({
-          data: {
-            ...mockUser,
-            emailVerifiedAt: verified ? new Date().toISOString() : null,
-          },
-        })
-      )
-    )
-
-    const { container } = renderWith(<VerifyEmailAlert />)
-    // Selected by href, not by label: the banner picks its CTA text at random
-    // from five variants, so a text matcher here would be flaky.
-    const banner = () => container.querySelector('a[href="/verify-email"]')
-
-    // Unverified: the banner is up.
-    await waitFor(() => expect(banner()).toBeInTheDocument())
-
-    // The user verifies elsewhere, and something invalidates the user query
-    // using the canonical key.
-    verified = true
-    await queryClient.invalidateQueries({ queryKey: queryKeys.currentUser })
-
-    // The banner must notice. Under the two-key split it never did.
-    await waitFor(() => expect(banner()).toBeNull())
-  })
 
   // The generate handler invalidated ['apiKeys', 'stats'], a key no query uses.
   // react-query matches by prefix, so it matched neither the key list

@@ -165,7 +165,7 @@ test.describe('account settings (mocked API, no real backend)', () => {
       'aria-current',
       'page'
     )
-    await expect(page.getByText('Password', { exact: true })).toBeVisible()
+    await expect(page.getByText('Password', { exact: true })).toHaveCount(0)
     await expect(page.getByText('Danger zone')).toBeVisible()
     await expect(
       page.getByRole('heading', { name: 'Delete Account' })
@@ -178,9 +178,6 @@ test.describe('account settings (mocked API, no real backend)', () => {
   }) => {
     await authenticate(context)
     await mockApi(page)
-
-    await page.goto('/dashboard/account/change-password')
-    await expect(page).toHaveURL(/\/dashboard\/account\/security/)
 
     await page.goto('/dashboard/account/edit-profile')
     await expect(page).toHaveURL(/\/dashboard\/account\/profile/)

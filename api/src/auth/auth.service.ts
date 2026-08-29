@@ -7,7 +7,6 @@ import { InjectModel } from '@nestjs/mongoose'
 import { ApiKey, ApiKeyDocument } from './schemas/api-key.schema'
 import { Model, Types } from 'mongoose'
 import { User, UserDocument } from '../users/schemas/user.schema'
-import axios from 'axios'
 import {
   PasswordReset,
   PasswordResetDocument,
@@ -64,47 +63,6 @@ export class AuthService {
         { error: 'Invalid credentials' },
         HttpStatus.UNAUTHORIZED,
       )
-    }
-
-    user.lastLoginAt = new Date()
-    await user.save()
-
-    const payload = { email: user.email, sub: user._id }
-    return {
-      accessToken: this.jwtService.sign(payload),
-      user: withoutPassword(user),
-    }
-  }
-
-  async loginWithGoogle(idToken: string) {
-    const response = await axios.get(
-      `https://oauth2.googleapis.com/tokeninfo?id_token=${idToken}`,
-    )
-
-    const { sub: googleId, name, email, picture } = response.data
-    let user = await this.usersService.findOne({ email })
-
-    if (!user) {
-      user = await this.usersService.create({
-        name,
-        email,
-      })
-    }
-
-    if (user.googleId !== googleId) {
-      user.googleId = googleId
-    }
-
-    if (!user.emailVerifiedAt) {
-      user.emailVerifiedAt = new Date()
-    }
-
-    if (user.name !== name) {
-      user.name = name
-    }
-
-    if (user.avatar !== picture) {
-      user.avatar = picture
     }
 
     user.lastLoginAt = new Date()

@@ -34,19 +34,11 @@ export type StepDef = {
     user: UserShape | undefined,
     stats: StatsShape | undefined,
     sub: SubShape,
-    skipped: string[]
+    skipped: string[],
   ) => boolean
 }
 
 export const STEPS: StepDef[] = [
-  {
-    id: 'verify_email',
-    label: 'Verify your email',
-    description: 'Required before you can send SMS.',
-    optional: false,
-    timeEstimate: '~1 min',
-    checkDone: (user) => !!user?.emailVerifiedAt,
-  },
   {
     id: 'download_app',
     label: 'Get the Android app',
@@ -71,7 +63,8 @@ export const STEPS: StepDef[] = [
   {
     id: 'register_device',
     label: 'Register your device',
-    description: 'Turn your phone into your SMS gateway: scan the QR code below with the TextBee app.',
+    description:
+      'Turn your phone into your SMS gateway: scan the QR code below with the TextBee app.',
     doneDescription: 'Device registered. Register another the same way.',
     optional: false,
     timeEstimate: '~1 min',
@@ -94,7 +87,7 @@ export function computeStepStates(
   user: UserShape | undefined,
   stats: StatsShape | undefined,
   sub: SubShape,
-  skipped: string[]
+  skipped: string[],
 ): StepState[] {
   return STEPS.map((s) => ({
     ...s,

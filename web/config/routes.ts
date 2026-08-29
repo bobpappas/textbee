@@ -4,10 +4,7 @@ export const Routes = {
   useCases: 'https://textbee.dev/use-cases',
   quickstart: '/download',
   login: '/login',
-  register: '/register',
   logout: '/logout',
-  resetPassword: '/reset-password',
-  verifyEmail: '/verify-email',
 
   dashboard: '/dashboard',
   organizations: '/dashboard/admin/organizations',
