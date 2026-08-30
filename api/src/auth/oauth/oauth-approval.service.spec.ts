@@ -13,7 +13,11 @@ const approvalDocument = (values: Record<string, any>): any => ({
   ...values,
 })
 
-const build = (initialApprovals: any[] = [], initialUsers?: any[]) => {
+const build = (
+  initialApprovals: any[] = [],
+  initialUsers?: any[],
+  initialBindings?: any[],
+) => {
   const records: any[] = initialApprovals.map(approvalDocument)
   const approvals: any = jest.fn().mockImplementation(function (values) {
     const created = Object.assign(this, approvalDocument(values))
@@ -72,7 +76,26 @@ const build = (initialApprovals: any[] = [], initialUsers?: any[]) => {
     })),
   }
 
+  const bindingRecords =
+    initialBindings ??
+    records
+      .filter((approval) => approval.boundSubject && approval.userId)
+      .map((approval) => ({
+        providerKey: approval.providerKey,
+        providerSubject: approval.boundSubject,
+        approvalId: approval._id,
+        userId: approval.userId,
+      }))
   const bindings = {
+    find: jest.fn((filter) => ({
+      select: jest.fn(() =>
+        query(() =>
+          bindingRecords.filter((binding) =>
+            filter.approvalId.$in.includes(binding.approvalId),
+          ),
+        ),
+      ),
+    })),
     deleteOne: jest.fn().mockResolvedValue(undefined),
   }
   const auditEvents: any[] = []
@@ -133,6 +156,7 @@ const build = (initialApprovals: any[] = [], initialUsers?: any[]) => {
 }
 
 const boundAdmin = (email: string) => ({
+  _id: `approval-${email}`,
   providerKey: 'google',
   normalizedEmail: email,
   role: UserRole.ADMIN,
@@ -289,6 +313,32 @@ describe('OAuthApprovalService private command boundary', () => {
         'routine reset',
         true,
       ),
+    ).rejects.toThrow('last usable platform administrator')
+    expect(context.records[0].state).toBe(OAuthApprovalState.BOUND)
+    expect(context.auditEvents[0]).toMatchObject({ outcome: 'DENIED' })
+  })
+
+  it('does not count an administrator whose identity binding is missing', async () => {
+    const active = boundAdmin('active@example.com')
+    const unbound = boundAdmin('unbound@example.com')
+    const context = build(
+      [active, unbound],
+      [
+        { _id: active.userId, isBanned: false },
+        { _id: unbound.userId, isBanned: false },
+      ],
+      [
+        {
+          providerKey: active.providerKey,
+          providerSubject: active.boundSubject,
+          approvalId: active._id,
+          userId: active.userId,
+        },
+      ],
+    )
+
+    await expect(
+      context.service.revoke('google', 'active@example.com', 'routine revoke'),
     ).rejects.toThrow('last usable platform administrator')
     expect(context.records[0].state).toBe(OAuthApprovalState.BOUND)
     expect(context.auditEvents[0]).toMatchObject({ outcome: 'DENIED' })

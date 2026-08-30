@@ -345,11 +345,29 @@ export class OAuthApprovalService {
         state: OAuthApprovalState.BOUND,
         userId: { $exists: true },
       })
-      .select({ userId: 1 })
+      .select({ providerKey: 1, boundSubject: 1, userId: 1 })
       .session(session)
+    const administratorBindings = await this.bindings
+      .find({
+        approvalId: {
+          $in: boundAdministrators.map((candidate) => candidate._id),
+        },
+      })
+      .select({ providerKey: 1, providerSubject: 1, approvalId: 1, userId: 1 })
+      .session(session)
+    const boundUserIds = boundAdministrators.flatMap((candidate) => {
+      const binding = administratorBindings.find(
+        (identityBinding) =>
+          String(identityBinding.approvalId) === String(candidate._id) &&
+          identityBinding.providerKey === candidate.providerKey &&
+          identityBinding.providerSubject === candidate.boundSubject &&
+          String(identityBinding.userId) === String(candidate.userId),
+      )
+      return binding ? [candidate.userId] : []
+    })
     const usableUserIds = await this.users
       .find({
-        _id: { $in: boundAdministrators.map((candidate) => candidate.userId) },
+        _id: { $in: boundUserIds },
         isBanned: { $ne: true },
       })
       .distinct('_id')
