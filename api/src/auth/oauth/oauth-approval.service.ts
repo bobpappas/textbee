@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common'
 import { InjectConnection, InjectModel } from '@nestjs/mongoose'
 import { ClientSession, Connection, Model } from 'mongoose'
 import { UserRole } from '../../users/user-roles.enum'
+import { User, UserDocument } from '../../users/schemas/user.schema'
 import {
   OAuthApprovalState,
   OAuthAuthenticationAuditAction,
@@ -58,6 +59,8 @@ export class OAuthApprovalService {
     private readonly audits: Model<OAuthAuthenticationAuditEventDocument>,
     @InjectModel(OAuthPlatformAuthorityInvariant.name)
     private readonly authorityInvariant: Model<OAuthPlatformAuthorityInvariantDocument>,
+    @InjectModel(User.name)
+    private readonly users: Model<UserDocument>,
     private readonly providers: OAuthProviderRegistry,
   ) {}
 
@@ -124,7 +127,7 @@ export class OAuthApprovalService {
           approval.role === UserRole.ADMIN &&
           command.role !== UserRole.ADMIN &&
           approval.state === OAuthApprovalState.BOUND &&
-          (await this.isLastUsableAdministrator(session))
+          (await this.isLastUsableAdministrator(approval, session))
         ) {
           await this.recordAudit(
             approval,
@@ -316,7 +319,7 @@ export class OAuthApprovalService {
     if (
       approval.role !== UserRole.ADMIN ||
       approval.state !== OAuthApprovalState.BOUND ||
-      !(await this.isLastUsableAdministrator(session))
+      !(await this.isLastUsableAdministrator(approval, session))
     ) {
       return false
     }
@@ -331,14 +334,29 @@ export class OAuthApprovalService {
     return true
   }
 
-  private async isLastUsableAdministrator(session: ClientSession) {
+  private async isLastUsableAdministrator(
+    approval: OAuthApprovalDocument,
+    session: ClientSession,
+  ) {
+    if (!approval.userId) return false
+    const boundAdministrators = await this.approvals
+      .find({
+        role: UserRole.ADMIN,
+        state: OAuthApprovalState.BOUND,
+        userId: { $exists: true },
+      })
+      .select({ userId: 1 })
+      .session(session)
+    const usableUserIds = await this.users
+      .find({
+        _id: { $in: boundAdministrators.map((candidate) => candidate.userId) },
+        isBanned: { $ne: true },
+      })
+      .distinct('_id')
+      .session(session)
     return (
-      (await this.approvals
-        .countDocuments({
-          role: UserRole.ADMIN,
-          state: OAuthApprovalState.BOUND,
-        })
-        .session(session)) <= 1
+      usableUserIds.some((userId) => userId.equals(approval.userId)) &&
+      usableUserIds.length <= 1
     )
   }
 

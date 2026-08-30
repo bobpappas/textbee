@@ -13,7 +13,7 @@ const approvalDocument = (values: Record<string, any>): any => ({
   ...values,
 })
 
-const build = (initialApprovals: any[] = []) => {
+const build = (initialApprovals: any[] = [], initialUsers?: any[]) => {
   const records: any[] = initialApprovals.map(approvalDocument)
   const approvals: any = jest.fn().mockImplementation(function (values) {
     const created = Object.assign(this, approvalDocument(values))
@@ -40,9 +40,37 @@ const build = (initialApprovals: any[] = []) => {
         ).length,
     ),
   )
-  approvals.find = jest.fn(() => ({
-    sort: jest.fn().mockResolvedValue(records),
-  }))
+  approvals.find = jest.fn((filter = {}) => {
+    const matches = records.filter((approval) =>
+      Object.entries(filter).every(([key, value]: [string, any]) =>
+        value?.$exists ? approval[key] !== undefined : approval[key] === value,
+      ),
+    )
+    return {
+      sort: jest.fn().mockResolvedValue(matches),
+      select: jest.fn(() => query(() => matches)),
+    }
+  })
+
+  const userRecords =
+    initialUsers ??
+    records
+      .filter((approval) => approval.userId)
+      .map((approval) => ({ _id: approval.userId, isBanned: false }))
+  const users = {
+    find: jest.fn((filter) => ({
+      distinct: jest.fn(() =>
+        query(() =>
+          userRecords
+            .filter(
+              (user) =>
+                filter._id.$in.includes(user._id) && user.isBanned !== true,
+            )
+            .map((user) => ({ equals: (value: any) => value === user._id })),
+        ),
+      ),
+    })),
+  }
 
   const bindings = {
     deleteOne: jest.fn().mockResolvedValue(undefined),
@@ -89,6 +117,7 @@ const build = (initialApprovals: any[] = []) => {
       bindings as any,
       audits,
       authorityInvariant as any,
+      users as any,
       providers as any,
     ),
     records,
@@ -98,6 +127,7 @@ const build = (initialApprovals: any[] = []) => {
     auditEvents,
     invariant,
     authorityInvariant,
+    users,
     connection,
   }
 }
@@ -224,6 +254,64 @@ describe('OAuthApprovalService private command boundary', () => {
       action: 'COMMAND_DENIED',
       reason: 'routine demotion',
     })
+  })
+
+  it('does not count a stale administrator binding as a usable replacement', async () => {
+    const active = boundAdmin('active@example.com')
+    const stale = boundAdmin('stale@example.com')
+    const context = build(
+      [active, stale],
+      [{ _id: active.userId, isBanned: false }],
+    )
+
+    await expect(
+      context.service.revoke('google', 'active@example.com', 'routine revoke'),
+    ).rejects.toThrow('last usable platform administrator')
+    expect(context.records[0].state).toBe(OAuthApprovalState.BOUND)
+    expect(context.auditEvents[0]).toMatchObject({ outcome: 'DENIED' })
+  })
+
+  it('does not count a banned administrator binding as a usable replacement', async () => {
+    const active = boundAdmin('active@example.com')
+    const banned = boundAdmin('banned@example.com')
+    const context = build(
+      [active, banned],
+      [
+        { _id: active.userId, isBanned: false },
+        { _id: banned.userId, isBanned: true },
+      ],
+    )
+
+    await expect(
+      context.service.resetBinding(
+        'google',
+        'active@example.com',
+        'routine reset',
+        true,
+      ),
+    ).rejects.toThrow('last usable platform administrator')
+    expect(context.records[0].state).toBe(OAuthApprovalState.BOUND)
+    expect(context.auditEvents[0]).toMatchObject({ outcome: 'DENIED' })
+  })
+
+  it('allows removal of an unusable administrator binding', async () => {
+    const active = boundAdmin('active@example.com')
+    const banned = boundAdmin('banned@example.com')
+    const context = build(
+      [active, banned],
+      [
+        { _id: active.userId, isBanned: false },
+        { _id: banned.userId, isBanned: true },
+      ],
+    )
+
+    await expect(
+      context.service.revoke(
+        'google',
+        'banned@example.com',
+        'remove banned binding',
+      ),
+    ).resolves.toMatchObject({ state: OAuthApprovalState.REVOKED })
   })
 
   it('serializes competing revoke, reset, and demotion operations', async () => {
