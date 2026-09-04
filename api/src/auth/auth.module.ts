@@ -129,6 +129,7 @@ import {
     JwtModule,
     AuthGuard,
     OptionalAuthGuard,
+    OAuthSessionAuthorizationService,
     OAuthProviderRegistry,
     OAuthAuthenticationOrchestrator,
   ],
