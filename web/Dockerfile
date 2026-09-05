@@ -54,7 +54,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV CONTAINER_RUNTIME=docker
 
 # Add a non-root user to run the app. The traced standalone runtime remains
-# root-owned and read-only because the web process needs no writable app path.
+# root-owned and read-only apart from Next's runtime cache.
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
 
@@ -63,6 +63,10 @@ COPY --from=builder /app/next.config.js ./
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
+
+# next/image writes optimized responses here on a cache miss. Keep this single
+# runtime cache writable without recursively changing ownership of the app.
+RUN mkdir -p .next/cache && chown nextjs:nodejs .next/cache
 
 # Switch to non-root user
 USER nextjs
