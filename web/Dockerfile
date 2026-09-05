@@ -45,32 +45,24 @@ RUN pnpm build
 FROM node:22-alpine AS runner
 WORKDIR /app
 
-# Install pnpm and required OpenSSL dependencies
+# Install required OpenSSL dependencies
 RUN apk add --no-cache openssl openssl-dev
-RUN npm install -g pnpm@9
 
 # Set environment variables
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV CONTAINER_RUNTIME=docker
 
-# Add a non-root user to run the app
+# Add a non-root user to run the app. The traced standalone runtime remains
+# root-owned and read-only because the web process needs no writable app path.
 RUN addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 nextjs && \
-    chown -R nextjs:nodejs /app
+    adduser --system --uid 1001 nextjs
 
 # Copy necessary files for the standalone app
-COPY --from=builder --chown=nextjs:nodejs /app/next.config.js ./
-COPY --from=builder --chown=nextjs:nodejs /app/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-
-
-COPY --from=builder --chown=nextjs:nodejs /app/package.json ./
-COPY --from=builder --chown=nextjs:nodejs /app/pnpm-lock.yaml ./
-
-# Install only production dependencies
-RUN pnpm install --prod --frozen-lockfile
+COPY --from=builder /app/next.config.js ./
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
 
 # Switch to non-root user
 USER nextjs

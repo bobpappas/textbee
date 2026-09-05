@@ -43,10 +43,10 @@ COPY --from=builder /app/pnpm-lock.yaml ./
 # Install only production dependencies
 RUN pnpm install --prod --frozen-lockfile
 
-# Add a non-root user
+# Add a non-root user. Runtime code and dependencies remain root-owned and
+# read-only because the API has no application-local writable path.
 RUN addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 nestjs && \
-    chown -R nestjs:nodejs /app
+    adduser --system --uid 1001 nestjs
 USER nestjs
 
 # Expose the port specified by the PORT environment variable (default: 3001)
@@ -58,4 +58,4 @@ EXPOSE ${PORT}
 #   CMD wget -q -O - http://localhost:${PORT}/api/v1/health || exit 1
 
 # Command to run the application
-CMD ["node", "dist/main"] 
+CMD ["node", "dist/main"]
