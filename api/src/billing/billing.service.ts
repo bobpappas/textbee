@@ -31,6 +31,7 @@ import {
   BillingNotificationType,
 } from './billing-notifications.service'
 import { SelfHostedPolicyService } from './self-hosted-policy.service'
+import { publicWebUrl } from '../common/public-web-links'
 
 @Injectable()
 export class BillingService {
@@ -329,11 +330,12 @@ export class BillingService {
             ]
       ).filter(Boolean)
 
+      const accountUrl = publicWebUrl('/dashboard/account')
       const checkoutOptions: any = {
         // productId: selectedPlan.polarProductId, // deprecated
         products: orderedProductIds,
-        successUrl: `${process.env.FRONTEND_URL}/dashboard/account?checkout-success=1&checkout_id={CHECKOUT_ID}`,
-        cancelUrl: `${process.env.FRONTEND_URL}/dashboard/account?checkout-cancel=1&checkout_id={CHECKOUT_ID}`,
+        successUrl: `${accountUrl}?checkout-success=1&checkout_id={CHECKOUT_ID}`,
+        cancelUrl: `${accountUrl}?checkout-cancel=1&checkout_id={CHECKOUT_ID}`,
         customerEmail: user.email,
         customerName: user.name,
         customerIpAddress: req.ip,

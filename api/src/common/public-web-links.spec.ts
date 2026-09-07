@@ -17,5 +17,11 @@ describe('public web links', () => {
     expect(() => publicWebUrl('quickstart')).toThrow(
       'public web path must be absolute',
     )
+    expect(() => publicWebUrl('//textbee.dev/quickstart')).toThrow(
+      'public web path must be absolute',
+    )
+    expect(() => publicWebUrl('/\\textbee.dev/quickstart')).toThrow(
+      'public web path must stay on the canonical origin',
+    )
   })
 })
