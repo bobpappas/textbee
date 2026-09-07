@@ -58,6 +58,14 @@ def validateApiBaseUrl = { String value, String source ->
             !uri.path.endsWith("/api/v1/")) {
         throw new GradleException("${source} must be an HTTP(S) URL ending in /api/v1/")
     }
+
+    def normalizedHost = uri.host.toLowerCase(java.util.Locale.ROOT)
+    while (normalizedHost.endsWith(".")) {
+        normalizedHost = normalizedHost.substring(0, normalizedHost.length() - 1)
+    }
+    if (normalizedHost == "textbee.dev" || normalizedHost.endsWith(".textbee.dev")) {
+        throw new GradleException("${source} must not use textbee.dev or one of its subdomains")
+    }
 }
 
 def quoteBuildConfigString = { String value ->
