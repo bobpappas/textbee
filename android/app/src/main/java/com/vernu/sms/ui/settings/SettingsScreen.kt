@@ -391,7 +391,7 @@ fun SettingsScreen(
                                 context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(BuildConfig.SITE_URL)))
                             }
                         ) {
-                            Text("textbee.pappas.io")
+                            Text("TextBee website")
                         }
                         OutlinedButton(
                             onClick = {

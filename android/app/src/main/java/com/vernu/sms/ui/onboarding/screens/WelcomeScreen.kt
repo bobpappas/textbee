@@ -142,7 +142,7 @@ fun WelcomeScreen(
             }
         ) {
             Text(
-                text = "textbee.pappas.io",
+                text = "Open TextBee website",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
