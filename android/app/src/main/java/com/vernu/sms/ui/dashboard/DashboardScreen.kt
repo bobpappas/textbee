@@ -37,6 +37,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.vernu.sms.R
+import com.vernu.sms.BuildConfig
 import com.vernu.sms.dtos.SimInfoDTO
 import com.vernu.sms.dtos.SubscriptionResponse
 import com.vernu.sms.dtos.UserProfile
@@ -473,27 +474,11 @@ private fun SubscriptionCard(
                                 )
                             }
                         }
-                        if (isFree) {
-                            OutlinedButton(
-                                onClick = {
-                                    context.startActivity(
-                                        Intent(Intent.ACTION_VIEW, Uri.parse("https://textbee.dev/pricing"))
-                                    )
-                                }
-                            ) {
-                                Text("Upgrade")
-                            }
-                        } else {
-                            TextButton(
-                                onClick = {
-                                    context.startActivity(
-                                        Intent(Intent.ACTION_VIEW, Uri.parse("https://app.textbee.dev/dashboard/account"))
-                                    )
-                                }
-                            ) {
-                                Text("Manage")
-                            }
-                        }
+                        Text(
+                            text = "Managed by administrator",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
 
                     if (isFree) {
@@ -590,7 +575,7 @@ private fun QuickActionsSection() {
             OutlinedButton(
                 onClick = {
                     context.startActivity(
-                        Intent(Intent.ACTION_VIEW, Uri.parse("https://app.textbee.dev/dashboard"))
+                        Intent(Intent.ACTION_VIEW, Uri.parse(BuildConfig.DASHBOARD_URL))
                     )
                 },
                 modifier = Modifier.weight(1f)
@@ -602,7 +587,7 @@ private fun QuickActionsSection() {
             OutlinedButton(
                 onClick = {
                     context.startActivity(
-                        Intent(Intent.ACTION_VIEW, Uri.parse("https://textbee.dev/docs"))
+                        Intent(Intent.ACTION_VIEW, Uri.parse(BuildConfig.QUICKSTART_URL))
                     )
                 },
                 modifier = Modifier.weight(1f)

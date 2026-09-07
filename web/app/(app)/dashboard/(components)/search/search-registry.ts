@@ -1,5 +1,4 @@
 import {
-  Activity,
   Code2,
   CreditCard,
   Download,
@@ -348,23 +347,6 @@ export const searchEntries: SearchEntry[] = [
       'guide',
       'how to',
       'first steps',
-    ],
-  },
-  // External destinations. These open in a new tab rather than routing.
-  {
-    href: Routes.statusPage,
-    label: 'System status',
-    group: 'Resources',
-    icon: Activity,
-    external: true,
-    keywords: [
-      'status',
-      'uptime',
-      'incident',
-      'down',
-      'outage',
-      'health',
-      'downtime',
     ],
   },
 ]

@@ -19,6 +19,7 @@ import { SMS } from '../gateway/schemas/sms.schema'
 import { WebhookQueueService } from './queue/webhook-queue.service'
 import { MailService } from '../mail/mail.service'
 import { UsersService } from '../users/users.service'
+import { publicWebUrl } from '../common/public-web-links'
 
 @Injectable()
 export class WebhookService {
@@ -996,7 +997,6 @@ export class WebhookService {
       deletedAt: null,
     })
 
-    const ctaUrlBase = process.env.FRONTEND_URL || 'https://app.textbee.dev'
     const disabledInThisRun: {
       subscriptionId: string
       deliveryUrl: string
@@ -1076,7 +1076,7 @@ export class WebhookService {
             totalAttempts,
             failureRatePercent,
             lookbackDays,
-            ctaUrl: `${ctaUrlBase}/dashboard/account`,
+            ctaUrl: publicWebUrl('/dashboard/account'),
             ctaLabel: 'Re-enable in dashboard',
             brandName: 'textbee.dev',
           },

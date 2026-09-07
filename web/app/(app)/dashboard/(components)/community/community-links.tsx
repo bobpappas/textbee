@@ -21,6 +21,12 @@ import {
   Dialog,
   DialogContent,
 } from '@/components/ui/dialog'
+import { CANONICAL_SITE_ORIGIN } from '@/config/routes'
+
+const encodedSite = encodeURIComponent(CANONICAL_SITE_ORIGIN)
+const encodedDescription = encodeURIComponent(
+  'TextBee turns an Android phone into a self-hosted SMS gateway.'
+)
 
 export default function CommunityLinks() {
   const [socialOpen, setSocialOpen] = useState(false)
@@ -29,37 +35,37 @@ export default function CommunityLinks() {
     {
       icon: '/images/facebook.svg',
       name: 'Facebook',
-      url: 'https://www.facebook.com/sharer/sharer.php?u=https://textbee.dev',
+      url: `https://www.facebook.com/sharer/sharer.php?u=${encodedSite}`,
     },
     {
       icon: '/images/x.svg',
       name: 'Twitter',
-      url: 'https://twitter.com/intent/tweet?url=https://textbee.dev&text=🚀+Just+discovered+@textbeedotdev+-+an+amazing+SMS+gateway+platform!+Perfect+for+those+who+need+reliable+sms+integration.',
+      url: `https://twitter.com/intent/tweet?url=${encodedSite}&text=${encodedDescription}`,
     },
     {
       icon: '/images/linkedin2.svg',
       name: 'LinkedIn',
-      url: 'https://www.linkedin.com/sharing/share-offsite/?url=https://textbee.dev',
+      url: `https://www.linkedin.com/sharing/share-offsite/?url=${encodedSite}`,
     },
     {
       icon: '/images/reddit.svg',
       name: 'Reddit',
-      url: 'https://www.reddit.com/submit?url=https://textbee.dev&title=textbee.dev+-+Developer-friendly+SMS+Gateway+Platform',
+      url: `https://www.reddit.com/submit?url=${encodedSite}&title=${encodedDescription}`,
     },
     {
       icon: '/images/whatsapp.svg',
       name: 'WhatsApp',
-      url: "https://api.whatsapp.com/send?text=Hey!+Check+out+textbee.dev+-+it's+a+fantastic+SMS+gateway+platform+perfect+for+those+who+need+reliable+sms+integration+🚀+https://textbee.dev",
+      url: `https://api.whatsapp.com/send?text=${encodedDescription}%20${encodedSite}`,
     },
     {
       icon: '/images/telegram.svg',
       name: 'Telegram',
-      url: 'https://t.me/share/url?url=https://textbee.dev&text=🔥+Found+an+awesome+SMS+gateway+platform+-+textbee.dev!+Great+for+those+who+need+reliable+sms+integration.',
+      url: `https://t.me/share/url?url=${encodedSite}&text=${encodedDescription}`,
     },
     {
       icon: '/images/gmail.svg',
       name: 'Email',
-      url: "mailto:?subject=Check+out+textbee.dev+-+SMS+Gateway+Platform&body=Hi!%0A%0AI+wanted+to+share+textbee.dev+with+you+-+it's+an+excellent+SMS+gateway+platform+that's+perfect+for+those+who+need+reliable+sms+integration.%0A%0ACheck+it+out:+https://textbee.dev%0A%0ABest+regards!",
+      url: `mailto:?subject=${encodeURIComponent('Check out TextBee')}&body=${encodedDescription}%0A%0A${encodedSite}`,
     },
   ]
   const [currentUrl, setCurrentUrl] = useState(socials[0].url)
@@ -151,7 +157,8 @@ export default function CommunityLinks() {
           </CardHeader>
           <CardContent>
             <p className='text-sm text-muted-foreground mb-4'>
-              Help others discover textbee.dev by sharing it with your network.
+              Help others discover this TextBee deployment by sharing it with
+              your network.
             </p>
 
             <Button
@@ -159,7 +166,7 @@ export default function CommunityLinks() {
               className='w-full'
               onClick={() => setSocialOpen(true)}
             >
-              <Share2 className='mr-2 h-4 w-4' /> Share textbee.dev
+              <Share2 className='mr-2 h-4 w-4' /> Share TextBee
             </Button>
           </CardContent>
         </Card>
@@ -168,12 +175,11 @@ export default function CommunityLinks() {
         <DialogContent className='sm:max-w-[600px] text-base'>
           <DialogHeader>
             <DialogTitle className='text-primary mb-2 text-xl font-bold sm:text-2xl'>
-              Share textbee.dev with Others
+              Share TextBee with others
             </DialogTitle>
             {/* A bare <p> here left the dialog with no aria-describedby. */}
             <DialogDescription>
-              Help us grow by sharing textbee.dev with your friends and
-              colleagues.
+              Help us grow by sharing TextBee with your friends and colleagues.
             </DialogDescription>
           </DialogHeader>
 

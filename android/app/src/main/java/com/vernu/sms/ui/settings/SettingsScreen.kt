@@ -251,7 +251,7 @@ fun SettingsScreen(
                 icon = Icons.Default.SupportAgent,
                 title = "Get Support",
                 onClick = {
-                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://app.textbee.dev/dashboard/account/get-support")))
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(BuildConfig.SUPPORT_URL)))
                 },
                 trailing = {
                     Icon(Icons.Default.OpenInBrowser, contentDescription = null,
@@ -264,10 +264,10 @@ fun SettingsScreen(
                 title = "Share textbee",
                 subtitle = "Help spread the word",
                 onClick = {
-                    val shareText = "i've been using textbee.dev to send SMS via API from my own phone, " +
+                    val shareText = "I've been using TextBee to send SMS via API from my own phone, " +
                         "no Twilio or paid services needed. works great for automations, alerts, " +
                         "notifications, or anything that needs programmatic SMS. open source and free to start\n\n" +
-                        "https://textbee.dev"
+                        BuildConfig.SITE_URL
                     context.startActivity(
                         Intent.createChooser(
                             Intent(Intent.ACTION_SEND).apply {
@@ -277,32 +277,6 @@ fun SettingsScreen(
                             "Share TextBee"
                         )
                     )
-                }
-            )
-
-            SettingsSectionHeader("Legal")
-
-            SettingsRow(
-                icon = Icons.Default.Gavel,
-                title = "Terms of Service",
-                onClick = {
-                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://textbee.dev/terms-of-service")))
-                },
-                trailing = {
-                    Icon(Icons.Default.OpenInBrowser, contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
-                }
-            )
-
-            SettingsRow(
-                icon = Icons.Default.Policy,
-                title = "Privacy Policy",
-                onClick = {
-                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://textbee.dev/privacy-policy")))
-                },
-                trailing = {
-                    Icon(Icons.Default.OpenInBrowser, contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
                 }
             )
 
@@ -414,10 +388,10 @@ fun SettingsScreen(
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(
                             onClick = {
-                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://textbee.dev")))
+                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(BuildConfig.SITE_URL)))
                             }
                         ) {
-                            Text("textbee.dev")
+                            Text("textbee.pappas.io")
                         }
                         OutlinedButton(
                             onClick = {

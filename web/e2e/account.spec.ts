@@ -92,7 +92,7 @@ test.describe('account settings (mocked API, no real backend)', () => {
     expect(stubHits).toEqual([])
   })
 
-  test('the pricing page is reachable from billing on any plan', async ({
+  test('billing does not offer an unhosted pricing destination', async ({
     page,
     context,
   }) => {
@@ -102,7 +102,7 @@ test.describe('account settings (mocked API, no real backend)', () => {
 
     await expect(
       page.getByRole('link', { name: /Compare all plans/ })
-    ).toHaveAttribute('href', 'https://textbee.dev/pricing')
+    ).toHaveCount(0)
   })
 
   // Password managers key off autoComplete to tell the three password boxes

@@ -1,5 +1,4 @@
 import { Routes } from '@/config/routes'
-import { Activity } from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
 
@@ -10,9 +9,7 @@ import Image from 'next/image'
 const links = [
   { label: 'Quick start', href: Routes.quickstart },
   { label: 'Download app', href: Routes.downloadAndroidApp },
-  { label: 'Privacy', href: Routes.privacyPolicy },
-  { label: 'Terms', href: Routes.termsOfService },
-  { label: 'Refund', href: Routes.refundPolicy },
+  { label: 'Contribute', href: Routes.contribute },
 ]
 
 const linkClass =
@@ -44,25 +41,10 @@ export default function Footer() {
           className='flex w-full flex-col items-start gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-center sm:gap-x-5 sm:gap-y-2'
         >
           {links.map((link) => (
-            <Link
-              key={link.label}
-              href={link.href}
-              target='_blank'
-              rel='noopener noreferrer'
-              className={linkClass}
-            >
+            <Link key={link.label} href={link.href} className={linkClass}>
               {link.label}
             </Link>
           ))}
-          <Link
-            href={Routes.statusPage}
-            target='_blank'
-            rel='nofollow noopener noreferrer'
-            className='inline-flex items-center gap-1.5 rounded-full bg-green-50 px-2.5 py-1 text-sm font-medium text-green-700 transition-colors hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400 dark:hover:bg-green-900/30'
-          >
-            <Activity className='h-3.5 w-3.5 text-green-500' />
-            Status
-          </Link>
         </nav>
       </div>
     </footer>

@@ -17,6 +17,26 @@ def downloadUrlForApiBaseUrl = { String value ->
             ? value.substring(0, value.length() - "/api/v1/".length()) + "/download"
             : ""
 }
+def loginUrlForApiBaseUrl = { String value ->
+    value.endsWith("/api/v1/")
+            ? value.substring(0, value.length() - "/api/v1/".length()) + "/login"
+            : ""
+}
+def quickstartUrlForApiBaseUrl = { String value ->
+    value.endsWith("/api/v1/")
+            ? value.substring(0, value.length() - "/api/v1/".length()) + "/quickstart"
+            : ""
+}
+def supportUrlForApiBaseUrl = { String value ->
+    value.endsWith("/api/v1/")
+            ? value.substring(0, value.length() - "/api/v1/".length()) + "/dashboard/account/get-support"
+            : ""
+}
+def siteUrlForApiBaseUrl = { String value ->
+    value.endsWith("/api/v1/")
+            ? value.substring(0, value.length() - "/api/v1/".length())
+            : ""
+}
 
 def validateApiBaseUrl = { String value, String source ->
     if (!value) {
@@ -108,6 +128,14 @@ android {
                     quoteBuildConfigString(dashboardUrlForApiBaseUrl(devApiBaseUrl))
             buildConfigField "String", "DOWNLOAD_URL",
                     quoteBuildConfigString(downloadUrlForApiBaseUrl(devApiBaseUrl))
+            buildConfigField "String", "LOGIN_URL",
+                    quoteBuildConfigString(loginUrlForApiBaseUrl(devApiBaseUrl))
+            buildConfigField "String", "QUICKSTART_URL",
+                    quoteBuildConfigString(quickstartUrlForApiBaseUrl(devApiBaseUrl))
+            buildConfigField "String", "SUPPORT_URL",
+                    quoteBuildConfigString(supportUrlForApiBaseUrl(devApiBaseUrl))
+            buildConfigField "String", "SITE_URL",
+                    quoteBuildConfigString(siteUrlForApiBaseUrl(devApiBaseUrl))
             buildConfigField "String", "ENVIRONMENT", '"development"'
             resValue "string", "app_name", "TextBee (Dev)"
         }
@@ -120,6 +148,14 @@ android {
                     quoteBuildConfigString(dashboardUrlForApiBaseUrl(productionApiBaseUrl))
             buildConfigField "String", "DOWNLOAD_URL",
                     quoteBuildConfigString(downloadUrlForApiBaseUrl(productionApiBaseUrl))
+            buildConfigField "String", "LOGIN_URL",
+                    quoteBuildConfigString(loginUrlForApiBaseUrl(productionApiBaseUrl))
+            buildConfigField "String", "QUICKSTART_URL",
+                    quoteBuildConfigString(quickstartUrlForApiBaseUrl(productionApiBaseUrl))
+            buildConfigField "String", "SUPPORT_URL",
+                    quoteBuildConfigString(supportUrlForApiBaseUrl(productionApiBaseUrl))
+            buildConfigField "String", "SITE_URL",
+                    quoteBuildConfigString(siteUrlForApiBaseUrl(productionApiBaseUrl))
             buildConfigField "String", "ENVIRONMENT", '"production"'
             resValue "string", "app_name", "TextBee"
         }

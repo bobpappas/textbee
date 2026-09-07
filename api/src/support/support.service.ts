@@ -17,6 +17,7 @@ import {
   SupportCategory,
 } from './dto/create-support-message.dto'
 import { MailService } from '../mail/mail.service'
+import { PUBLIC_LOGO_URL } from '../common/public-web-links'
 
 @Injectable()
 export class SupportService {
@@ -72,8 +73,7 @@ export class SupportService {
           phone: sanitizedDto.phone || 'Not provided',
           category: sanitizedDto.category,
           message: sanitizedDto.message,
-          appLogoUrl:
-            process.env.APP_LOGO_URL || 'https://textbee.dev/logo.png',
+          appLogoUrl: PUBLIC_LOGO_URL,
           currentYear: new Date().getFullYear(),
         },
       })
@@ -144,8 +144,7 @@ export class SupportService {
           name: user.name,
           email: user.email,
           message: sanitizedDto.message || 'No reason provided',
-          appLogoUrl:
-            process.env.APP_LOGO_URL || 'https://textbee.dev/logo.png',
+          appLogoUrl: PUBLIC_LOGO_URL,
           currentYear: new Date().getFullYear(),
         },
       })

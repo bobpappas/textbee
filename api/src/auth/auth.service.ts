@@ -20,6 +20,7 @@ import {
   EmailVerification,
   EmailVerificationDocument,
 } from './schemas/email-verification.schema'
+import { publicWebUrl } from '../common/public-web-links'
 
 // Failed OTP submissions allowed against a single password reset record.
 const MAX_PASSWORD_RESET_ATTEMPTS = 5
@@ -152,7 +153,9 @@ export class AuthService {
     })
     await passwordReset.save()
 
-    const resetLink = `${process.env.FRONTEND_URL || 'https://textbee.dev'}/reset-password?email=${encodeURIComponent(user.email)}&otp=${otp}`
+    const resetLink = publicWebUrl(
+      `/reset-password?email=${encodeURIComponent(user.email)}&otp=${otp}`,
+    )
 
     await this.mailService.sendEmailFromTemplate({
       to: user.email,
@@ -280,7 +283,9 @@ export class AuthService {
     })
     await emailVerification.save()
 
-    const verificationLink = `${process.env.FRONTEND_URL || 'https://textbee.dev'}/verify-email?userId=${user._id}&verificationCode=${verificationCode}`
+    const verificationLink = publicWebUrl(
+      `/verify-email?userId=${user._id}&verificationCode=${verificationCode}`,
+    )
 
     await this.mailService.sendEmailFromTemplate({
       to: user.email,

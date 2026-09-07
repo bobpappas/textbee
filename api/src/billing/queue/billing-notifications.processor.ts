@@ -8,6 +8,7 @@ import {
   BillingNotification,
   BillingNotificationDocument,
 } from '../schemas/billing-notification.schema'
+import { publicWebUrl } from '../../common/public-web-links'
 
 @Processor('billing-notifications')
 export class BillingNotificationsProcessor {
@@ -50,12 +51,13 @@ export class BillingNotificationsProcessor {
     }
 
     const subject = this.subjectForType(payload.type, payload.title)
-    const ctaUrlBase = process.env.FRONTEND_URL || 'https://app.textbee.dev'
     const isEmailVerification = payload.type === 'email_verification_required'
     const ctaUrl = isEmailVerification
-      ? `${ctaUrlBase}/dashboard/account`
-      : 'https://textbee.dev/#pricing'
-    const ctaLabel = isEmailVerification ? 'Verify your email' : 'View plans & pricing'
+      ? publicWebUrl('/dashboard/account')
+      : publicWebUrl('/dashboard/account/get-support')
+    const ctaLabel = isEmailVerification
+      ? 'Verify your email'
+      : 'Contact support'
 
     await this.mailService.sendEmailFromTemplate({
       to: user.email,
@@ -110,5 +112,4 @@ export class BillingNotificationsProcessor {
     }
   }
 }
-
 

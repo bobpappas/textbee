@@ -145,7 +145,7 @@ export class GatewayService {
         {
           message: this.isSelfHosted()
             ? `Active device limit reached — local policy allows up to ${deviceLimit} active device(s) and you have ${activeDeviceCount}. Disable or delete another device before connecting another.`
-            : `Active device limit reached — your plan allows up to ${deviceLimit} active device(s) and you have ${activeDeviceCount}. Disable or delete another device, or upgrade your plan at https://textbee.dev/pricing`,
+            : `Active device limit reached — your plan allows up to ${deviceLimit} active device(s) and you have ${activeDeviceCount}. Disable or delete another device, or contact your administrator.`,
           hasReachedLimit: true,
           deviceLimit,
           activeDeviceCount,

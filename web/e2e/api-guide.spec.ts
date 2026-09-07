@@ -101,7 +101,7 @@ test.describe('api guide (mocked API, no real backend)', () => {
     const clipboard = await page.evaluate(() =>
       navigator.clipboard.readText()
     )
-    expect(clipboard).toContain('api.textbee.dev')
+    expect(clipboard).toContain('https://textbee.pappas.io/api/v1')
   })
 
   test('does not scroll sideways at 375px', async ({ page, context }) => {

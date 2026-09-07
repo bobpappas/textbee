@@ -143,12 +143,6 @@ export function ContributeModal() {
                       Monthly Support on Patreon
                     </Link>
                   </Button>
-                  <Button variant='outline' className='w-full' asChild>
-                    <Link href={ExternalLinks.polar} target='_blank'>
-                      <Star className='mr-2 h-4 w-4' />
-                      One-time Donation via Polar.sh
-                    </Link>
-                  </Button>
                   <Button
                     variant='outline'
                     className='w-full'

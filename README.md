@@ -3,13 +3,13 @@
 ![Release](https://img.shields.io/github/v/release/vernu/textbee)
 [![Discord](https://img.shields.io/discord/1236287182940016723?label=Discord&logo=discord)](https://discord.gg/d7vyfBpWbQ)
 
-# textbee.dev - android sms gateway
+# TextBee - Android SMS gateway
 
 Send and receive SMS messages using your own Android phone - no Twilio, no per-message fees. Free, open-source, and self-hostable.
 
 Manage SMS messages through a web dashboard or a REST API. textbee is ideal for businesses, developers, and hobbyists looking for a reliable and cost-effective solution to automate SMS messaging.
 
-**Website:** [https://textbee.dev](https://textbee.dev?ref=gh-readme)
+**Self-hosted website:** [https://textbee.pappas.io](https://textbee.pappas.io)
 
 ![](https://ik.imagekit.io/vernu/textbee/textbee.dev-landingpage-screenshot.png?updatedAt=1749102564772)
 
@@ -143,7 +143,8 @@ Yes — messages are sent through your phone, so it needs to be powered on with 
 </details>
 <details>
 <summary><b>Is there a limit on the cloud-hosted version?</b></summary>
-See [textbee.dev](https://textbee.dev) for current plans and limits. You can always self-host for full control.
+This self-hosted deployment applies its local operating policy and limits. See
+the signed-in dashboard for the current gateway status.
 
 </details>
 
@@ -217,7 +218,7 @@ instructions.
    ```
 3. Configure `Caddy` to serve your web application and API. Example Caddyfile:
    ```
-   textbee.dev {
+   textbee.pappas.io {
        reverse_proxy /api/* localhost:3000
        reverse_proxy /* localhost:3001
    }

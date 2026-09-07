@@ -87,25 +87,6 @@ export default function ContributePage() {
                   </CardContent>
                 </Card>
               </div>
-              <div className='space-y-6'>
-                <Card className='overflow-hidden'>
-                  <CardHeader>
-                    <CardTitle className='text-lg'>One-time Support</CardTitle>
-                    <CardDescription>
-                      Make a one-time contribution
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <Button variant='outline' className='w-full' asChild>
-                      <Link href={ExternalLinks.polar} target='_blank'>
-                        <Heart className='mr-2 h-4 w-4' />
-                        Donate on Polar
-                      </Link>
-                    </Button>
-                  </CardContent>
-                </Card>
-              </div>
-
               <Card className='h-full overflow-hidden'>
                 <CardHeader>
                   <CardTitle className='text-lg'>Crypto Donations</CardTitle>

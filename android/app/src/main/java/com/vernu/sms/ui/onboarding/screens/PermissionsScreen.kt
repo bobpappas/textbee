@@ -153,17 +153,6 @@ fun PermissionsScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
             )
-            TextButton(
-                onClick = {
-                    context.startActivity(
-                        Intent(Intent.ACTION_VIEW, Uri.parse("https://textbee.dev/privacy-policy"))
-                    )
-                },
-                contentPadding = PaddingValues(0.dp)
-            ) {
-                Text("Privacy Policy", style = MaterialTheme.typography.bodySmall)
-            }
-
             Spacer(modifier = Modifier.height(16.dp))
 
             Button(

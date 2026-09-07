@@ -1,18 +1,16 @@
 export const Routes = {
-  landingPage: 'https://textbee.dev',
-  contribute: 'https://textbee.dev/contribute',
-  useCases: 'https://textbee.dev/use-cases',
-  quickstart: '/download',
+  landingPage: '/dashboard',
+  contribute: '/contribute',
+  quickstart: '/quickstart',
   login: '/login',
   logout: '/logout',
 
   dashboard: '/dashboard',
+  accountSupport: '/dashboard/account/get-support',
   organizations: '/dashboard/admin/organizations',
   groups: '/dashboard/groups',
 
   downloadAndroidApp: '/download',
-  privacyPolicy: 'https://textbee.dev/privacy-policy',
-  refundPolicy: 'https://textbee.dev/refund-policy',
-  termsOfService: 'https://textbee.dev/terms-of-service',
-  statusPage: 'https://status.textbee.dev',
 }
+
+export const CANONICAL_SITE_ORIGIN = 'https://textbee.pappas.io'

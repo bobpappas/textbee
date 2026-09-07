@@ -12,8 +12,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Check, ExternalLink } from 'lucide-react'
-import { Routes } from '@/config/routes'
+import { Check } from 'lucide-react'
 import { useSubscription } from '@/lib/api'
 import {
   PLAN_TIERS,
@@ -148,7 +147,7 @@ function PlanCard({
  * here at all.
  *
  * Custom is intentionally left out: it is a talk-to-us tier with no
- * self-serve checkout, and "Compare all plans" already links to it.
+ * self-serve checkout. This deployment has no approved local pricing page.
  */
 export default function PlanPicker({
   isLoading,
@@ -187,24 +186,9 @@ export default function PlanPicker({
         ))}
       </div>
 
-      <div className='flex flex-wrap items-center gap-4'>
-        <Button
-          variant='link'
-          size='sm'
-          className='h-auto px-0 text-xs text-muted-foreground'
-          asChild
-        >
-          <a
-            href={`${Routes.landingPage}/pricing`}
-            target='_blank'
-            rel='noreferrer'
-          >
-            Compare all plans
-            <ExternalLink className='ml-1 h-3 w-3' />
-          </a>
-        </Button>
-        {/* Skipping a step that is already settled would mean nothing. */}
-        {!isDone && (
+      {/* Skipping a step that is already settled would mean nothing. */}
+      {!isDone && (
+        <div className='flex flex-wrap items-center gap-4'>
           <Button
             variant='link'
             size='sm'
@@ -214,8 +198,8 @@ export default function PlanPicker({
           >
             Skip for now →
           </Button>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }

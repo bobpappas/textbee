@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import androidx.compose.animation.core.*
 import com.vernu.sms.AppConstants
+import com.vernu.sms.BuildConfig
 import com.vernu.sms.helpers.SharedPreferenceHelper
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -201,7 +202,7 @@ fun SetupCompleteScreen(
         OutlinedButton(
             onClick = {
                 context.startActivity(
-                    Intent(Intent.ACTION_VIEW, Uri.parse("https://app.textbee.dev/dashboard"))
+                    Intent(Intent.ACTION_VIEW, Uri.parse(BuildConfig.DASHBOARD_URL))
                 )
             },
             modifier = Modifier
@@ -216,7 +217,7 @@ fun SetupCompleteScreen(
         TextButton(
             onClick = {
                 context.startActivity(
-                    Intent(Intent.ACTION_VIEW, Uri.parse("https://textbee.dev/docs"))
+                    Intent(Intent.ACTION_VIEW, Uri.parse(BuildConfig.QUICKSTART_URL))
                 )
             }
         ) {
