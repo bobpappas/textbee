@@ -18,6 +18,8 @@ type World = Fixtures & {
   requestCountBeforeRefresh: number
   oldMessageRequest?: Request
   oldMessageRequestFailed: boolean
+  releaseOldMessageResponse?: () => void
+  oldMessageResponseSettled?: Promise<void>
 }
 
 async function executeStep(world: World, text: string) {
@@ -126,6 +128,14 @@ async function executeStep(world: World, text: string) {
       },
     )
 
+    // Keep A pending across the switch, regardless of navigation speed.
+    const oldMessageResponseGate = new Promise<void>((resolve) => {
+      world.releaseOldMessageResponse = resolve
+    })
+    let settleOldMessageResponse!: () => void
+    world.oldMessageResponseSettled = new Promise<void>((resolve) => {
+      settleOldMessageResponse = resolve
+    })
     let messageRequests = 0
     await page.route(
       '**/api/v1/gateway/devices/*/messages*',
@@ -135,7 +145,7 @@ async function executeStep(world: World, text: string) {
         const fromA = messageRequests === 1
         if (fromA) {
           world.oldMessageRequest = request
-          await new Promise((resolve) => setTimeout(resolve, 750))
+          await oldMessageResponseGate
         }
         try {
           await route.fulfill({
@@ -158,9 +168,12 @@ async function executeStep(world: World, text: string) {
               meta: { total: 1, page: 1, limit: 20, totalPages: 1 },
             }),
           })
-        } catch {
-          // The expected Organization A cancellation can close the intercepted
-          // request before its deliberately delayed response is fulfillable.
+        } catch (error) {
+          // A may already be cancelled; its requestfailed event is checked below.
+          // A failure serving B is never an expected cancellation.
+          if (!fromA) throw error
+        } finally {
+          if (fromA) settleOldMessageResponse()
         }
       },
     )
@@ -193,8 +206,11 @@ async function executeStep(world: World, text: string) {
     text ===
     'the delayed Organization A request is cancelled and cannot reappear'
   ) {
+    // Attempt the stale response only after B is rendered, and wait for the
+    // handler to finish before checking that A cannot reappear.
+    world.releaseOldMessageResponse!()
+    await world.oldMessageResponseSettled
     await expect.poll(() => world.oldMessageRequestFailed).toBe(true)
-    await page.waitForTimeout(900)
     await expect(page.getByText('private Organization A message')).toHaveCount(0)
     await expect(page.getByText('Organization B message')).toHaveCount(1)
     return
@@ -217,5 +233,10 @@ export async function runAcceptanceScenario(
     requestCountBeforeRefresh: 0,
     oldMessageRequestFailed: false,
   }
-  for (const step of scenario.steps) await executeStep(world, step.text)
+  try {
+    for (const step of scenario.steps) await executeStep(world, step.text)
+  } finally {
+    // Do not leave an intercepted request waiting if an earlier assertion fails.
+    world.releaseOldMessageResponse?.()
+  }
 }
