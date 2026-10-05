@@ -1,9 +1,9 @@
 Feature: B018 and B023 SMS consent and Text-to-Join operator safeguards
 
-  Scenario: Manual consent requires an affirmative operator action
+  Scenario: Adding a roster member without consent does not grant consent
     Given an authorized roster manager opens an active group roster
-    When the manager enters a contact without affirming consent
-    Then the Add person action remains unavailable
+    When the manager adds a contact without affirming consent
+    Then the request records no affirmation or consent method and the new member shows no active group consent
 
   Scenario: Manual consent evidence is submitted with the roster mutation
     Given an authorized roster manager opens an active group roster

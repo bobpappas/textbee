@@ -6,7 +6,7 @@ const feature = {
   "name": "B018 and B023 SMS consent and Text-to-Join operator safeguards",
   "scenarios": [
     {
-      "name": "Manual consent requires an affirmative operator action",
+      "name": "Adding a roster member without consent does not grant consent",
       "steps": [
         {
           "keyword": "Given",
@@ -14,11 +14,11 @@ const feature = {
         },
         {
           "keyword": "When",
-          "text": "the manager enters a contact without affirming consent"
+          "text": "the manager adds a contact without affirming consent"
         },
         {
           "keyword": "Then",
-          "text": "the Add person action remains unavailable"
+          "text": "the request records no affirmation or consent method and the new member shows no active group consent"
         }
       ],
       "examples": []
@@ -121,7 +121,7 @@ const feature = {
 } as const
 
 test.describe(feature.name, () => {
-  test("Manual consent requires an affirmative operator action/example_1", async ({ page, context }) => {
+  test("Adding a roster member without consent does not grant consent/example_1", async ({ page, context }) => {
     await runAcceptanceScenario(feature, 0, {}, { page, context })
   })
 

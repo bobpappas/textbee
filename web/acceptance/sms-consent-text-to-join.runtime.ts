@@ -43,7 +43,7 @@ export async function runAcceptanceScenario(
       if (request.method() === "POST" && request.url().includes("/roster"))
         submitted = request.postDataJSON();
     });
-    await openGroup(fixtures);
+    await openGroup(fixtures, { rosterMembers: [] });
     await page.getByRole("button", { name: "Add person" }).click();
     await page.getByLabel("Display name").fill("Consent Test Contact");
     await page.getByLabel("US mobile number").fill("(208) 555-0124");
@@ -52,7 +52,9 @@ export async function runAcceptanceScenario(
       await expect(page.getByLabel(/Consent method note \(optional/)).toBeDisabled();
       await submit.click();
       await expect.poll(() => submitted).toMatchObject({ consentAffirmed: false });
-      await expect(page.getByText("No active group consent").first()).toBeVisible();
+      expect(submitted).not.toHaveProperty("consentMethodNote");
+      await expect(page.getByText("Consent Test Contact", { exact: true })).toBeVisible();
+      await expect(page.getByText("No active group consent", { exact: true })).toBeVisible();
       return;
     }
     await page
