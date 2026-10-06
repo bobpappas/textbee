@@ -65,7 +65,7 @@ export class AuthController {
     return await this.authService.updateProfile(input, req.user)
   }
 
-  @UseGuards(AuthGuard)
+  @UseGuards(AuthGuard, OrganizationOperationalGuard)
   @ApiOperation({ summary: 'Generate Api Key' })
   @ApiBearerAuth()
   @Post('/api-keys')
