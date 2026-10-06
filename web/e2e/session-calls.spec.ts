@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { authenticate } from './session'
+import { mockOrganizationContext } from '../test/fixtures'
 import { mockApi } from './mock-api'
 
 // Serverless-cost regression guard. The API client's token is seeded from the
@@ -12,7 +13,7 @@ test('dashboard navigation makes at most one /api/auth/session call', async ({
   context,
 }) => {
   await authenticate(context)
-  await mockApi(page)
+  await mockApi(page, { organizationContext: mockOrganizationContext })
 
   let sessionCalls = 0
   page.on('request', (request) => {
@@ -29,9 +30,9 @@ test('dashboard navigation makes at most one /api/auth/session call', async ({
   const mainNav = page.getByRole('navigation', { name: 'Main' })
   const tabs = page.getByRole('navigation', { name: 'Section navigation' })
 
-  await mainNav.getByRole('link', { name: 'Messaging' }).click()
+  await mainNav.getByRole('link', { name: 'Administrator testing' }).click()
   await expect(page).toHaveURL(/\/dashboard\/messaging$/)
-  await tabs.getByRole('link', { name: 'History' }).click()
+  await tabs.getByRole('link', { name: 'Message History' }).click()
   await expect(page).toHaveURL(/\/dashboard\/messaging\/history$/)
 
   await mainNav.getByRole('link', { name: 'Webhooks' }).click()

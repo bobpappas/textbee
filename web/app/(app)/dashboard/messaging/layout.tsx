@@ -16,17 +16,17 @@ export default function MessagingLayout({ children }: PropsWithChildren) {
       <div className='w-full max-w-3xl'>
         <PageHeader
           icon={MessageSquareTextIcon}
-          title='Messaging'
-          description='Send messages and view your SMS history'
+          title='Administrator testing'
+          description='Real SMS testing and standalone history. Normal consent and sending limits apply.'
         />
 
         <RouteTabs
           className='mb-6'
           tabs={[
-            { href: '/dashboard/messaging', label: 'Send', exact: true },
-            { href: '/dashboard/messaging/bulk', label: 'Bulk Send' },
-            { href: '/dashboard/messaging/history', label: 'History' },
-            { href: '/dashboard/messaging/api-guide', label: 'API' },
+            { href: '/dashboard/messaging', label: 'Individual SMS', exact: true },
+            { href: '/dashboard/messaging/bulk', label: 'Bulk SMS' },
+            { href: '/dashboard/messaging/history', label: 'Message History' },
+            { href: '/dashboard/messaging/api-guide', label: 'API Guide' },
           ]}
         />
 

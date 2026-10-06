@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { authenticate } from './session'
+import { mockOrganizationContext } from '../test/fixtures'
 import { mockApi } from './mock-api'
 
 // Search must find pages by the words a user thinks in, not by our nav labels,
@@ -13,27 +14,27 @@ test.describe('command palette search (mocked API, no real backend)', () => {
   }) => {
     await page.setViewportSize({ width: 1280, height: 900 })
     await authenticate(context)
-    await mockApi(page)
+    await mockApi(page, { organizationContext: mockOrganizationContext })
     await page.goto('/dashboard')
 
     await page.getByRole('button', { name: /search/i }).first().click()
 
     // "csv" appears nowhere in the label "Bulk send"; it matches via keywords.
     await page.getByPlaceholder(/search pages/i).fill('csv')
-    await page.getByRole('option', { name: /bulk send/i }).click()
+    await page.getByRole('option', { name: /bulk SMS testing/i }).click()
 
     await expect(page).toHaveURL(/\/dashboard\/messaging\/bulk/)
   })
 
-  test('desktop: business wording finds billing', async ({ page, context }) => {
+  test('desktop: quota wording finds the operational SMS policy', async ({ page, context }) => {
     await page.setViewportSize({ width: 1280, height: 900 })
     await authenticate(context)
-    await mockApi(page)
+    await mockApi(page, { organizationContext: mockOrganizationContext })
     await page.goto('/dashboard')
 
     await page.getByRole('button', { name: /search/i }).first().click()
-    await page.getByPlaceholder(/search pages/i).fill('invoice')
-    await page.getByRole('option', { name: /billing/i }).click()
+    await page.getByPlaceholder(/search pages/i).fill('quota')
+    await page.getByRole('option', { name: /operational SMS policy/i }).click()
 
     await expect(page).toHaveURL(/\/dashboard\/account\/billing/)
   })
@@ -44,7 +45,7 @@ test.describe('command palette search (mocked API, no real backend)', () => {
   }) => {
     await page.setViewportSize({ width: 375, height: 800 })
     await authenticate(context)
-    await mockApi(page)
+    await mockApi(page, { organizationContext: mockOrganizationContext })
     await page.goto('/dashboard')
 
     // Webhooks is deliberately absent from the 4-item mobile tab bar, so
@@ -59,7 +60,7 @@ test.describe('command palette search (mocked API, no real backend)', () => {
   test('keyboard shortcut opens the palette', async ({ page, context }) => {
     await page.setViewportSize({ width: 1280, height: 900 })
     await authenticate(context)
-    await mockApi(page)
+    await mockApi(page, { organizationContext: mockOrganizationContext })
     await page.goto('/dashboard')
 
     await page.keyboard.press('ControlOrMeta+k')
@@ -72,7 +73,7 @@ test.describe('command palette search (mocked API, no real backend)', () => {
   }) => {
     await page.setViewportSize({ width: 375, height: 800 })
     await authenticate(context)
-    await mockApi(page)
+    await mockApi(page, { organizationContext: mockOrganizationContext })
     await page.goto('/dashboard')
 
     await page.getByRole('button', { name: /search/i }).first().click()

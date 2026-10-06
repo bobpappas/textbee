@@ -1,23 +1,24 @@
 import { expect, test } from '@playwright/test'
 import { authenticate } from './session'
+import { mockOrganizationContext } from '../test/fixtures'
 import { mockApi } from './mock-api'
 
 test.describe('messaging (mocked API, no real backend)', () => {
   test('renders the send view with route tabs', async ({ page, context }) => {
     await authenticate(context)
-    await mockApi(page)
+    await mockApi(page, { organizationContext: mockOrganizationContext })
     await page.goto('/dashboard/messaging')
 
     await expect(
-      page.getByRole('heading', { name: 'Messaging', level: 2 })
+      page.getByRole('heading', { name: 'Administrator testing', level: 2 })
     ).toBeVisible()
     // Route tabs are links now.
     const nav = page.getByRole('navigation', { name: 'Section navigation' })
-    await expect(nav.getByRole('link', { name: 'Send', exact: true })).toBeVisible()
-    await expect(nav.getByRole('link', { name: 'History' })).toBeVisible()
+    await expect(nav.getByRole('link', { name: 'Individual SMS', exact: true })).toBeVisible()
+    await expect(nav.getByRole('link', { name: 'Message History' })).toBeVisible()
     // Send is the active tab on the index route.
     await expect(
-      nav.getByRole('link', { name: 'Send', exact: true })
+      nav.getByRole('link', { name: 'Individual SMS', exact: true })
     ).toHaveAttribute('aria-current', 'page')
   })
 
@@ -26,12 +27,12 @@ test.describe('messaging (mocked API, no real backend)', () => {
     context,
   }) => {
     await authenticate(context)
-    await mockApi(page)
+    await mockApi(page, { organizationContext: mockOrganizationContext })
     await page.goto('/dashboard/messaging')
 
     await page
       .getByRole('navigation', { name: 'Section navigation' })
-      .getByRole('link', { name: 'History' })
+      .getByRole('link', { name: 'Message History' })
       .click()
 
     await expect(page).toHaveURL(/\/dashboard\/messaging\/history/)
@@ -43,13 +44,13 @@ test.describe('messaging (mocked API, no real backend)', () => {
     context,
   }) => {
     await authenticate(context)
-    await mockApi(page)
+    await mockApi(page, { organizationContext: mockOrganizationContext })
 
     // Load the subroute directly: this is the refresh-survival guarantee.
     await page.goto('/dashboard/messaging/history')
 
     const nav = page.getByRole('navigation', { name: 'Section navigation' })
-    await expect(nav.getByRole('link', { name: 'History' })).toHaveAttribute(
+    await expect(nav.getByRole('link', { name: 'Message History' })).toHaveAttribute(
       'aria-current',
       'page'
     )
@@ -64,7 +65,7 @@ test.describe('messaging (mocked API, no real backend)', () => {
   }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await authenticate(context)
-    await mockApi(page)
+    await mockApi(page, { organizationContext: mockOrganizationContext })
 
     // Each subroute used to set its own width (Send xl, Bulk 3xl, API 4xl,
     // History none), so the layout jumped on every tab change.

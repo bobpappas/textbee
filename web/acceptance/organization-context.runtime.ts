@@ -135,7 +135,7 @@ async function executeStep(world: World, text: string) {
       }
     })
     await page.goto('/dashboard/messaging/history')
-    await expect(page.getByRole('heading', { name: 'Messaging' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Administrator testing' })).toBeVisible()
     return
   }
   if (text === 'the shell displays the active organization name and role') {

@@ -1,3 +1,4 @@
+import { fireEvent } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { describe, expect, it, vi } from 'vitest'
 import OrganizationContextProvider from '@/components/organizations/organization-context-provider'
@@ -64,5 +65,29 @@ describe('CommunicationsWorkspace', () => {
     expect(screen.getByText(/Most recent group message within 72 hours/)).toBeInTheDocument()
     expect(screen.getByLabelText('Reply to Synthetic Contact directly')).toBeInTheDocument()
     expect(screen.queryByText('+12085550123')).not.toBeInTheDocument()
+  })
+})
+
+
+describe('Explicit group send entry', () => {
+  it('requires group selection and keeps preview separate from confirmation', async () => {
+    navigation.query = 'compose=group'
+    server.use(
+      http.get(url(ApiEndpoints.organizations.currentContext()), () => HttpResponse.json({ data: {
+        ...mockOrganizationContext, capabilities: ['groups:read', 'group-messages:send'], roleLabel: 'Group sender',
+      } })),
+      http.get(url(ApiEndpoints.organizations.groups(organizationId)), () => HttpResponse.json({ data: mockOrganizationGroups })),
+      http.get(url(ApiEndpoints.organizations.groupCommunications(organizationId, group.id)), () => HttpResponse.json({ data: { items: [], view: 'unread' } })),
+    )
+    const component = <OrganizationContextProvider enabled><CommunicationsWorkspace /></OrganizationContextProvider>
+    const { rerender } = renderWithProviders(component)
+    expect(await screen.findByText('Choose a group above, then select Send group message. Preview recipients and SMS segments before confirming.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Send group message' })).not.toBeInTheDocument()
+    navigation.query = `compose=group&group=${group.id}`
+    rerender(<OrganizationContextProvider enabled><CommunicationsWorkspace /></OrganizationContextProvider>)
+    fireEvent.click(await screen.findByRole('button', { name: 'Send group message' }))
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+    expect(screen.getByText(/Keep updates concise/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Confirm send/ })).not.toBeInTheDocument()
   })
 })

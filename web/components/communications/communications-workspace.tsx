@@ -28,6 +28,8 @@ import {
   type ReplyPreview,
 } from '@/lib/api'
 import { apiErrorMessage } from '@/lib/utils/errorHandler'
+import { hasCapability } from '@/lib/dashboard-access'
+import { ORGANIZATION_PROFILE_MANAGE } from '@/lib/api/types'
 import { GroupMessageDialog } from '@/components/groups/group-message-dialog'
 
 type View = 'unread' | 'recent' | 'all' | 'groups'
@@ -43,11 +45,12 @@ export default function CommunicationsWorkspace({
   const fresh = freshOrganizationContext(context)
   const active = fresh?.state === 'ACTIVE' ? (fresh as ActiveOrganizationContext) : null
   const organizationId = active?.organization.id ?? ''
-  const administrator = active?.roleLabel === 'Organization administrator'
+  const administrator = hasCapability(active ?? undefined, ORGANIZATION_PROFILE_MANAGE)
   const params = useSearchParams()
   const router = useRouter()
   const groups = useGroups(organizationId, false, { enabled: Boolean(active && !fixedGroupId), retry: false })
-  const selectedGroupId = fixedGroupId || params?.get('group') || (!administrator ? groups.data?.[0]?.id ?? '' : '')
+  const composingGroup = params?.get('compose') === 'group'
+  const selectedGroupId = fixedGroupId || params?.get('group') || (!administrator && !composingGroup ? groups.data?.[0]?.id ?? '' : '')
   const view = (['unread', 'recent', 'all', 'groups'].includes(params?.get('view') || '') ? params?.get('view') : 'unread') as View
   const selectedConversationId = params?.get('conversation') || ''
   const [search, setSearch] = useState(params?.get('search') || '')
@@ -61,14 +64,16 @@ export default function CommunicationsWorkspace({
     organizationId,
     selectedConversationId,
     selectedGroupId || undefined,
-    { enabled: Boolean(active && selectedConversationId), retry: false },
+    { enabled: Boolean(active && selectedConversationId), retry: false, retryOnMount: false },
   )
 
   useEffect(() => {
     if (!selectedConversationId || !thread.isError) return
     const status = (thread.error as any)?.response?.status
-    if (status === 403 || status === 404) void context.refetch()
-  }, [context, selectedConversationId, thread.error, thread.isError])
+    if ((status === 403 || status === 404) && thread.errorUpdatedAt > context.dataUpdatedAt) {
+      void context.refetch()
+    }
+  }, [context, selectedConversationId, thread.error, thread.errorUpdatedAt, thread.isError])
 
   const navigate = (updates: Record<string, string | undefined>) => {
     const next = new URLSearchParams(params?.toString() || '')
@@ -92,14 +97,15 @@ export default function CommunicationsWorkspace({
               value={selectedGroupId}
               onChange={(event) => navigate({ group: event.target.value || undefined, conversation: undefined })}
             >
-              {administrator && <option value="">Organization inbox</option>}
+              {composingGroup ? <option value="">Choose a group to message</option> : administrator && <option value="">Organization inbox</option>}
               {groups.data?.map((group) => <option key={group.id} value={group.id}>{group.displayName}</option>)}
             </select>
           </div>
-          {selectedGroup && <GroupMessageDialog organizationId={organizationId} groupId={selectedGroup.id} groupName={selectedGroup.displayName} joinCode={selectedGroup.joinCode} triggerLabel="New group message" />}
+          {selectedGroup && <GroupMessageDialog key={selectedGroup.id} organizationId={organizationId} groupId={selectedGroup.id} groupName={selectedGroup.displayName} joinCode={selectedGroup.joinCode} triggerLabel="Send group message" />}
         </div>
       )}
 
+      {composingGroup && !selectedGroup && <p role="status" className="text-sm text-muted-foreground">{groups.isPending ? 'Loading groups…' : groups.isError ? 'Groups could not be loaded. Try again.' : groups.data?.length ? 'Choose a group above, then select Send group message. Preview recipients and SMS segments before confirming.' : 'No groups are available to message. Ask your organization administrator for group access.'}</p>}
       <nav aria-label="Communications views" className="flex max-w-full gap-2 overflow-x-auto pb-1">
         {(['unread', 'recent', 'all', 'groups'] as View[]).map((item) => (
           <Button key={item} size="sm" variant={view === item ? 'default' : 'outline'} onClick={() => navigate({ view: item, conversation: undefined })}>
@@ -122,7 +128,7 @@ export default function CommunicationsWorkspace({
           </div>
           <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(16rem,22rem)_minmax(0,1fr)]">
             <section aria-label="Conversation list" className={selectedConversationId ? 'hidden min-w-0 lg:block' : 'min-w-0'}>
-              {communications.isPending ? <Skeleton className="h-64 w-full" /> : communications.isError ? <ErrorState title="Conversations could not be loaded" error={communications.error} onRetry={() => communications.refetch()} /> : communications.data.items.length === 0 ? (
+              {!selectedGroupId && (!administrator || composingGroup) ? <p className="py-6 text-sm text-muted-foreground">Select a group to view its conversations.</p> : communications.isPending ? <Skeleton className="h-64 w-full" /> : communications.isError ? <ErrorState title="Conversations could not be loaded" error={communications.error} onRetry={() => communications.refetch()} /> : communications.data.items.length === 0 ? (
                 <Card><CardContent className="py-10 text-center"><Inbox className="mx-auto mb-3 h-8 w-8" /><p className="font-medium">{view === 'unread' ? 'All caught up' : 'No conversations found'}</p>{view === 'unread' && <Button className="mt-3" variant="outline" onClick={() => navigate({ view: 'recent' })}>Open Recent</Button>}</CardContent></Card>
               ) : communications.data.items.map((item) => (
                 <button key={item.id} type="button" onClick={() => navigate({ conversation: item.id })} className={`mb-2 w-full min-w-0 rounded-lg border p-3 text-left focus-visible:outline-none focus-visible:ring-2 ${selectedConversationId === item.id ? 'border-primary' : ''}`}>
@@ -145,7 +151,7 @@ export default function CommunicationsWorkspace({
 
   return embedded ? content : (
     <section className="container mx-auto min-w-0 px-4 py-6 sm:px-6">
-      <PageHeader icon={MessageSquareText} title="Communications" description="Read, assign, and answer organization and group conversations." />
+      <PageHeader icon={MessageSquareText} title="Group Messages" description="Send concise group updates, read conversations, and reply within your authorized groups." />
       {content}
     </section>
   )

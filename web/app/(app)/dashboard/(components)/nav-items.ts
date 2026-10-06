@@ -2,13 +2,13 @@ import {
   LayoutDashboard,
   MessageSquareText,
   Webhook,
-  Users,
   UserCircle,
   Building2,
   UsersRound,
   ShieldCheck,
   type LucideIcon,
 } from 'lucide-react'
+import { canAccessDashboardPath } from '@/lib/dashboard-access'
 import type { OrganizationCapability, OrganizationContext } from '@/lib/api'
 import {
   GROUPS_READ,
@@ -40,7 +40,7 @@ export const navItems: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   {
     href: '/dashboard/communications',
-    label: 'Communications',
+    label: 'Group Messages',
     icon: MessageSquareText,
     requiredCapability: GROUP_MESSAGES_SEND,
   },
@@ -51,7 +51,6 @@ export const navItems: NavItem[] = [
     mobileHidden: true,
     requiredCapability: WEBHOOKS_READ,
   },
-  { href: '/dashboard/community', label: 'Community', icon: Users },
   {
     href: '/dashboard/account/billing',
     label: 'Account',
@@ -106,10 +105,11 @@ export function visibleNavItems(role?: string, context?: OrganizationContext) {
       : []
   const messagingDiagnostic: NavItem[] =
     context?.state === 'ACTIVE' && context.capabilities.includes(MESSAGES_READ)
-      ? [{ href: '/dashboard/messaging', label: 'Message History', icon: MessageSquareText, mobileHidden: true, requiredCapability: MESSAGES_READ }]
+      ? [{ href: '/dashboard/messaging', label: 'Administrator testing', icon: MessageSquareText, mobileHidden: true, requiredCapability: MESSAGES_READ }]
       : []
   return [...navItems, ...groupNavigation, ...messagingDiagnostic, ...organizationProfile, ...operatorAccess].filter(
     (item) =>
+      canAccessDashboardPath(item.href, context) &&
       (!item.requiredRole || item.requiredRole === role) &&
       (!item.requiredCapability ||
         (context?.state === 'ACTIVE' &&

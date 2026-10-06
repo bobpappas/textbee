@@ -1,5 +1,8 @@
 'use client'
 
+import { hasCapability } from '@/lib/dashboard-access'
+import { GATEWAYS_READ, USAGE_READ } from '@/lib/api/types'
+import DashboardRouteAccess from '@/components/organizations/dashboard-route-access'
 import { useState } from 'react'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
@@ -110,8 +113,8 @@ export default function DashboardLayout({
 
         {hasUsableContext ? (
           <div className="space-y-2 p-4 pb-0">
-            <UpdateAppNotificationBar />
-            <AccountDeletionAlert />
+            {hasCapability(freshContext, GATEWAYS_READ) && <UpdateAppNotificationBar />}
+            {hasCapability(freshContext, USAGE_READ) && <AccountDeletionAlert />}
           </div>
         ) : null}
         <main id="main-content" tabIndex={-1}>
@@ -135,7 +138,7 @@ export default function DashboardLayout({
               isRefreshing={organizationContext.isFetching}
             />
           ) : (
-            children
+            <DashboardRouteAccess path={pathname}>{children}</DashboardRouteAccess>
           )}
         </main>
         {/* Inside the sidebar-offset column so the fixed sidebar cannot paint
@@ -161,7 +164,7 @@ export default function DashboardLayout({
         </div>
       </nav>
 
-      <UpdateAppModal />
+      {hasCapability(freshContext, GATEWAYS_READ) && <UpdateAppModal />}
     </div>
   )
 }

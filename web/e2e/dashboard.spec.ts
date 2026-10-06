@@ -1,10 +1,11 @@
 import { expect, test } from '@playwright/test'
 import { authenticate } from './session'
+import { mockOrganizationContext } from '../test/fixtures'
 import { mockApi } from './mock-api'
 
 test.describe('dashboard (mocked API, no real backend)', () => {
   test('redirects unauthenticated users to login', async ({ page }) => {
-    await mockApi(page)
+    await mockApi(page, { organizationContext: mockOrganizationContext })
     await page.goto('/dashboard')
     await expect(page).toHaveURL(/\/login/)
   })
@@ -14,7 +15,7 @@ test.describe('dashboard (mocked API, no real backend)', () => {
     context,
   }) => {
     await authenticate(context)
-    await mockApi(page)
+    await mockApi(page, { organizationContext: mockOrganizationContext })
     await page.goto('/login')
     await expect(page).toHaveURL(/\/dashboard/)
   })
@@ -24,7 +25,7 @@ test.describe('dashboard (mocked API, no real backend)', () => {
     context,
   }) => {
     await authenticate(context)
-    await mockApi(page)
+    await mockApi(page, { organizationContext: mockOrganizationContext })
 
     await page.goto('/dashboard')
 
@@ -32,14 +33,14 @@ test.describe('dashboard (mocked API, no real backend)', () => {
       page.getByRole('heading', { name: 'Welcome back, Test', level: 2 })
     ).toBeVisible()
     // Quick actions row.
-    await expect(page.getByRole('link', { name: 'Send SMS' })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Send group message' })).toBeVisible()
     // Total SMS sent stat from the mocked gateway stats fixture (12,840).
     await expect(page.getByText('12,840')).toBeVisible()
-    // Onboarding card shows its progress bar (all 6 steps done in fixtures).
+    // Onboarding card shows its progress bar (all 4 steps done in fixtures).
     await expect(
       page.getByRole('progressbar', { name: 'Setup progress' })
     ).toBeVisible()
-    await expect(page.getByText('6 of 6')).toBeVisible()
+    await expect(page.getByText('4 of 4')).toBeVisible()
     // Webhooks summary row keeps a mobile path to /dashboard/webhooks
     // (fixtures have 1 active webhook).
     await expect(
@@ -59,7 +60,7 @@ test.describe('dashboard (mocked API, no real backend)', () => {
       context,
     }) => {
       await authenticate(context)
-      await mockApi(page)
+      await mockApi(page, { organizationContext: mockOrganizationContext })
       await page.goto('/dashboard')
 
       await page
@@ -90,7 +91,7 @@ test.describe('dashboard (mocked API, no real backend)', () => {
     context,
   }) => {
     await authenticate(context)
-    await mockApi(page)
+    await mockApi(page, { organizationContext: mockOrganizationContext })
     await page.goto('/dashboard')
 
     // That button asks for a key, so device instructions would be noise.
@@ -107,7 +108,7 @@ test.describe('dashboard (mocked API, no real backend)', () => {
     context,
   }) => {
     await authenticate(context)
-    await mockApi(page)
+    await mockApi(page, { organizationContext: mockOrganizationContext })
 
     // Held failing rather than failing once: react-query retries a failed
     // query several times before surfacing an error, so a single failure would
@@ -147,7 +148,7 @@ test.describe('dashboard (mocked API, no real backend)', () => {
     context,
   }) => {
     await authenticate(context)
-    await mockApi(page)
+    await mockApi(page, { organizationContext: mockOrganizationContext })
     await page.goto('/dashboard')
 
     // Daily and monthly windows straight from the subscription fixture:
@@ -161,10 +162,9 @@ test.describe('dashboard (mocked API, no real backend)', () => {
     await expect(page.getByText('/ 5,000')).toBeVisible()
     await expect(page.getByText('4,680 remaining')).toBeVisible()
 
-    // The quota counts inbound messages too (the backend counts SMS documents
-    // with no type filter), so the label must not claim these are only sends.
+    // The configured safety policy counts reserved and attempted outbound segments.
     await expect(
-      page.getByText(/Counts messages sent and received/)
+      page.getByText(/Counts reserved and attempted outbound SMS segments/)
     ).toBeVisible()
 
     // The old page decorated every stat with a green trend arrow and captioned

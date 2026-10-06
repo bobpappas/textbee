@@ -70,7 +70,7 @@ describe('isNavItemActive', () => {
     expect(
       visibleMobileNavItems('ADMIN').map((item) => item.label),
     ).not.toContain('Organizations')
-    expect(visibleMobileNavItems('ADMIN')).toHaveLength(3)
+    expect(visibleMobileNavItems('ADMIN')).toHaveLength(2)
   })
 
   it('shows the active profile only from a fresh server capability', () => {

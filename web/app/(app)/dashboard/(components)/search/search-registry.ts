@@ -11,12 +11,12 @@ import {
   Shield,
   Upload,
   UserCircle,
-  Users,
   Webhook,
   Building2,
   UsersRound,
   type LucideIcon,
 } from 'lucide-react'
+import { canAccessDashboardPath } from '@/lib/dashboard-access'
 import { Routes } from '@/config/routes'
 import type { OrganizationContext } from '@/lib/api'
 import {
@@ -56,11 +56,11 @@ export type SearchEntry = {
 export const searchEntries: SearchEntry[] = [
   {
     href: '/dashboard/communications',
-    label: 'Communications',
+    label: 'Group Messages',
     group: 'Messaging',
     icon: MessageSquareText,
-    description: 'Read and reply to organization and group conversations',
-    keywords: ['communications', 'inbox', 'conversations', 'unread', 'replies'],
+    description: 'Send group messages and read or reply to authorized conversations',
+    keywords: ['send', 'group message', 'communications', 'inbox', 'conversations', 'unread', 'replies'],
     requiredCapability: GROUP_MESSAGES_SEND,
   },
   {
@@ -120,7 +120,7 @@ export const searchEntries: SearchEntry[] = [
   },
   {
     href: '/dashboard/messaging',
-    label: 'Send SMS',
+    label: 'Individual SMS testing',
     group: 'Messaging',
     icon: Send,
     description: 'Compose a message to one or more recipients',
@@ -138,7 +138,7 @@ export const searchEntries: SearchEntry[] = [
   },
   {
     href: '/dashboard/messaging/bulk',
-    label: 'Bulk send',
+    label: 'Bulk SMS testing',
     group: 'Messaging',
     icon: Upload,
     description: 'Upload a CSV and send from a template',
@@ -236,23 +236,6 @@ export const searchEntries: SearchEntry[] = [
       'payload',
       'attempts',
       'debug',
-    ],
-  },
-  {
-    href: '/dashboard/community',
-    label: 'Community',
-    group: 'Overview',
-    icon: Users,
-    description: 'Discord, GitHub and socials',
-    keywords: [
-      'community',
-      'discord',
-      'github',
-      'help',
-      'chat',
-      'social',
-      'forum',
-      'twitter',
     ],
   },
   {
@@ -371,6 +354,7 @@ export function visibleSearchEntries(
       : []
   return [...searchEntries, ...organizationProfile].filter(
     (entry) =>
+      canAccessDashboardPath(entry.href, context) &&
       (!entry.requiredRole || entry.requiredRole === role) &&
       (!entry.requiredCapability ||
         (context?.state === 'ACTIVE' &&

@@ -42,14 +42,13 @@ export class CanModifyDevice implements CanActivate {
       apiKeyScopes.includes('gateway:operate')
     const humanAllowed =
       !request.apiKey &&
-      (organizationId
-        ? Boolean(
-            await this.organizationPolicy?.activeAdminMembership(
-              organizationId,
-              userId,
-            ),
-          )
-        : String(device?.user) === userId)
+      Boolean(organizationId) &&
+      Boolean(
+        await this.organizationPolicy?.activeAdminMembership(
+          organizationId,
+          userId,
+        ),
+      )
     if (gatewayKeyAllowed || humanAllowed) {
       request.organizationId = organizationId
       request.device = device

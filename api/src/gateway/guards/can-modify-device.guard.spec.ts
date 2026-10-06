@@ -25,11 +25,13 @@ describe('CanModifyDevice', () => {
     )
   })
 
-  it('allows the owner of the device', async () => {
+  it('rejects legacy ownership without organization administrator authority', async () => {
     gatewayService.getDeviceById.mockResolvedValue({ user: 'user_1' })
     const request = { params: { id: VALID_ID }, user: { id: 'user_1' } }
 
-    await expect(guard.canActivate(contextFor(request))).resolves.toBe(true)
+    await expect(guard.canActivate(contextFor(request))).rejects.toMatchObject({
+      status: 404,
+    })
   })
 
   it('rejects a non-owner (cross-tenant access)', async () => {

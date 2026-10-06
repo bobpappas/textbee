@@ -12,6 +12,7 @@ const DASHBOARD_DIR = join(process.cwd(), 'app', '(app)', 'dashboard')
 // Routes that exist only to redirect elsewhere. They have no content of their
 // own, so the destination is what belongs in search.
 const REDIRECT_ONLY = new Set([
+  '/dashboard/community',
   '/dashboard/account',
   '/dashboard/account/change-password',
   '/dashboard/account/edit-profile',

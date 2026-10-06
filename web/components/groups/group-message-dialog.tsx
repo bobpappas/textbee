@@ -40,7 +40,7 @@ export function GroupMessageDialog({ organizationId, groupId, groupName, joinCod
   return <Dialog open={open} onOpenChange={(value) => { setOpen(value); if (!value) reset() }}>
     <DialogTrigger asChild><Button><Send />{triggerLabel}</Button></DialogTrigger>
     <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
-      <DialogHeader><DialogTitle>Send to {groupName}</DialogTitle><DialogDescription>Preview the exact recipients and required join-code prefix before confirming. Previewing never sends or reserves capacity.</DialogDescription></DialogHeader>
+      <DialogHeader><DialogTitle>Send to {groupName}</DialogTitle><DialogDescription>Keep updates concise. Each recipient and SMS segment counts toward the sending limits. Review the exact audience and required join-code prefix before confirming; previewing never sends or reserves capacity.</DialogDescription></DialogHeader>
       {!result && <div className="min-w-0 space-y-4">
         <div className="space-y-2"><Label htmlFor="group-message-prefix">Required prefix</Label><Input id="group-message-prefix" value={`${preview?.joinCode || joinCode}:`} readOnly aria-readonly="true" /></div>
         <div className="space-y-2"><Label htmlFor="group-message-body">Message</Label><Textarea id="group-message-body" value={body} maxLength={1000} rows={5} onChange={(event) => { setBody(event.target.value); setPreview(null); setResult(null); setRequestId(''); setMessage('') }} /><p className="text-xs text-muted-foreground">The prefix is included in segment calculations and cannot be edited.</p></div>
