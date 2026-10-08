@@ -70,8 +70,8 @@ describe('CommunicationsWorkspace', () => {
 
 
 describe('Explicit group send entry', () => {
-  it('requires group selection and keeps preview separate from confirmation', async () => {
-    navigation.query = 'compose=group'
+  it.each(['', 'compose=group'])('requires selection even for one group on entry %s', async (query) => {
+    navigation.query = query
     server.use(
       http.get(url(ApiEndpoints.organizations.currentContext()), () => HttpResponse.json({ data: {
         ...mockOrganizationContext, capabilities: ['groups:read', 'group-messages:send'], roleLabel: 'Group sender',
@@ -82,7 +82,7 @@ describe('Explicit group send entry', () => {
     const component = <OrganizationContextProvider enabled><CommunicationsWorkspace /></OrganizationContextProvider>
     const { rerender } = renderWithProviders(component)
     expect(await screen.findByText('Choose a group above, then select Send group message. Preview recipients and SMS segments before confirming.')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Send group message' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Send group message' })).toBeDisabled()
     navigation.query = `compose=group&group=${group.id}`
     rerender(<OrganizationContextProvider enabled><CommunicationsWorkspace /></OrganizationContextProvider>)
     fireEvent.click(await screen.findByRole('button', { name: 'Send group message' }))

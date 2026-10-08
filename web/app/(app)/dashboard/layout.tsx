@@ -21,7 +21,6 @@ import {
   type NavItem,
 } from './(components)/nav-items'
 import { cn } from '@/lib/utils'
-import { Routes } from '@/config/routes'
 import {
   freshOrganizationContext,
   useOrganizationContext,
@@ -87,17 +86,7 @@ export default function DashboardLayout({
           </nav>
         </div>
         <div className="space-y-3 border-t border-border px-4 py-3">
-          <p className="text-xs text-muted-foreground">
-            Need help?{' '}
-            <a
-              href={Routes.quickstart}
-              target="_blank"
-              rel="noreferrer"
-              className="font-medium text-primary hover:underline"
-            >
-              Quick start
-            </a>
-          </p>
+
           <ThemeToggle />
         </div>
       </aside>

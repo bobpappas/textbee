@@ -44,10 +44,11 @@ for (const width of [390, 1280]) {
     ).toHaveCount(0);
     await page.keyboard.press("Escape");
     await page.getByRole("link", { name: "Send group message" }).click();
-    await expect(page.getByLabel("Group context")).toHaveValue("");
+    await expect(page.getByRole("group", { name: "Select Group:" })).toBeVisible();
+    await expect(page.getByRole("group", { name: "Select Group:" }).locator('[aria-pressed="true"]')).toHaveCount(0);
     await expect(
       page.getByRole("button", { name: "Send group message" }),
-    ).toHaveCount(0);
+    ).toBeDisabled();
     for (const path of [
       "/dashboard/messaging",
       "/dashboard/messaging/bulk",

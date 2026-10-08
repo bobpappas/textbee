@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useSession } from "next-auth/react";
 import {
   ArrowRight,
-  ArrowUpRightIcon,
   KeyRound,
   Plus,
   Send,
@@ -36,7 +35,6 @@ import {
   USAGE_READ,
   WEBHOOKS_READ,
 } from "@/lib/api/types";
-import { Routes } from "@/config/routes";
 
 // Compact path to webhooks: it left the mobile tab bar and its management
 // section moved to /dashboard/webhooks, so Home keeps a discoverable link.
@@ -125,16 +123,7 @@ export default function DashboardPage() {
               New API key
             </Button>
           )}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() =>
-              window.open(Routes.quickstart, "_blank", "noopener,noreferrer")
-            }
-          >
-            <ArrowUpRightIcon className="h-4 w-4" />
-            Quick Start
-          </Button>
+
         </div>
       </div>
 

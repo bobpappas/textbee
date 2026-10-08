@@ -1,7 +1,7 @@
 'use client'
 
 import { Send } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { useConfirmGroupMessage, usePreviewGroupMessage, type GroupMessagePreview, type GroupMessageSend } from '@/lib/api'
 import { apiErrorMessage } from '@/lib/utils/errorHandler'
 
-export function GroupMessageDialog({ organizationId, groupId, groupName, joinCode, triggerLabel = 'Send message' }: { organizationId: string; groupId: string; groupName: string; joinCode: string; triggerLabel?: string }) {
+export function GroupMessageDialog({ organizationId, groupId, groupName, joinCode, triggerLabel = 'Send message', onDraftChange }: { organizationId: string; groupId: string; groupName: string; joinCode: string; triggerLabel?: string; onDraftChange?: (dirty: boolean) => void }) {
   const previewMutation = usePreviewGroupMessage(organizationId, groupId)
   const confirmMutation = useConfirmGroupMessage(organizationId, groupId)
   const [open, setOpen] = useState(false)
@@ -20,6 +20,14 @@ export function GroupMessageDialog({ organizationId, groupId, groupName, joinCod
   const [result, setResult] = useState<GroupMessageSend | null>(null)
   const [requestId, setRequestId] = useState('')
   const [message, setMessage] = useState('')
+  useEffect(() => {
+    onDraftChange?.(Boolean(body.trim()) && !result)
+    return () => onDraftChange?.(false)
+  }, [body, result, onDraftChange])
+  const changeOpen = (value: boolean) => {
+    setOpen(value)
+    if (!value && result) reset()
+  }
   const reset = () => { setBody(''); setPreview(null); setResult(null); setRequestId(''); setMessage('') }
   const createPreview = () => {
     setMessage('')
@@ -37,7 +45,7 @@ export function GroupMessageDialog({ organizationId, groupId, groupName, joinCod
     })
   }
   const capacity = (value: number) => value === -1 ? 'Unlimited' : value.toLocaleString()
-  return <Dialog open={open} onOpenChange={(value) => { setOpen(value); if (!value) reset() }}>
+  return <Dialog open={open} onOpenChange={changeOpen}>
     <DialogTrigger asChild><Button><Send />{triggerLabel}</Button></DialogTrigger>
     <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
       <DialogHeader><DialogTitle>Send to {groupName}</DialogTitle><DialogDescription>Keep updates concise. Each recipient and SMS segment counts toward the sending limits. Review the exact audience and required join-code prefix before confirming; previewing never sends or reserves capacity.</DialogDescription></DialogHeader>
@@ -52,7 +60,7 @@ export function GroupMessageDialog({ organizationId, groupId, groupName, joinCod
           <DialogFooter><Button variant="outline" onClick={() => setPreview(null)}>Edit message</Button><Button onClick={confirm} disabled={!preview.canConfirm || confirmMutation.isPending}>{confirmMutation.isPending ? 'Confirming…' : `Confirm send to ${preview.eligibleCount}`}</Button></DialogFooter>
         </div>}
       </div>}
-      {result && <div className="space-y-4"><div role="status" aria-live="polite" className="rounded-lg border p-4"><p className="font-medium">Group send {result.status.toLowerCase()}</p><p className="mt-1 break-words text-sm text-muted-foreground">{Object.entries(result.counts).map(([status, count]) => `${status.toLowerCase()}: ${count}`).join(' · ')}</p></div><div className="grid gap-2">{result.recipients.map((item, index) => <div key={`${item.maskedNumber}-${index}`} className="flex min-w-0 flex-col justify-between gap-1 rounded-lg border p-3 text-sm sm:flex-row"><span className="break-words">{item.displayName} · {item.maskedNumber}</span><Badge variant={item.status === 'FAILED' ? 'destructive' : item.status === 'EXCLUDED' ? 'secondary' : 'outline'}>{item.status}</Badge></div>)}</div><DialogFooter><Button onClick={() => setOpen(false)}>Close</Button></DialogFooter></div>}
+      {result && <div className="space-y-4"><div role="status" aria-live="polite" className="rounded-lg border p-4"><p className="font-medium">Group send {result.status.toLowerCase()}</p><p className="mt-1 break-words text-sm text-muted-foreground">{Object.entries(result.counts).map(([status, count]) => `${status.toLowerCase()}: ${count}`).join(' · ')}</p></div><div className="grid gap-2">{result.recipients.map((item, index) => <div key={`${item.maskedNumber}-${index}`} className="flex min-w-0 flex-col justify-between gap-1 rounded-lg border p-3 text-sm sm:flex-row"><span className="break-words">{item.displayName} · {item.maskedNumber}</span><Badge variant={item.status === 'FAILED' ? 'destructive' : item.status === 'EXCLUDED' ? 'secondary' : 'outline'}>{item.status}</Badge></div>)}</div><DialogFooter><Button onClick={() => changeOpen(false)}>Close</Button></DialogFooter></div>}
       <p role="alert" aria-live="assertive" className="text-sm text-destructive">{message}</p>
     </DialogContent>
   </Dialog>
