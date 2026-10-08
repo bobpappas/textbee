@@ -6,7 +6,6 @@ import AppHeader from '@/components/shared/app-header'
 import Providers from './providers'
 import Analytics from '@/components/shared/analytics'
 import { Toaster } from '@/components/ui/toaster'
-import SupportHQWidget from '@/components/shared/support-hq-widget'
 import OrganizationContextProvider from '@/components/organizations/organization-context-provider'
 
 export default async function RootLayout({ children }: PropsWithChildren) {
@@ -21,7 +20,6 @@ export default async function RootLayout({ children }: PropsWithChildren) {
             Each section renders the footer inside its own content column. */}
         <main className='min-h-[80vh]'>{children}</main>
         <Analytics user={session?.user} />
-        <SupportHQWidget />
         <Toaster />
       </OrganizationContextProvider>
     </Providers>

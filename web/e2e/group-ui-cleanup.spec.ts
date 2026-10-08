@@ -9,6 +9,8 @@ const second = { ...first, id: '64b7c42f18f0c31f8c9fd202', displayName: 'Second 
 for (const role of ['Group sender', 'Group owner']) {
   for (const width of [390, 1280]) {
     test(`${role} selects a group and protects drafts at ${width}px`, async ({ page, context }) => {
+      const supportRequests: string[] = []
+      page.on('request', request => { if (request.url().includes('supporthq.app')) supportRequests.push(request.url()) })
       await page.setViewportSize({ width, height: 900 })
       await authenticate(context)
       await mockApi(page, { groups: [first, second], organizationContext: {
@@ -51,6 +53,9 @@ for (const role of ['Group sender', 'Group owner']) {
       const select = page.getByRole('combobox', { name: 'Resolution filter' })
       await expect(select).toHaveCSS('padding-right', '40px')
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+      await expect(page.locator('.shq-bubble')).toHaveCount(0)
+      await expect(page.getByRole('button', { name: 'Open chat', exact: true })).toHaveCount(0)
+      expect(supportRequests).toEqual([])
       await page.screenshot({ path: `/tmp/b059-${role.replace(' ', '-')}-${width}.png`, fullPage: true })
     })
   }
