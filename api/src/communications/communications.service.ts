@@ -65,6 +65,7 @@ type Access = {
   admin: boolean
   ownerGroupIds: Set<string>
   senderGroupIds: Set<string>
+  senderReadSince: Map<string, Date>
 }
 
 const UNAVAILABLE = { error: 'Conversation not found or access denied' }
@@ -399,13 +400,22 @@ export class CommunicationsService {
             organizationId: conversation.organizationId,
             userId: access.userId,
             entryId: { $in: inboundIds },
-            read: true,
           })
         : []
-      const readIds = new Set(read.map((item) => String(item.entryId)))
-      const unreadCount = inboundIds.filter(
-        (id) => !readIds.has(String(id)),
-      ).length
+      const readStates = new Map(read.map((item) => [String(item.entryId), item.read]))
+      const baseline = isSenderOnly(access, requestedGroupId)
+        ? access.senderReadSince.get(String(requestedGroupId))
+        : undefined
+      const unreadCount = visible.filter((entry) => {
+        if (entry.direction !== CommunicationDirection.INBOUND) return false
+        // Explicit user choices (including Mark unread) override the initial baseline.
+        const explicit = readStates.get(String(entry._id))
+        if (explicit !== undefined) return !explicit
+        // Use persistence time so newly arriving messages with old phone timestamps
+        // remain unread. Never filter history out of the conversation itself.
+        const receivedAt = entry.createdAt || entry.eventAt
+        return !baseline || receivedAt >= baseline
+      }).length
       if (view === 'unread' && unreadCount === 0) continue
       const last = visible[visible.length - 1]
       const groupIds = [
@@ -1091,6 +1101,9 @@ export class CommunicationsService {
       admin,
       ownerGroupIds: new Set(owners.map((item) => String(item.groupId))),
       senderGroupIds: new Set(senders.map((item) => String(item.groupId))),
+      // Assignment creation is stable: editing/reassigning a role must not silently
+      // clear unread messages. Legacy assignments without timestamps keep old behavior.
+      senderReadSince: new Map(senders.filter(item => item.createdAt).map(item => [String(item.groupId), item.createdAt])),
     }
   }
 

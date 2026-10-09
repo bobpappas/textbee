@@ -13,6 +13,8 @@ export type GroupSenderAssignmentDocument =
 export class GroupSenderAssignment {
   _id?: Types.ObjectId
 
+  createdAt?: Date
+
   @Prop({
     type: mongoose.Schema.Types.ObjectId,
     ref: Organization.name,
