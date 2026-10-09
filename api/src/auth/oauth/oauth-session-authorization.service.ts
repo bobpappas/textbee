@@ -8,6 +8,8 @@ import {
 } from './schemas/oauth-approval.schema'
 
 export type OAuthSessionClaims = {
+  purpose?: unknown
+  aud?: unknown
   sub?: unknown
   oauthProvider?: unknown
   authorizationRevision?: unknown
@@ -22,6 +24,8 @@ export class OAuthSessionAuthorizationService {
 
   async isCurrent(claims: OAuthSessionClaims, userId: unknown) {
     if (
+      claims.purpose !== undefined ||
+      claims.aud !== undefined ||
       typeof claims.oauthProvider !== 'string' ||
       typeof claims.authorizationRevision !== 'number' ||
       claims.authorizationRevision < 1 ||

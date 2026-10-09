@@ -45,6 +45,14 @@ export class LoggerMiddleware implements NestMiddleware {
     EventEmitterModule.forRoot(),
     ThrottlerModule.forRoot([
       {
+        name: 'admissionIp',
+        ttl: 60000,
+        limit: 300,
+        skipIf: context => !String(context.switchToHttp().getRequest().path || '').includes('/auth/access-requests'),
+        // Do not trust arbitrary forwarded headers. This also bounds invalid-token attempts.
+        getTracker: req => req.ip || req.socket?.remoteAddress || 'unknown',
+      },
+      {
         ttl: 60000,
         limit: 500,
       },

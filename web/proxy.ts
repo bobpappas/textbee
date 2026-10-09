@@ -13,6 +13,18 @@ export async function proxy(request: NextRequest) {
   })
   const { pathname } = request.nextUrl
 
+  if (token?.admission === 'onboarding' &&
+      pathname !== '/access-request' && pathname !== Routes.login &&
+      !pathname.startsWith('/api/auth/') && pathname !== '/logout') {
+    return NextResponse.redirect(new URL('/access-request', request.url))
+  }
+  if (!token && pathname === '/access-request') {
+    return NextResponse.redirect(new URL(Routes.login, request.url))
+  }
+  if (token && token.admission !== 'onboarding' && pathname === '/access-request') {
+    return NextResponse.redirect(new URL(Routes.dashboard, request.url))
+  }
+
   // if path is /app redirect to login or dashboard based on auth status
   if (pathname === '/app') {
     if (!token) {
@@ -32,7 +44,7 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  if (token && pathname === Routes.login) {
+  if (token && token.admission !== 'onboarding' && pathname === Routes.login) {
     const dashboardUrl = new URL(Routes.dashboard, request.url)
     return NextResponse.redirect(dashboardUrl)
   }

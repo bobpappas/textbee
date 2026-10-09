@@ -1,3 +1,4 @@
+import { AccessRequestService } from './access-request.service'
 import { Injectable, Optional, UnauthorizedException } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
 import { InjectConnection, InjectModel } from '@nestjs/mongoose'
@@ -44,9 +45,12 @@ export class OAuthAuthenticationOrchestrator {
     private readonly jwtService: JwtService,
     @Optional()
     private readonly legacyAdoption?: GoogleLegacyIdentityAdoptionService,
+    @Optional() private readonly accessRequests?: AccessRequestService,
   ) {}
 
   async authenticate(identity: VerifiedOAuthIdentity) {
+    const applicant = await this.accessRequests?.applicantSession(identity)
+    if (applicant) return applicant
     let record: AuthenticationRecord | undefined
     try {
       record = await this.connection.transaction((session) =>

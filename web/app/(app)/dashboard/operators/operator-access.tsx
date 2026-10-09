@@ -222,7 +222,8 @@ function AddOperator({ organizationId }: { organizationId: string }) {
           <DialogTitle>Add operator</DialogTitle>
           <DialogDescription>
             Add an already approved application user by exact email. The new
-            membership starts with no permissions.
+            membership starts with no permissions. New users must first sign in
+            with Google and receive platform administrator approval.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">

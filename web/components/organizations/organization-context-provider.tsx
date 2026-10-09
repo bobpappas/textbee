@@ -24,7 +24,7 @@ export default function OrganizationContextProvider({
 }: PropsWithChildren<{ enabled: boolean }>) {
   const queryClient = useQueryClient()
   const { data: session } = useSession()
-  const contextEnabled = enabled && Boolean(session?.user)
+  const contextEnabled = enabled && Boolean(session?.user && session.user.admission !== 'onboarding')
   const context = useOrganizationContextQuery({ enabled: contextEnabled })
   const previousOrganizationId = useRef<string | null>(null)
   const transitionId = useRef(0)

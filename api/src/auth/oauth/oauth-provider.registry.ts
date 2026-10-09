@@ -101,6 +101,7 @@ export class OAuthProviderRegistry {
     }
     return Object.freeze({
       providerKey,
+      ...(typeof identity.name === 'string' ? { name: identity.name.slice(0, 100) } : {}),
       subject: identity.subject,
       normalizedEmail,
       emailVerified: true as const,

@@ -18,7 +18,7 @@ export default function LoginPage() {
             Welcome back
           </CardTitle>
           <CardDescription className="text-center">
-            Sign in with an administrator-approved Google account
+            Sign in with Google. New users will request administrator approval.
           </CardDescription>
         </CardHeader>
         <CardContent>

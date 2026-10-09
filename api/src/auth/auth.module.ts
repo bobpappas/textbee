@@ -1,3 +1,13 @@
+import { OnboardingSessionGuard } from './oauth/onboarding-session.guard'
+import { Organization, OrganizationSchema } from '../organizations/schemas/organization.schema'
+import { OperatorMembership, OperatorMembershipSchema } from '../organizations/schemas/operator-membership.schema'
+import { OperatorGrant, OperatorGrantSchema } from '../organizations/schemas/operator-grant.schema'
+import { Group, GroupSchema } from '../groups/schemas/group.schema'
+import { GroupOwnerAssignment, GroupOwnerAssignmentSchema } from '../groups/schemas/group-owner-assignment.schema'
+import { GroupSenderAssignment, GroupSenderAssignmentSchema } from '../groups/schemas/group-sender-assignment.schema'
+import { ACCESS_REQUEST, AccessRequestSchema, ADMISSION_AUDIT, AdmissionAuditSchema } from './oauth/schemas/access-request.schema'
+import { AccessRequestService } from './oauth/access-request.service'
+import { AccessRequestController } from './oauth/access-request.controller'
 import { forwardRef, Module } from '@nestjs/common'
 import { JwtModule } from '@nestjs/jwt'
 import { MongooseModule } from '@nestjs/mongoose'
@@ -56,6 +66,14 @@ import {
 @Module({
   imports: [
     MongooseModule.forFeature([
+      { name: ACCESS_REQUEST, schema: AccessRequestSchema },
+      { name: ADMISSION_AUDIT, schema: AdmissionAuditSchema },
+      { name: GroupSenderAssignment.name, schema: GroupSenderAssignmentSchema },
+      { name: GroupOwnerAssignment.name, schema: GroupOwnerAssignmentSchema },
+      { name: Group.name, schema: GroupSchema },
+      { name: OperatorGrant.name, schema: OperatorGrantSchema },
+      { name: OperatorMembership.name, schema: OperatorMembershipSchema },
+      { name: Organization.name, schema: OrganizationSchema },
       {
         name: ApiKey.name,
         schema: ApiKeySchema,
@@ -101,8 +119,10 @@ import {
     CommonModule,
     forwardRef(() => OrganizationsModule),
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, AccessRequestController],
   providers: [
+    AccessRequestService,
+    OnboardingSessionGuard,
     AuthService,
     JwtStrategy,
     AuthGuard,

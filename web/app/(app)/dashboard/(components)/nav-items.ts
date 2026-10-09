@@ -37,6 +37,7 @@ export type NavItem = {
 // Primary dashboard navigation, shared by the desktop sidebar, the mobile tab
 // bar, and the command palette so they never drift out of sync.
 export const navItems: NavItem[] = [
+  { href: '/dashboard/admin/access-requests', label: 'Access requests', icon: ShieldCheck, mobileHidden: true, requiredRole: 'ADMIN' },
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   {
     href: '/dashboard/communications',
@@ -68,7 +69,7 @@ export const navItems: NavItem[] = [
 
 export function visibleNavItems(role?: string, context?: OrganizationContext) {
   if (context?.state !== 'ACTIVE' && role !== 'ADMIN') return []
-  if (context?.state === 'ACTIVE' && context.capabilities.length === 0) return []
+  if (context?.state === 'ACTIVE' && context.capabilities.length === 0 && role !== 'ADMIN') return []
   const groupNavigation: NavItem[] =
     context?.state === 'ACTIVE' && context.capabilities.includes(GROUPS_READ)
       ? [

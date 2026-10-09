@@ -8,6 +8,7 @@ import { Routes } from '@/config/routes'
 declare module 'next-auth' {
   interface Session {
     user: {
+      admission?: string
       id?: string
       role?: string
       phone?: string
@@ -19,6 +20,7 @@ declare module 'next-auth' {
   interface User {
     // The backend returns Mongo documents, so the id arrives as _id and is
     // copied onto the token below.
+    admission?: string
     _id?: string
     role?: string
     phone?: string
@@ -31,6 +33,7 @@ declare module 'next-auth' {
 // them or every callback parameter falls back to an implicit any.
 declare module 'next-auth/jwt' {
   interface JWT {
+    admission?: string
     id?: string
     role?: string
     phone?: string
@@ -91,6 +94,7 @@ export const authOptions: NextAuthOptions = {
       }
 
       if (user) {
+        token.admission = user.admission
         token.id = user._id
         token.role = user.role
         token.accessToken = user.accessToken
@@ -100,6 +104,7 @@ export const authOptions: NextAuthOptions = {
       return token
     },
     async session({ session, token }): Promise<any> {
+      session.user.admission = token.admission
       session.user.id = token.id
       session.user.role = token.role
       session.user.accessToken = token.accessToken

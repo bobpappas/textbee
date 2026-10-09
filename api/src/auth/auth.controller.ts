@@ -1,3 +1,4 @@
+import { Throttle } from '@nestjs/throttler'
 import {
   Body,
   Controller,
@@ -36,6 +37,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Approval-gated OAuth login' })
   @HttpCode(HttpStatus.OK)
   @Post('/oauth-login')
+  @Throttle({ default: { limit: 10, ttl: 60000, getTracker: req => req.ip || req.socket?.remoteAddress || 'unknown' } })
   async oauthLogin(@Body() input: OAuthLoginDTO) {
     const identity = await this.oauthProviders.verify(
       input.provider,

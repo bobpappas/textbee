@@ -49,7 +49,7 @@ export default function DashboardLayout({
   const contextPending = !freshContext
   const platformRegistryRoute = pathname.startsWith(
     '/dashboard/admin/organizations',
-  )
+  ) || pathname.startsWith('/dashboard/admin/access-requests')
   const organizationContextBlocked =
     (noAccess || selectionRequired) && !platformRegistryRoute
   const hasUsableContext =
@@ -114,7 +114,7 @@ export default function DashboardLayout({
             >
               Loading organization access…
             </div>
-          ) : organizationContextBlocked || noPermissions ? (
+          ) : organizationContextBlocked || (noPermissions && !platformRegistryRoute) ? (
             <OrganizationContextState
               state={
                 noAccess && !platformRegistryRoute

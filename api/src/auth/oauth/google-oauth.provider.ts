@@ -50,6 +50,7 @@ export class GoogleOAuthProvider implements OAuthIdentityProvider {
     return {
       providerKey: this.key,
       subject: payload.sub,
+      name: typeof payload.name === 'string' ? payload.name.slice(0, 100) : undefined,
       normalizedEmail: payload.email,
       emailVerified: true as const,
       auditMetadata: {

@@ -13,13 +13,13 @@ export default async function RootLayout({ children }: PropsWithChildren) {
 
   return (
     <Providers session={session}>
-      <OrganizationContextProvider enabled={Boolean(session?.user)}>
-        <AppHeader session={session} />
+      <OrganizationContextProvider enabled={Boolean(session?.user && session.user.admission !== 'onboarding')}>
+        {session?.user?.admission !== 'onboarding' && <AppHeader session={session} />}
         {/* No <Footer /> here: the dashboard's sidebar is fixed-position, so a
             full-width footer at this level gets painted over on its left edge.
             Each section renders the footer inside its own content column. */}
         <main className='min-h-[80vh]'>{children}</main>
-        <Analytics user={session?.user} />
+        {session?.user?.admission !== 'onboarding' && <Analytics user={session?.user} />}
         <Toaster />
       </OrganizationContextProvider>
     </Providers>

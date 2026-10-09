@@ -10,6 +10,7 @@ export interface VerifiedOAuthIdentity {
   providerKey: string
   subject: string
   normalizedEmail: string
+  name?: string
   emailVerified: true
   auditMetadata: Readonly<Record<string, string | number | boolean>>
 }
