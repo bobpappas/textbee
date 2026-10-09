@@ -16,6 +16,7 @@ import { NativeSelect } from '@/components/ui/native-select'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   useAssignAttribution,
   useCommunications,
@@ -231,7 +232,38 @@ function ConversationThreadView({ organizationId, groupId, thread, onBack, onDra
       <div className="max-h-[28rem] space-y-3 overflow-y-auto" aria-live="polite">
         {thread.entries.map((entry: CommunicationEntry) => <div key={entry.id} className={`max-w-[92%] rounded-lg border p-3 text-sm ${entry.direction === 'OUTBOUND' ? 'ml-auto bg-primary/5' : ''}`}><div className="flex flex-wrap items-center gap-2"><strong>{entry.author}</strong>{entry.group && <Badge variant="outline">{entry.group.displayName}</Badge>}<Badge variant={entry.attribution.state === 'CONFIRMED' ? 'default' : 'secondary'}>{entry.attribution.state}{entry.attribution.manuallyAssigned ? ' — manually assigned' : ''}</Badge></div><p className="mt-2 whitespace-pre-wrap break-words">{entry.message}</p><p className="mt-2 text-xs text-muted-foreground">{entry.attribution.reason} · {new Date(entry.eventAt).toLocaleString()}</p></div>)}
       </div>
-      {thread.workState && groupId && <div className="flex flex-wrap gap-2 border-t pt-3"><Button size="sm" variant="outline" onClick={() => readState.mutate({ conversationId: thread.id, groupId, read: false })}>Mark unread</Button><Button size="sm" variant="outline" onClick={() => workState.mutate({ conversationId: thread.id, groupId, action: 'assign-self', version: thread.workState.version }, { onError: (error) => setMessage(apiErrorMessage(error) || 'Assignment changed elsewhere. Current work state was refreshed.') })}>Assign to me</Button><Button size="sm" variant="outline" onClick={() => workState.mutate({ conversationId: thread.id, groupId, action: thread.workState.resolved ? 'reopen' : 'resolve', version: thread.workState.version }, { onError: (error) => setMessage(apiErrorMessage(error) || 'Resolution changed elsewhere. Current work state was refreshed.') })}>{thread.workState.resolved ? 'Reopen' : 'Resolve'}</Button></div>}
+      {thread.workState && groupId && (
+        <TooltipProvider delayDuration={250}>
+          <div className="flex flex-wrap gap-2 border-t pt-3">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button size="sm" variant="outline" onClick={() => readState.mutate({ conversationId: thread.id, groupId, read: false })}>Mark unread</Button>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs">
+                Mark incoming messages unread for you as a reminder to return. Opening the conversation marks them read.
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button size="sm" variant="outline" onClick={() => workState.mutate({ conversationId: thread.id, groupId, action: 'assign-self', version: thread.workState.version }, { onError: (error) => setMessage(apiErrorMessage(error) || 'Assignment changed elsewhere. Current work state was refreshed.') })}>Assign to me</Button>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs">
+                Let other operators know you are handling this conversation for the group. This does not send a message.
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button size="sm" variant="outline" onClick={() => workState.mutate({ conversationId: thread.id, groupId, action: thread.workState.resolved ? 'reopen' : 'resolve', version: thread.workState.version }, { onError: (error) => setMessage(apiErrorMessage(error) || 'Resolution changed elsewhere. Current work state was refreshed.') })}>{thread.workState.resolved ? 'Reopen' : 'Resolve'}</Button>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs">
+                {thread.workState.resolved
+                  ? 'Mark this conversation as needing attention again for the group. No message is sent.'
+                  : 'Mark this conversation as handled for the group. Messages are kept, and you can reopen it later.'}
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        </TooltipProvider>
+      )}
       {ambiguous && replyGroupId && latestInbound ? <div className="rounded-lg border p-3"><p className="text-sm">Resolve the group attribution before replying.</p><Button className="mt-2" size="sm" onClick={() => attribution.mutate({ entryId: latestInbound.id, groupId: replyGroupId, reason: 'Operator reviewed the stored candidate evidence' })}>Assign to this group</Button></div> : canReply && latestInbound ? <div className="space-y-3 border-t pt-4"><Label htmlFor="conversation-reply">Reply to {thread.contact.displayName} directly</Label><Textarea id="conversation-reply" value={body} rows={4} maxLength={1000} onChange={(event) => { setBody(event.target.value); setPreview(null); setRequestId('') }} />{preview && <div role="status" className="rounded-lg border p-3 text-sm"><p className="break-words font-medium">{preview.message}</p><p className="text-muted-foreground">{preview.encoding} · {preview.segments} segment{preview.segments === 1 ? '' : 's'} · {preview.recipient.displayName} {preview.recipient.number}</p></div>}<p role="alert" aria-live="assertive" className="text-sm text-destructive">{message}</p><div className="flex gap-2">{!preview ? <Button disabled={!body.trim() || previewReply.isPending} onClick={createPreview}>{previewReply.isPending ? 'Checking…' : 'Preview reply'}</Button> : <Button disabled={confirmReply.isPending} onClick={confirm}>{confirmReply.isPending ? 'Confirming…' : 'Confirm reply'}</Button>}</div></div> : null}
     </CardContent>
   </Card>
