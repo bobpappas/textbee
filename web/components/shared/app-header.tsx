@@ -222,7 +222,7 @@ export default function AppHeader({ session }: { session: Session | null }) {
           <span className='font-bold'>
             text<span className='text-primary'>bee</span>
             <span className='align-center text-xs text-muted-foreground'>
-              .dev
+              .pappas.io
             </span>
           </span>
         </Link>
