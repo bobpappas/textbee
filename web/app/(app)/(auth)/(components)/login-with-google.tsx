@@ -8,7 +8,8 @@ import {
   GoogleOAuthProvider,
 } from '@react-oauth/google'
 import { signIn } from 'next-auth/react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
+import { useTheme } from 'next-themes'
 
 // The provider lives here rather than in the app-wide tree so the Google
 // Identity SDK is only loaded on the two pages that render this button
@@ -24,7 +25,7 @@ export default function LoginWithGoogle() {
 }
 
 function GoogleLoginButton() {
-  const router = useRouter()
+  const { resolvedTheme } = useTheme()
   const searchParams = useSearchParams()
   const redirect = searchParams.get('redirect')
 
@@ -51,11 +52,13 @@ function GoogleLoginButton() {
       onSuccess={onGoogleLoginSuccess}
       onError={onGoogleLoginError}
       useOneTap={false}
-      width={'100%'}
       size="large"
       shape="pill"
       locale="en"
-      theme="outline"
+      theme={resolvedTheme === 'dark' ? 'filled_black' : 'outline'}
+      // Match the Google iframe's light canvas scheme so it stays transparent
+      // around the button, even when the surrounding page uses dark mode.
+      containerProps={{ style: { colorScheme: 'light' } }}
       text="continue_with"
     />
   )
