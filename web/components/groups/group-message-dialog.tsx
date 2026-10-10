@@ -1,6 +1,8 @@
 'use client'
 import { PacingSummary, SegmentGuidance, GroupSendProgress } from './pacing-summary'
 
+import { MessageCounter } from './message-counter'
+
 import { Send } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
@@ -52,7 +54,7 @@ export function GroupMessageDialog({ organizationId, groupId, groupName, joinCod
       <DialogHeader><DialogTitle>Send to {groupName}</DialogTitle><DialogDescription>Keep updates concise. Each recipient and SMS segment counts toward the sending limits. Review the exact audience and required join-code prefix before confirming; previewing never sends or reserves capacity.</DialogDescription></DialogHeader>
       {!result && <div className="min-w-0 space-y-4">
         <div className="space-y-2"><Label htmlFor="group-message-prefix">Required prefix</Label><Input id="group-message-prefix" value={`${preview?.joinCode || joinCode}:`} readOnly aria-readonly="true" /></div>
-        <div className="space-y-2"><Label htmlFor="group-message-body">Message</Label><Textarea id="group-message-body" value={body} maxLength={1000} rows={5} onChange={(event) => { setBody(event.target.value); setPreview(null); setResult(null); setRequestId(''); setMessage('') }} /><p className="text-xs text-muted-foreground">The prefix is included in segment calculations and cannot be edited.</p></div>
+        <div className="space-y-2"><Label htmlFor="group-message-body">Message</Label><Textarea id="group-message-body" aria-describedby="group-message-counter" value={body} maxLength={1000} rows={5} onChange={(event) => { setBody(event.target.value); setPreview(null); setResult(null); setRequestId(''); setMessage('') }} /><MessageCounter body={body} joinCode={preview?.joinCode || joinCode} recipients={preview?.eligibleCount} /></div>
         {!preview ? <Button type="button" onClick={createPreview} disabled={!body.trim() || previewMutation.isPending}>{previewMutation.isPending ? 'Building preview…' : 'Preview recipients'}</Button> : <div className="space-y-4">
           <div role="status" aria-live="polite" className="rounded-lg border p-4 text-sm"><p className="whitespace-pre-wrap [overflow-wrap:anywhere] font-medium">{preview.message}</p><SegmentGuidance preview={preview} /><PacingSummary pacing={preview.pacing} /><p className="mt-2 text-muted-foreground">{preview.eligibleCount} eligible of {preview.candidateCount} candidates · {preview.totalSegments} segments total</p><p className="text-muted-foreground">Remaining local capacity: {capacity(preview.remainingCapacity.minuteSegments)} this minute · {capacity(preview.remainingCapacity.dailySegments)} today · {capacity(preview.remainingCapacity.rolling30DaySegments)} rolling 30 days</p></div>
           {preview.excluded.length > 0 && <div className="space-y-2"><p className="font-medium">Excluded before send ({preview.excludedCount})</p>{preview.excluded.map((item, index) => <div key={`${item.maskedNumber}-${index}`} className="rounded-lg border p-3 text-sm"><p className="break-words font-medium">{item.displayName} · {item.maskedNumber}</p><p className="break-words text-muted-foreground">{item.explanation}</p></div>)}</div>}
