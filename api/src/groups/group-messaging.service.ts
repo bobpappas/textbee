@@ -1,3 +1,4 @@
+import { normalizeSms, textAdvice } from '../gateway/pacing/text'
 import {
   BadRequestException,
   ConflictException,
@@ -92,7 +93,7 @@ export class GroupMessagingService {
     input: unknown,
   ) {
     const access = await this.requireActiveGroup(organizationId, groupId, actor)
-    const body = this.body(input)
+    const body = normalizeSms(this.body(input))
     const message = `${access.group.joinCode}: ${body}`
     const device = await this.soleEnabledDevice(access.group.organizationId)
     const candidates = await this.candidates(
@@ -139,13 +140,23 @@ export class GroupMessagingService {
       recipients,
       expiresAt: new Date(Date.now() + PREVIEW_TTL_MS),
     })
-    return this.previewView(
+    const view = await this.previewView(
       preview,
       availability,
       segmentsPerRecipient,
       eligibleCount,
       access.senderOnly,
     )
+    return {
+      ...view,
+      normalizationChanged: body !== this.body(input),
+      normalizationSavedSegments:
+        Math.max(
+          0,
+          smsSegmentCount(`${access.group.joinCode}: ${this.body(input)}`) -
+            segmentsPerRecipient,
+        ) * eligibleCount,
+    }
   }
 
   async confirm(
@@ -167,7 +178,13 @@ export class GroupMessagingService {
       groupId: access.group._id,
       $or: [{ previewId: new Types.ObjectId(previewId) }, { requestId }],
     })
-    if (prior) return this.sendView(prior, access.senderOnly)
+    if (prior) {
+      if (String(prior.previewId) !== previewId)
+        throw new ConflictException(
+          'Confirmation key belongs to another preview',
+        )
+      return this.sendView(prior, access.senderOnly)
+    }
     const preview = await this.previews.findOne({
       _id: new Types.ObjectId(previewId),
       organizationId: access.group.organizationId,
@@ -202,12 +219,73 @@ export class GroupMessagingService {
     const availability = await this.selfHostedPolicy.previewAvailability(
       device._id,
     )
-    if (!this.fitsCapacity(availability, requiredSegments))
+    const pacing = await this.gateway.pacingEstimate?.(
+      device._id,
+      current.eligible.map(() => smsSegmentCount(preview.message)),
+    )
+    if (
+      pacing
+        ? !pacing.capacityAvailable
+        : !this.fitsCapacity(availability, requiredSegments)
+    )
       throw new ConflictException({
         error:
           'Local SMS capacity changed and cannot accept this group send. Create a new preview after the active safety window resets.',
         code: 'GROUP_CAPACITY_UNAVAILABLE',
       })
+
+    if (this.gateway.isPaced?.()) {
+      await this.gateway.queueGroup(
+        device,
+        current.eligible.map((item) => ({
+          message: preview.message,
+          recipient: item.mobileNumber,
+        })),
+        {
+          kind: 'ORDINARY',
+          organizationId,
+          groupId,
+          actorUserId: String(access.userId),
+        },
+        `group:${preview._id}`,
+        {
+          send: {
+            organizationId: access.group.organizationId,
+            groupId: access.group._id,
+            actorUserId: access.userId,
+            deviceId: device._id,
+            previewId: preview._id,
+            requestId,
+            groupName: preview.groupName,
+            joinCode: preview.joinCode,
+            body: preview.body,
+            message: preview.message,
+            candidateCount: preview.recipients.length,
+            acceptedCount: current.eligible.length,
+            excludedCount: current.excluded.length,
+          },
+          deliveries: [
+            ...current.eligible.map((i) => ({ ...i, status: 'ACCEPTED' })),
+            ...current.excluded.map((i) => ({
+              ...i,
+              status: 'EXCLUDED',
+              exclusionReason: i.reason,
+            })),
+          ].map((i) => ({
+            contactId: new Types.ObjectId(i.contactId),
+            displayName: i.displayName,
+            mobileNumber: i.mobileNumber,
+            status: i.status,
+            exclusionReason: (i as any).exclusionReason,
+          })),
+        },
+      )
+      const accepted = await this.sends.findOne({ previewId: preview._id })
+      await this.events?.emitAsync('group.message.confirmed', {
+        sendId: String(accepted._id),
+      })
+      return this.sendView(accepted, access.senderOnly)
+    }
 
     let send: GroupMessageSendDocument
     try {
@@ -269,7 +347,13 @@ export class GroupMessagingService {
           smsBody: preview.message,
           receivers: current.eligible.map((item) => item.mobileNumber),
         },
-        { kind: 'ORDINARY', organizationId, groupId },
+        {
+          kind: 'ORDINARY',
+          organizationId,
+          groupId,
+          actorUserId: String(access.userId),
+          idempotencyKey: `group:${preview._id}`,
+        },
         true,
       )
       send.status = result?.queued ? 'QUEUED' : 'ACCEPTED'
@@ -302,6 +386,32 @@ export class GroupMessagingService {
       )
       throw error
     }
+  }
+
+  async recent(organizationId: string, groupId: string, actor: Actor) {
+    const access = await this.requireActiveGroup(organizationId, groupId, actor)
+    const sends = await this.sends
+      .find({
+        organizationId: access.group.organizationId,
+        groupId: access.group._id,
+      })
+      .sort({ createdAt: -1 })
+      .limit(20)
+    const pendingBatchIds =
+      (await this.gateway.pacingPendingBatches?.(groupId)) || []
+    const olderPending = pendingBatchIds.length
+      ? await this.sends.find({
+          organizationId: access.group.organizationId,
+          groupId: access.group._id,
+          smsBatchId: { $in: pendingBatchIds },
+          _id: { $nin: sends.map((s) => s._id) },
+        })
+      : []
+    return Promise.all(
+      [...olderPending, ...sends].map((send) =>
+        this.sendView(send, access.senderOnly),
+      ),
+    )
   }
 
   async result(
@@ -467,7 +577,7 @@ export class GroupMessagingService {
     return devices[0]
   }
 
-  private previewView(
+  private async previewView(
     preview: GroupMessagePreviewDocument,
     availability: Record<string, number>,
     segmentsPerRecipient: number,
@@ -485,7 +595,13 @@ export class GroupMessagingService {
       {},
     )
     const totalSegments = segmentsPerRecipient * eligibleCount
-    const capacityAvailable = this.fitsCapacity(availability, totalSegments)
+    const pacing = await this.gateway.pacingEstimate?.(
+      preview.deviceId,
+      Array(eligibleCount).fill(segmentsPerRecipient),
+    )
+    const capacityAvailable = pacing
+      ? pacing.capacityAvailable
+      : this.fitsCapacity(availability, totalSegments)
     return {
       id: String(preview._id),
       group: { id: String(preview.groupId), displayName: preview.groupName },
@@ -506,6 +622,8 @@ export class GroupMessagingService {
             explanation: this.explanation(item.reason),
           })),
       segmentsPerRecipient,
+      textAdvice: textAdvice(preview.message, eligibleCount),
+      pacing,
       totalSegments,
       remainingCapacity: availability,
       capacityAvailable,
@@ -547,6 +665,9 @@ export class GroupMessagingService {
     return {
       id: String(send._id),
       status: send.status,
+      pacing: send.smsBatchId
+        ? await this.gateway.pacingProgress?.(send.smsBatchId)
+        : null,
       groupName: send.groupName,
       joinCode: send.joinCode,
       message: send.message,

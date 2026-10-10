@@ -8,22 +8,9 @@ import { SmsSafetyUsage } from './sms-safety-usage.schema'
 
 export type SafetyKind = 'ORDINARY' | 'COMPLIANCE'
 
-const GSM_BASIC = new Set(
-  '@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !"#¤%&\'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà',
-)
-const GSM_EXTENDED = new Set('^{}\\[~]|€')
-
+import { smsUnits } from '../gateway/pacing/text'
 export function smsSegmentCount(message: string) {
-  let septets = 0
-  for (const character of message) {
-    if (GSM_BASIC.has(character)) septets += 1
-    else if (GSM_EXTENDED.has(character)) septets += 2
-    else {
-      const units = message.length
-      return units <= 70 ? 1 : Math.ceil(units / 67)
-    }
-  }
-  return septets <= 160 ? 1 : Math.ceil(septets / 153)
+  return smsUnits(message).segments
 }
 
 @Injectable()
@@ -251,7 +238,18 @@ export class SelfHostedPolicyService {
             $filter: {
               input: { $ifNull: [`$${field}`, []] },
               as: 'event',
-              cond: condition,
+              cond: {
+                $cond: [
+                  {
+                    $and: [
+                      { $eq: ['$$event.paced', true] },
+                      { $eq: ['$$event.status', 'RESERVED'] },
+                    ],
+                  },
+                  window !== 'MINUTE',
+                  condition,
+                ],
+              },
             },
           },
           as: 'event',
@@ -268,6 +266,8 @@ export class SelfHostedPolicyService {
     window: 'MINUTE' | 'DAY' | 'ROLLING_30_DAYS',
   ) {
     return events.reduce((total, event) => {
+      if ((event as any).paced && (event as any).status === 'RESERVED')
+        return total + (window === 'MINUTE' ? 0 : event.segments)
       const eventAt = new Date(event.at)
       const included =
         window === 'DAY'

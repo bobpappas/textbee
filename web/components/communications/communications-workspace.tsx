@@ -33,6 +33,7 @@ import {
 import { apiErrorMessage } from '@/lib/utils/errorHandler'
 import { hasCapability } from '@/lib/dashboard-access'
 import { ORGANIZATION_PROFILE_MANAGE } from '@/lib/api/types'
+import { GroupSendProgress } from '@/components/groups/pacing-summary'
 import { GroupMessageDialog } from '@/components/groups/group-message-dialog'
 
 type View = 'unread' | 'recent' | 'all' | 'groups'
@@ -130,6 +131,7 @@ export default function CommunicationsWorkspace({
           {!selectedGroup && groups.isSuccess && Boolean(groups.data?.length) && <p role="status" className="text-sm text-muted-foreground">Choose a group above, then select Send group message. Preview recipients and SMS segments before confirming.</p>}
         </div>
       )}
+      {selectedGroup && <GroupSendProgress organizationId={organizationId} groupId={selectedGroup.id} />}
       <AlertDialog open={pendingNavigation !== null} onOpenChange={(open) => { if (!open) setPendingNavigation(null) }}>
         <AlertDialogContent>
           <AlertDialogHeader><AlertDialogTitle>Discard unsent draft?</AlertDialogTitle><AlertDialogDescription>Your draft belongs to the current group and conversation. Discard it before leaving; it will not be copied to another group.</AlertDialogDescription></AlertDialogHeader>

@@ -9,6 +9,15 @@ export type SmsSafetyUsageDocument = HydratedDocument<SmsSafetyUsage>
 export class SmsSafetyUsage {
   _id?: Types.ObjectId
 
+  @Prop({ type: Date })
+  pacedNextAt?: Date
+
+  @Prop({ type: Number, default: 0 })
+  pacedSequence?: number
+
+  @Prop({ type: Number, default: 0 })
+  pacedRevision?: number
+
   @Prop({
     type: mongoose.Schema.Types.ObjectId,
     ref: Device.name,

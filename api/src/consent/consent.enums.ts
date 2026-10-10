@@ -23,6 +23,8 @@ export type AcknowledgmentKind =
 
 export type DispatchPolicyContext = {
   kind: 'ORDINARY' | 'ACKNOWLEDGMENT'
+  actorUserId?: string
+  idempotencyKey?: string
   organizationId?: string
   groupId?: string
   acknowledgmentKind?: AcknowledgmentKind

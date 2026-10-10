@@ -1,3 +1,4 @@
+import { PacedSmsService } from './pacing/paced-sms.service'
 import { HttpException, HttpStatus, Injectable, Optional } from '@nestjs/common'
 import { InjectModel } from '@nestjs/mongoose'
 import { Device, DeviceDocument } from './schemas/device.schema'
@@ -58,7 +59,30 @@ export class GatewayService {
     private consentService: ConsentService,
     private selfHostedPolicy: SelfHostedPolicyService,
     @Optional() private readonly events?: EventEmitter2,
+    @Optional() private readonly paced?: PacedSmsService,
   ) {}
+
+  isPaced() {
+    return Boolean(this.paced?.enabled())
+  }
+  async queueGroup(
+    device: any,
+    inputs: any[],
+    context: any,
+    key: string,
+    receipt: any,
+  ) {
+    return this.paced.accept(device, inputs, context, key, receipt)
+  }
+  async pacingEstimate(deviceId: any, costs: number[]) {
+    return this.paced?.enabled() ? this.paced.estimate(deviceId, costs) : null
+  }
+  async pacingPendingBatches(groupId: string) {
+    return this.paced?.enabled() ? this.paced.pendingBatches(groupId) : []
+  }
+  async pacingProgress(batchId: any) {
+    return this.paced?.enabled() ? this.paced.progress(batchId) : null
+  }
 
   async previewMessagingEligibility(deviceId: string, recipients: string[]) {
     const device = await this.deviceModel.findById(deviceId)
@@ -413,7 +437,7 @@ export class GatewayService {
         HttpStatus.BAD_REQUEST,
       )
     }
-    if (policyContext.kind === 'ORDINARY')
+    if (policyContext.kind === 'ORDINARY' && !this.paced?.enabled())
       this.assertOrdinaryGatewayAvailable(device)
 
     const message = smsData.message || smsData.smsBody
@@ -468,6 +492,22 @@ export class GatewayService {
         },
         HttpStatus.CONFLICT,
       )
+    }
+
+    if (this.paced?.enabled() && policyContext.kind === 'ORDINARY') {
+      const delay = this.calculateDelayFromScheduledAt(smsData.scheduledAt)
+      const result = await this.paced.accept(
+        device,
+        recipients.map((recipient) => ({
+          message,
+          recipient,
+          notBefore: new Date(Date.now() + (delay || 0)),
+          simSubscriptionId: smsData.simSubscriptionId,
+        })),
+        policyContext,
+        (policyContext as any).idempotencyKey,
+      )
+      return { ...result, ...eligibilityDetails }
     }
 
     // Calculate delay from scheduledAt if provided
@@ -756,7 +796,11 @@ export class GatewayService {
     }
   }
 
-  async sendBulkSMS(deviceId: string, body: SendBulkSMSInputDTO): Promise<any> {
+  async sendBulkSMS(
+    deviceId: string,
+    body: SendBulkSMSInputDTO,
+    actorUserId?: string,
+  ): Promise<any> {
     const device = await this.deviceModel.findById(deviceId)
 
     if (!device?.enabled) {
@@ -768,7 +812,7 @@ export class GatewayService {
         HttpStatus.BAD_REQUEST,
       )
     }
-    this.assertOrdinaryGatewayAvailable(device)
+    if (!this.paced?.enabled()) this.assertOrdinaryGatewayAvailable(device)
 
     if (
       !Array.isArray(body.messages) ||
@@ -830,6 +874,27 @@ export class GatewayService {
       'bulk_send_sms',
       eligibleMessages.map((m) => m.recipients).flat().length,
     )
+
+    if (this.paced?.enabled()) {
+      const inputs = eligibleMessages.flatMap((m) =>
+        m.recipients.map((recipient) => ({
+          message: m.message,
+          recipient,
+          notBefore: new Date(
+            Date.now() +
+              (this.calculateDelayFromScheduledAt(m.scheduledAt) || 0),
+          ),
+          simSubscriptionId: m.simSubscriptionId,
+        })),
+      )
+      return {
+        ...(await this.paced.accept(device, inputs, {
+          kind: 'ORDINARY',
+          actorUserId,
+        })),
+        ...eligibilityDetails,
+      }
+    }
 
     // Check if any message has scheduledAt and validate queue is enabled
     const hasScheduledMessages = eligibleMessages.some((m) => m.scheduledAt)
@@ -1652,6 +1717,21 @@ export class GatewayService {
       )
     }
 
+    const candidate = await this.smsModel.findOne({
+      _id: smsId as any,
+      device: new Types.ObjectId(deviceId),
+    })
+    if (
+      candidate?.metadata?.paced &&
+      !(await this.paced?.canClaim(
+        candidate,
+        await this.deviceModel.findById(deviceId),
+      ))
+    )
+      throw new HttpException(
+        { error: 'Dispatch eligibility changed' },
+        HttpStatus.CONFLICT,
+      )
     const claimed = await this.smsModel.findOneAndUpdate(
       {
         _id: smsId as any,

@@ -297,7 +297,15 @@ export type RosterBulkImport = {
   rows: RosterBulkRow[]
 }
 
+export type PacingEstimate = {
+  generatedAt: string; rate: number; waitingForGateway: boolean; startAt: string | null; finishAt: string | null;
+  capacityAvailable: boolean; queuedAheadSegments?: number; counts?: Record<string, number>; total?: number
+}
 export type GroupMessagePreview = {
+  pacing?: PacingEstimate | null
+  normalizationChanged?: boolean
+  normalizationSavedSegments?: number
+  textAdvice?: { encoding: string; unsupported: string[]; trimUnits: number; saveOneSegmentTotal: number; unicodeSavings?: number }
   id: string
   group: { id: string; displayName: string }
   joinCode: string
@@ -327,6 +335,7 @@ export type GroupMessagePreview = {
 }
 
 export type GroupMessageSend = {
+  pacing?: PacingEstimate | null
   id: string
   status: 'PROCESSING' | 'QUEUED' | 'ACCEPTED' | 'FAILED'
   groupName: string

@@ -111,8 +111,12 @@ export class GatewayController {
   async sendSMS(
     @Param('id') deviceId: string,
     @Body() smsData: SendSMSInputDTO,
+    @Request() request,
   ) {
-    const data = await this.gatewayService.sendSMS(deviceId, smsData)
+    const data = await this.gatewayService.sendSMS(deviceId, smsData, {
+      kind: 'ORDINARY',
+      actorUserId: String(request.user._id),
+    })
     return { data }
   }
 
@@ -136,8 +140,13 @@ export class GatewayController {
   async sendBulkSMS(
     @Param('id') deviceId: string,
     @Body() body: SendBulkSMSInputDTO,
+    @Request() request,
   ) {
-    const data = await this.gatewayService.sendBulkSMS(deviceId, body)
+    const data = await this.gatewayService.sendBulkSMS(
+      deviceId,
+      body,
+      String(request.user._id),
+    )
     return { data }
   }
 

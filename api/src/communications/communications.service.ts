@@ -402,7 +402,9 @@ export class CommunicationsService {
             entryId: { $in: inboundIds },
           })
         : []
-      const readStates = new Map(read.map((item) => [String(item.entryId), item.read]))
+      const readStates = new Map(
+        read.map((item) => [String(item.entryId), item.read]),
+      )
       const baseline = isSenderOnly(access, requestedGroupId)
         ? access.senderReadSince.get(String(requestedGroupId))
         : undefined
@@ -822,10 +824,13 @@ export class CommunicationsService {
       })
     const segments = smsSegmentCount(message)
     const capacity = await this.safety.previewAvailability(device._id)
+    const pacing = await this.gateway.pacingEstimate?.(device._id, [segments])
     if (
-      !Object.values(capacity).every(
-        (remaining) => remaining === -1 || remaining >= segments,
-      )
+      pacing
+        ? !pacing.capacityAvailable
+        : !Object.values(capacity).every(
+            (remaining) => remaining === -1 || remaining >= segments,
+          )
     )
       throw new ConflictException({
         error:
@@ -996,7 +1001,13 @@ export class CommunicationsService {
           smsBody: preview.message,
           receivers: [contact.mobileNumber],
         },
-        { kind: 'ORDINARY', organizationId, groupId: String(group._id) },
+        {
+          kind: 'ORDINARY',
+          organizationId,
+          groupId: String(group._id),
+          actorUserId: String(access.userId),
+          idempotencyKey: `reply:${preview._id}`,
+        },
         true,
       )
       send.status = result?.queued ? 'QUEUED' : 'ACCEPTED'
@@ -1103,7 +1114,11 @@ export class CommunicationsService {
       senderGroupIds: new Set(senders.map((item) => String(item.groupId))),
       // Assignment creation is stable: editing/reassigning a role must not silently
       // clear unread messages. Legacy assignments without timestamps keep old behavior.
-      senderReadSince: new Map(senders.filter(item => item.createdAt).map(item => [String(item.groupId), item.createdAt])),
+      senderReadSince: new Map(
+        senders
+          .filter((item) => item.createdAt)
+          .map((item) => [String(item.groupId), item.createdAt]),
+      ),
     }
   }
 

@@ -1,3 +1,11 @@
+import { AndroidSmsTransport } from './pacing/android-sms.transport'
+import { PacedSmsService } from './pacing/paced-sms.service'
+import {
+  PACED_ITEM,
+  PACED_SEND,
+  PacedItemSchema,
+  PacedSendSchema,
+} from './pacing/paced-sms.schema'
 import { forwardRef, Module } from '@nestjs/common'
 import { MongooseModule } from '@nestjs/mongoose'
 import { Device, DeviceSchema } from './schemas/device.schema'
@@ -27,6 +35,8 @@ import { CanRegisterDevice } from './guards/can-register-device.guard'
 @Module({
   imports: [
     MongooseModule.forFeature([
+      { name: PACED_ITEM, schema: PacedItemSchema },
+      { name: PACED_SEND, schema: PacedSendSchema },
       {
         name: Device.name,
         schema: DeviceSchema,
@@ -78,6 +88,8 @@ import { CanRegisterDevice } from './guards/can-register-device.guard'
   controllers: [GatewayController],
   providers: [
     GatewayService,
+    PacedSmsService,
+    AndroidSmsTransport,
     CanModifyDevice,
     CanRegisterDevice,
     SmsQueueService,
@@ -85,6 +97,6 @@ import { CanRegisterDevice } from './guards/can-register-device.guard'
     SmsStatusUpdateTask,
     HeartbeatCheckTask,
   ],
-  exports: [MongooseModule, GatewayService, SmsQueueService],
+  exports: [MongooseModule, GatewayService, SmsQueueService, PacedSmsService],
 })
 export class GatewayModule {}

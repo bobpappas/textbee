@@ -139,6 +139,17 @@ export class GroupsController {
     )
   }
 
+  @Get('groups/:groupId/messages')
+  recentMessages(
+    @Param('organizationId') organizationId: string,
+    @Param('groupId') groupId: string,
+    @Request() request,
+  ) {
+    return this.data(
+      this.messaging.recent(organizationId, groupId, request.user),
+    )
+  }
+
   @Get('groups/:groupId/messages/:sendId')
   messageResult(
     @Param('organizationId') organizationId: string,
